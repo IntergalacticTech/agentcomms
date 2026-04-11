@@ -16,7 +16,12 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const msg = err instanceof Error ? err.message : "Login failed";
+      if (msg.toLowerCase().includes("verify your email") || msg.toLowerCase().includes("not confirmed")) {
+        navigate(`/verify?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      setError(msg);
     }
   }
 

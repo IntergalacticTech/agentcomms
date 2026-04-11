@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import LoginPage from "./auth/LoginPage";
 import SignupPage from "./auth/SignupPage";
+import VerifyPage from "./auth/VerifyPage";
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import InboxesPage from "./pages/InboxesPage";
@@ -33,6 +34,14 @@ function AppRoutes() {
         element={
           <PublicRoute>
             <SignupPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/verify"
+        element={
+          <PublicRoute>
+            <VerifyPage />
           </PublicRoute>
         }
       />

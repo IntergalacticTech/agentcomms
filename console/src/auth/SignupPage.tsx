@@ -71,10 +71,10 @@ export default function SignupPage() {
               {copied ? "Copied!" : "Copy API Key"}
             </button>
             <Link
-              to="/login"
+              to={`/verify?email=${encodeURIComponent(email)}`}
               className="block text-center text-sm text-indigo-600 hover:text-indigo-700 font-medium"
             >
-              Continue to login
+              Verify your email
             </Link>
           </div>
         </div>

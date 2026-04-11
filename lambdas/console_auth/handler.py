@@ -38,6 +38,10 @@ def handler(event, context):
 
     if path.endswith("/signup") and method == "POST":
         return handle_signup(event)
+    elif path.endswith("/verify") and method == "POST":
+        return handle_verify(event)
+    elif path.endswith("/resend-code") and method == "POST":
+        return handle_resend_code(event)
     elif path.endswith("/login") and method == "POST":
         return handle_login(event)
     elif path.endswith("/refresh") and method == "POST":
@@ -141,6 +145,47 @@ def handle_signup(event):
             "api_key": plaintext,
         }
     )
+
+
+def handle_verify(event):
+    """Confirm a user's email with the verification code from Cognito."""
+    body = parse_body(event)
+    err = require_fields(body, ["email", "code"])
+    if err:
+        return bad_request(err)
+
+    try:
+        cognito.confirm_sign_up(
+            ClientId=COGNITO_CLIENT_ID,
+            Username=body["email"],
+            ConfirmationCode=body["code"],
+        )
+        return success({"message": "Email verified. You can now log in."})
+    except cognito.exceptions.CodeMismatchException:
+        return error("INVALID_REQUEST", "Invalid verification code.", 400)
+    except cognito.exceptions.ExpiredCodeException:
+        return error("INVALID_REQUEST", "Verification code has expired. Request a new one.", 400)
+    except cognito.exceptions.NotAuthorizedException:
+        return error("INVALID_REQUEST", "Account is already verified.", 400)
+    except Exception as e:
+        return error("INVALID_REQUEST", str(e), 400)
+
+
+def handle_resend_code(event):
+    """Resend the verification code."""
+    body = parse_body(event)
+    err = require_fields(body, ["email"])
+    if err:
+        return bad_request(err)
+
+    try:
+        cognito.resend_confirmation_code(
+            ClientId=COGNITO_CLIENT_ID,
+            Username=body["email"],
+        )
+        return success({"message": f"Verification code resent to {body['email']}."})
+    except Exception as e:
+        return error("INVALID_REQUEST", str(e), 400)
 
 
 def handle_login(event):

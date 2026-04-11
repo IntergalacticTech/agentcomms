@@ -142,6 +142,8 @@ export class ApiStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: [
           "cognito-idp:SignUp",
+          "cognito-idp:ConfirmSignUp",
+          "cognito-idp:ResendConfirmationCode",
           "cognito-idp:InitiateAuth",
           "cognito-idp:AdminUpdateUserAttributes",
         ],
@@ -428,6 +430,12 @@ export class ApiStack extends cdk.Stack {
       .addMethod("POST", lambdaIntegration(consoleAuthFn));
     console
       .addResource("login")
+      .addMethod("POST", lambdaIntegration(consoleAuthFn));
+    console
+      .addResource("verify")
+      .addMethod("POST", lambdaIntegration(consoleAuthFn));
+    console
+      .addResource("resend-code")
       .addMethod("POST", lambdaIntegration(consoleAuthFn));
     console
       .addResource("refresh")

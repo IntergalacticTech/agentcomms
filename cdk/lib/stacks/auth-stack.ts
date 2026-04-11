@@ -34,6 +34,18 @@ export class AuthStack extends cdk.Stack {
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      email: cognito.UserPoolEmail.withSES({
+        fromEmail: "noreply@victorymail.dev",
+        fromName: "FreeMail",
+        sesRegion: "us-east-1",
+        sesVerifiedDomain: "victorymail.dev",
+      }),
+      userVerification: {
+        emailSubject: "Verify your FreeMail account",
+        emailBody:
+          "Welcome to FreeMail! Your verification code is {####}",
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
     });
 
     // App client for the developer console (SPA - no secret)
