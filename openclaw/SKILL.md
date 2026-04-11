@@ -142,8 +142,8 @@ For AI frameworks that support MCP (Model Context Protocol), clone the
 repo and run the MCP server:
 
 ```bash
-git clone https://github.com/IntergalacticTech/FreeMail.ai.git
-cd FreeMail.ai/mcp-server && npm install && npm run build
+git clone https://github.com/IntergalacticTech/freemail.git
+cd freemail/mcp-server && npm install && npm run build
 ```
 
 Add to your MCP config:
@@ -181,6 +181,6 @@ get_organization.
 
 ## Links
 
-- GitHub: https://github.com/IntergalacticTech/FreeMail.ai
+- GitHub: https://github.com/IntergalacticTech/freemail
 - Console: https://console.victorymail.dev
 - API: https://api.victorymail.dev/v1

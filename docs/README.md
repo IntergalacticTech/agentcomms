@@ -63,5 +63,5 @@ curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp \
 ## Additional Resources
 
 - [OpenAPI Spec](openapi.yaml) -- machine-readable API specification (OpenAPI 3.0)
-- [Python SDK](https://github.com/IntergalacticTech/FreeMail.ai/tree/main/sdks/python)
-- [Node.js SDK](https://github.com/IntergalacticTech/FreeMail.ai/tree/main/sdks/node)
+- [Python SDK](https://github.com/IntergalacticTech/freemail/tree/main/sdks/python)
+- [Node.js SDK](https://github.com/IntergalacticTech/freemail/tree/main/sdks/node)
