@@ -74,13 +74,20 @@ def handler(event, context):
     if key_item.get("status") != "active":
         raise Exception("Unauthorized")
 
-    # Build the resource ARN
+    # Build a wildcard resource ARN so the cached policy covers all methods.
+    # methodArn format: arn:aws:execute-api:region:account:api-id/stage/METHOD/resource
     method_arn = event.get("methodArn", "*")
+    if "/" in method_arn:
+        # Replace everything after stage with wildcard
+        parts = method_arn.split("/")
+        wildcard_arn = "/".join(parts[:2]) + "/*"
+    else:
+        wildcard_arn = method_arn
 
     return _generate_policy(
         principal_id=key_item.get("org_id", "unknown"),
         effect="Allow",
-        resource=method_arn,
+        resource=wildcard_arn,
         context={
             "org_id": key_item.get("org_id", ""),
             "key_id": key_item.get("key_id", ""),
