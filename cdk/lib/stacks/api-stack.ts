@@ -44,6 +44,7 @@ export class ApiStack extends cdk.Stack {
       SEND_QUEUE_URL: props.sendQueue.queueUrl,
       SES_CONFIG_SET: "victorymail-default",
       USER_POOL_ID: props.userPoolId,
+      WEBHOOK_QUEUE_URL: props.webhookQueue.queueUrl,
     };
 
     // Helper to create a Lambda function with common config
@@ -104,6 +105,17 @@ export class ApiStack extends cdk.Stack {
     });
     const attachmentsFn = createFn("AttachmentsFn", "attachments.handler");
     const listsFn = createFn("ListsFn", "lists.handler");
+    const searchFn = createFn("SearchFn", "search.handler");
+
+    // Webhook delivery worker (SQS consumer)
+    const webhookWorkerFn = createFn(
+      "WebhookWorkerFn",
+      "webhook_worker.handler",
+      { timeout: 30, memory: 256 }
+    );
+    webhookWorkerFn.addEventSource(
+      new lambda_events.SqsEventSource(props.webhookQueue, { batchSize: 1 })
+    );
 
     // Console auth Lambda (Cognito operations)
     const consoleAuthFn = new lambda.Function(this, "ConsoleAuthFn", {
@@ -431,6 +443,18 @@ export class ApiStack extends cdk.Stack {
     billing
       .addResource("webhook")
       .addMethod("POST", lambdaIntegration(billingFn)); // No auth - Stripe signs it
+
+    // ── Routes: Search ───────────────────────────────────────────────
+
+    this.api.root
+      .addResource("search")
+      .addMethod("POST", lambdaIntegration(searchFn), authOpts);
+
+    // ── SQS Send Permissions for Webhook Publishing ────────────────
+
+    props.webhookQueue.grantSendMessages(messagesFn);
+    props.webhookQueue.grantSendMessages(inboundFn);
+    props.webhookQueue.grantSendMessages(inboxesFn);
 
     // ── Outputs ────────────────────────────────────────────────────────
 
