@@ -8,6 +8,7 @@ import { ApiStack } from "../lib/stacks/api-stack";
 import { AuthStack } from "../lib/stacks/auth-stack";
 import { CicdStack } from "../lib/stacks/cicd-stack";
 import { ConsoleStack } from "../lib/stacks/console-stack";
+import { MonitoringStack } from "../lib/stacks/monitoring-stack";
 
 const app = new cdk.App();
 
@@ -56,5 +57,6 @@ const apiStack = new ApiStack(app, `VictoryMail-Api-${stage}`, {
 
 new CicdStack(app, `VictoryMail-CICD-${stage}`, { env, stage });
 new ConsoleStack(app, `VictoryMail-Console-${stage}`, { env, stage });
+new MonitoringStack(app, `VictoryMail-Monitoring-${stage}`, { env, stage });
 
 app.synth();
