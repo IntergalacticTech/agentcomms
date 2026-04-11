@@ -5,6 +5,7 @@ import secrets
 from shared.auth import get_org_id
 from shared.dynamo import get_item, put_item, update_item, delete_item, query_gsi
 from shared.models import webhook_keys, webhook_gsi1, now_iso
+from shared.quotas import check_quota, decrement_usage, increment_usage
 from shared.pagination import get_pagination_params, decode_page_token, paginated_response
 from shared.response import success, created, bad_request, not_found, no_content
 from shared.ulid import generate_ulid
@@ -71,6 +72,10 @@ def _get_webhook(org_id: str, webhook_id: str) -> dict:
 
 def _create_webhook(org_id: str, body: dict) -> dict:
     """Create a new webhook."""
+    quota_error = check_quota(org_id, "webhooks")
+    if quota_error:
+        return quota_error
+
     err = require_fields(body, ["url", "events"])
     if err:
         return bad_request(err)
@@ -108,6 +113,7 @@ def _create_webhook(org_id: str, body: dict) -> dict:
         "updated_at": now,
     }
     put_item(item)
+    increment_usage(org_id, "webhooks")
     return created(_filter_webhook(item))
 
 
@@ -144,6 +150,7 @@ def _delete_webhook(org_id: str, webhook_id: str) -> dict:
         return not_found("Webhook")
 
     delete_item(keys["PK"], keys["SK"])
+    decrement_usage(org_id, "webhooks")
     return no_content()
 
 

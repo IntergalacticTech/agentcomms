@@ -3,6 +3,7 @@
 from shared.auth import get_org_id
 from shared.dynamo import delete_item, get_item, put_item, query_gsi
 from shared.models import now_iso, pod_gsi1, pod_keys
+from shared.quotas import check_quota, decrement_usage, increment_usage
 from shared.pagination import (
     decode_page_token,
     get_pagination_params,
@@ -55,6 +56,11 @@ def _get_pod(event):
 def _create_pod(event):
     """POST /pods: create a new pod."""
     org_id = get_org_id(event)
+
+    quota_error = check_quota(org_id, "pods")
+    if quota_error:
+        return quota_error
+
     body = parse_body(event)
     err = require_fields(body, ["name"])
     if err:
@@ -76,6 +82,7 @@ def _create_pod(event):
         "updated_at": now,
     }
     put_item(pod_item)
+    increment_usage(org_id, "pods")
 
     return created(_filter_pod(pod_item))
 
@@ -94,6 +101,7 @@ def _delete_pod(event):
         return bad_request("Cannot delete pod with existing inboxes")
 
     delete_item(keys["PK"], keys["SK"])
+    decrement_usage(org_id, "pods")
 
     return no_content()
 

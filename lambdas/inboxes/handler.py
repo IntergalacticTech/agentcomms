@@ -6,6 +6,7 @@ import string
 from shared.auth import get_org_id
 from shared.dynamo import get_item, put_item, query, query_gsi, update_item
 from shared.models import inbox_gsi1, inbox_gsi2, inbox_keys, now_iso
+from shared.quotas import check_quota, decrement_usage, increment_usage
 from shared.pagination import (
     decode_page_token,
     get_pagination_params,
@@ -83,6 +84,11 @@ def _get_inbox(event):
 def _create_inbox(event):
     """POST /inboxes: create a new inbox."""
     org_id = get_org_id(event)
+
+    quota_error = check_quota(org_id, "inboxes")
+    if quota_error:
+        return quota_error
+
     body = parse_body(event)
 
     pod_id = body.get("pod_id", "default")
@@ -108,6 +114,7 @@ def _create_inbox(event):
         "updated_at": now,
     }
     put_item(inbox_item)
+    increment_usage(org_id, "inboxes")
 
     return created(_filter_inbox(inbox_item))
 
@@ -155,6 +162,7 @@ def _delete_inbox(event):
         "deleted_at": now,
         "updated_at": now,
     })
+    decrement_usage(org_id, "inboxes")
 
     return no_content()
 

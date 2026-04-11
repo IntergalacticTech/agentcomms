@@ -7,6 +7,7 @@ import string
 from shared.auth import get_org_id
 from shared.dynamo import get_item, put_item, query, update_item
 from shared.models import api_key_gsi1, api_key_keys, now_iso
+from shared.quotas import check_quota, increment_usage
 from shared.pagination import get_pagination_params, paginated_response
 from shared.response import bad_request, created, no_content, not_found, success
 from shared.ulid import generate_ulid
@@ -61,6 +62,11 @@ def _list_keys(event):
 def _create_key(event):
     """POST /api-keys: create a new API key."""
     org_id = get_org_id(event)
+
+    quota_error = check_quota(org_id, "api_keys")
+    if quota_error:
+        return quota_error
+
     body = parse_body(event)
     err = require_fields(body, ["name", "scope"])
     if err:
@@ -95,6 +101,7 @@ def _create_key(event):
         "updated_at": now,
     }
     put_item(key_item)
+    increment_usage(org_id, "api_keys")
 
     return created({
         "id": key_id,
