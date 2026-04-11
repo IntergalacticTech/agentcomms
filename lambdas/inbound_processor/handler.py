@@ -9,7 +9,7 @@ import logging
 import os
 from email.utils import parseaddr
 
-from shared.dynamo import get_item, put_item, query_gsi, _get_table
+from shared.dynamo import get_item, put_item, query, query_gsi, update_item, _get_table
 from shared.models import (
     attachment_keys,
     message_gsi1,
@@ -22,6 +22,7 @@ from shared.models import (
 )
 from shared.s3 import store_body, _get_client, ATTACHMENT_BUCKET, EMAIL_BUCKET
 from shared.ulid import generate_ulid
+from shared.webhook_publisher import publish_event
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -65,6 +66,10 @@ def process_ses_record(record: dict) -> None:
     # Extract attachments info
     attachment_parts = extract_attachments(msg)
 
+    # Parse threading headers
+    in_reply_to = msg.get("In-Reply-To", "").strip()
+    references = msg.get("References", "").strip()
+
     # Process for each destination
     for dest_address in destinations:
         process_destination(
@@ -77,6 +82,8 @@ def process_ses_record(record: dict) -> None:
             body_text=body_text,
             body_html=body_html,
             attachment_parts=attachment_parts,
+            in_reply_to=in_reply_to,
+            references=references,
         )
 
 
@@ -141,6 +148,51 @@ def extract_attachments(msg: email.message.Message) -> list:
     return attachments
 
 
+def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: str) -> dict | None:
+    """Search for an existing thread by matching In-Reply-To or References headers.
+
+    Looks for a message in this inbox whose headers.message_id matches
+    the In-Reply-To header (or any Message-ID in the References chain).
+    Returns the matching message item if found, or None.
+    """
+    if not in_reply_to and not references:
+        return None
+
+    # Collect all candidate Message-IDs to search for
+    candidate_ids = set()
+    if in_reply_to:
+        candidate_ids.add(in_reply_to)
+    if references:
+        # References header contains space-separated Message-IDs
+        for ref in references.split():
+            ref = ref.strip()
+            if ref:
+                candidate_ids.add(ref)
+
+    if not candidate_ids:
+        return None
+
+    # Query all messages in this inbox and check for matching headers.message_id
+    last_key = None
+    while True:
+        items, last_key = query(
+            pk=f"INBOX#{inbox_id}",
+            sk_prefix="MSG#",
+            limit=100,
+            exclusive_start_key=last_key,
+        )
+        for item in items:
+            headers = item.get("headers", {})
+            if isinstance(headers, dict):
+                msg_id = headers.get("message_id", "")
+                if msg_id and msg_id in candidate_ids:
+                    return item
+        if not last_key:
+            break
+
+    return None
+
+
 def process_destination(
     dest_address: str,
     ses_message_id: str,
@@ -151,6 +203,8 @@ def process_destination(
     body_text: str | None,
     body_html: str | None,
     attachment_parts: list,
+    in_reply_to: str = "",
+    references: str = "",
 ) -> None:
     """Process inbound email for a single destination address."""
     # Look up inbox by email address
@@ -167,10 +221,21 @@ def process_destination(
     inbox_id = inbox["SK"].replace("INBOX#", "")
     org_id = inbox["PK"].replace("ORG#", "")
 
-    # Generate IDs
+    # Generate message ID
     message_id = generate_ulid()
-    thread_id = generate_ulid()
     timestamp = now_iso()
+
+    # Check if this is a reply to an existing thread
+    existing_thread_id = None
+    matched_message = _find_thread_by_reply_headers(inbox_id, in_reply_to, references)
+    if matched_message:
+        existing_thread_id = matched_message.get("thread_id")
+        logger.info(
+            "Linked inbound message to existing thread %s via In-Reply-To/References",
+            existing_thread_id,
+        )
+
+    thread_id = existing_thread_id or generate_ulid()
 
     # Store body in S3
     body_s3_key = store_body(
@@ -180,6 +245,11 @@ def process_destination(
         body_text=body_text,
         body_html=body_html,
     )
+
+    # Build snippet from body text
+    snippet = ""
+    if body_text:
+        snippet = body_text[:200]
 
     # Build message item
     msg_item = {
@@ -197,6 +267,7 @@ def process_destination(
         "from_name": from_name,
         "to_addresses": [dest_address],
         "subject": subject,
+        "snippet": snippet,
         "body_s3_key": body_s3_key,
         "has_attachments": len(attachment_parts) > 0,
         "attachment_count": len(attachment_parts),
@@ -238,21 +309,46 @@ def process_destination(
         }
         put_item(att_item)
 
-    # Create thread item
-    thread_item = {
-        **thread_keys(inbox_id, thread_id),
-        **thread_gsi1(inbox_id, thread_id),
-        "entity_type": "thread",
-        "thread_id": thread_id,
-        "inbox_id": inbox_id,
-        "org_id": org_id,
-        "subject": subject,
-        "last_message_at": timestamp,
-        "message_count": 1,
-        "created_at": timestamp,
-        "updated_at": timestamp,
-    }
-    put_item(thread_item)
+    if existing_thread_id:
+        # Update existing thread: increment counts, update snippet and timestamp
+        sender = from_addr or source
+        thread_pk = f"INBOX#{inbox_id}"
+        thread_sk = f"THREAD#{existing_thread_id}"
+        table = _get_table()
+        table.update_item(
+            Key={"PK": thread_pk, "SK": thread_sk},
+            UpdateExpression=(
+                "SET message_count = if_not_exists(message_count, :zero) + :one, "
+                "unread_count = if_not_exists(unread_count, :zero) + :one, "
+                "snippet = :snippet, "
+                "last_message_at = :now, "
+                "updated_at = :now"
+            ),
+            ExpressionAttributeValues={
+                ":zero": 0,
+                ":one": 1,
+                ":snippet": snippet,
+                ":now": timestamp,
+            },
+        )
+    else:
+        # Create new thread item
+        thread_item = {
+            **thread_keys(inbox_id, thread_id),
+            **thread_gsi1(inbox_id, thread_id),
+            "entity_type": "thread",
+            "thread_id": thread_id,
+            "inbox_id": inbox_id,
+            "org_id": org_id,
+            "subject": subject,
+            "snippet": snippet,
+            "last_message_at": timestamp,
+            "message_count": 1,
+            "unread_count": 1,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        put_item(thread_item)
 
     # Update inbox counts
     table = _get_table()
@@ -269,3 +365,15 @@ def process_destination(
     )
 
     logger.info("Processed inbound message %s for inbox %s", message_id, inbox_id)
+
+    # Publish webhook event
+    try:
+        publish_event("message.received", org_id, {
+            "message_id": message_id,
+            "inbox_id": inbox_id,
+            "from": from_addr or source,
+            "subject": subject,
+            "received_at": timestamp,
+        })
+    except Exception:
+        logger.exception("Failed to publish webhook event for message %s", message_id)

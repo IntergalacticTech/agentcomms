@@ -15,6 +15,7 @@ from shared.pagination import (
 from shared.response import bad_request, created, no_content, not_found, success
 from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
+from shared.webhook_publisher import publish_event
 
 DEFAULT_DOMAIN = "victorymail.dev"
 
@@ -116,6 +117,17 @@ def _create_inbox(event):
     put_item(inbox_item)
     increment_usage(org_id, "inboxes")
 
+    # Publish webhook event
+    try:
+        publish_event("inbox.created", org_id, {
+            "inbox_id": inbox_id,
+            "email": email,
+            "pod_id": pod_id,
+            "created_at": now,
+        })
+    except Exception:
+        pass
+
     return created(_filter_inbox(inbox_item))
 
 
@@ -163,6 +175,15 @@ def _delete_inbox(event):
         "updated_at": now,
     })
     decrement_usage(org_id, "inboxes")
+
+    # Publish webhook event
+    try:
+        publish_event("inbox.deleted", org_id, {
+            "inbox_id": inbox_id,
+            "deleted_at": now,
+        })
+    except Exception:
+        pass
 
     return no_content()
 

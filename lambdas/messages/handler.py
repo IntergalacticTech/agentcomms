@@ -14,6 +14,7 @@ from shared.response import success, created, bad_request, not_found
 from shared.s3 import store_body, get_body
 from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
+from shared.webhook_publisher import publish_event
 
 SEND_QUEUE_URL = os.environ.get("SEND_QUEUE_URL", "")
 
@@ -152,6 +153,19 @@ def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None 
     put_item(thread_item)
 
     _enqueue_send(msg_id, inbox_id)
+
+    # Publish webhook event
+    try:
+        publish_event("message.sent", org_id, {
+            "message_id": msg_id,
+            "inbox_id": inbox_id,
+            "from": from_addr,
+            "to": to_addrs,
+            "subject": body.get("subject", ""),
+            "sent_at": now,
+        })
+    except Exception:
+        pass  # Don't let webhook publishing break the API response
 
     return created(_filter_message(msg_item, detail=True))
 
