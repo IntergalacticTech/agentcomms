@@ -90,7 +90,7 @@
     }
     .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
     .hero-code {
-      max-width: 580px; margin: 0 auto; text-align: left;
+      max-width: 680px; margin: 0 auto; text-align: left;
       background: var(--code-bg); border-radius: 12px; overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.15);
     }
@@ -103,7 +103,7 @@
     .dot-y { background: #FEBC2E; }
     .dot-g { background: #28C840; }
     .hero-code pre {
-      padding: 1.25rem 1.5rem; overflow-x: auto; font-size: 0.85rem;
+      padding: 1.25rem 1.5rem; overflow-x: auto; font-size: 0.8rem;
       line-height: 1.7; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
     }
 
@@ -141,8 +141,32 @@
     .feature-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
     .feature-card p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; }
 
+    /* -- Agent Setup -- */
+    .agent-setup { background: var(--bg-alt); }
+    .agent-cards {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;
+    }
+    .agent-card {
+      padding: 2rem; background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .agent-card:hover { border-color: var(--primary-light); box-shadow: 0 4px 20px rgba(79,70,229,0.08); }
+    .agent-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--primary); }
+    .agent-card p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1rem; }
+    .agent-card pre {
+      background: var(--code-bg); color: var(--code-text); padding: 1rem; border-radius: 8px;
+      font-size: 0.78rem; line-height: 1.6; overflow-x: auto; margin-bottom: 1rem;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    }
+    .agent-card .card-links { display: flex; flex-direction: column; gap: 0.4rem; }
+    .agent-card .card-links a {
+      color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;
+      transition: color 0.15s;
+    }
+    .agent-card .card-links a:hover { color: var(--primary-dark); text-decoration: underline; }
+
     /* -- How It Works -- */
-    .how-it-works { background: var(--bg-alt); }
+    .how-it-works { background: var(--bg); }
     .steps { display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap; }
     .step {
       flex: 1; min-width: 240px; max-width: 320px; text-align: center; padding: 2rem;
@@ -157,7 +181,7 @@
     .step p { color: var(--text-secondary); font-size: 0.95rem; }
 
     /* -- Code Examples -- */
-    .code-examples { background: var(--bg); }
+    .code-examples { background: var(--bg-alt); }
     .tabs { display: flex; gap: 0; margin-bottom: 0; }
     .tab {
       padding: 0.6rem 1.25rem; background: #2A2A3E; color: #9399B2;
@@ -180,7 +204,7 @@
     }
 
     /* -- Pricing -- */
-    .pricing { background: var(--bg-alt); }
+    .pricing { background: var(--bg); }
     .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; max-width: 760px; margin: 0 auto; }
     .pricing-card {
       background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
@@ -204,14 +228,15 @@
     .pricing-card .btn { width: 100%; text-align: center; }
 
     /* -- Integrations -- */
-    .integrations { background: var(--bg); }
+    .integrations { background: var(--bg-alt); }
     .integration-logos {
       display: flex; flex-wrap: wrap; justify-content: center; gap: 2rem; margin-bottom: 2rem;
     }
     .integration-item {
       display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
       padding: 1.25rem 1.75rem; border: 1px solid var(--border); border-radius: 12px;
-      min-width: 130px; transition: border-color 0.15s;
+      min-width: 130px; transition: border-color 0.15s; text-decoration: none; color: inherit;
+      background: var(--bg);
     }
     .integration-item:hover { border-color: var(--primary-light); }
     .integration-item span { font-size: 0.9rem; font-weight: 600; color: var(--text); }
@@ -252,6 +277,7 @@
       .hero h1 { font-size: 2.25rem; }
       .hero .subtitle { font-size: 1.05rem; }
       .features-grid { grid-template-columns: 1fr; }
+      .agent-cards { grid-template-columns: 1fr; }
       .pricing-grid { grid-template-columns: 1fr; }
       .steps { flex-direction: column; align-items: center; }
       .nav-links { display: none; }
@@ -263,10 +289,11 @@
       }
       .mobile-toggle { display: block; }
       .footer-inner { flex-direction: column; }
-      .hero-code pre { font-size: 0.75rem; }
+      .hero-code pre { font-size: 0.7rem; }
     }
     @media (min-width: 769px) and (max-width: 1024px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .agent-cards { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -284,9 +311,10 @@
     </button>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#agent-setup">Agent Setup</a>
       <a href="#examples">Examples</a>
       <a href="#pricing">Pricing</a>
-      <a href="https://docs.victorymail.dev">Docs</a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/docs">Docs</a>
       <a href="https://github.com/IntergalacticTech/FreeMail.ai">GitHub</a>
       <a href="https://console.victorymail.dev" class="nav-cta">Console</a>
     </div>
@@ -300,18 +328,29 @@
     <p class="subtitle">Create inboxes, send and receive email, wait for messages, and extract verification codes &mdash; all via API. Purpose-built for autonomous systems.</p>
     <div class="hero-buttons">
       <a href="https://console.victorymail.dev" class="btn btn-primary">Get Started Free</a>
-      <a href="https://docs.victorymail.dev" class="btn btn-secondary">Read the Docs</a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/main/docs/agent-instructions.md" class="btn btn-secondary">Agent Instructions</a>
     </div>
     <div class="hero-code">
       <div class="hero-code-header">
         <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
       </div>
-      <pre><code><span class="kw">from</span> <span class="fn">freemail</span> <span class="kw">import</span> <span class="fn">FreeMail</span>
+      <pre><code><span class="kw">import</span> <span class="fn">requests</span>
 
-<span class="var">client</span> <span class="op">=</span> <span class="fn">FreeMail</span>(<span class="str">"am_live_your_key"</span>)
-<span class="var">inbox</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>(<span class="var">display_name</span><span class="op">=</span><span class="str">"My Agent"</span>)
-<span class="var">otp</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extract_otp</span>(<span class="var">inbox</span>[<span class="str">"id"</span>], <span class="var">sender</span><span class="op">=</span><span class="str">"noreply@service.com"</span>)
-<span class="kw">print</span>(<span class="str">f"Code: <span class="op">{</span>otp['code']<span class="op">}</span>"</span>)</code></pre>
+<span class="cm"># 1. Sign up (one API call, no verification needed)</span>
+<span class="var">r</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/console/signup"</span>,
+    <span class="var">json</span><span class="op">=</span>{<span class="str">"email"</span>: <span class="str">"agent@example.com"</span>, <span class="str">"password"</span>: <span class="str">"SecurePass1!"</span>, <span class="str">"name"</span>: <span class="str">"My Agent"</span>})
+<span class="var">api_key</span> <span class="op">=</span> <span class="var">r</span>.<span class="fn">json</span>()[<span class="str">"api_key"</span>]
+
+<span class="cm"># 2. Create an inbox</span>
+<span class="var">inbox</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/inboxes"</span>,
+    <span class="var">headers</span><span class="op">=</span>{<span class="str">"x-api-key"</span>: <span class="var">api_key</span>},
+    <span class="var">json</span><span class="op">=</span>{<span class="str">"display_name"</span>: <span class="str">"Signup Bot"</span>}).<span class="fn">json</span>()
+
+<span class="cm"># 3. Sign up for a service, then extract the OTP</span>
+<span class="var">otp</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">f"https://api.victorymail.dev/v1/inboxes/<span class="op">{</span>inbox['id']<span class="op">}</span>/extract-otp"</span>,
+    <span class="var">headers</span><span class="op">=</span>{<span class="str">"x-api-key"</span>: <span class="var">api_key</span>},
+    <span class="var">json</span><span class="op">=</span>{<span class="str">"timeout"</span>: <span class="str">25</span>, <span class="str">"sender"</span>: <span class="str">"noreply@service.com"</span>}).<span class="fn">json</span>()
+<span class="kw">print</span>(<span class="str">f"Code: <span class="op">{</span>otp['code']<span class="op">}</span>"</span>)  <span class="cm"># "482917"</span></code></pre>
     </div>
   </div>
 </section>
@@ -370,6 +409,49 @@
   </div>
 </section>
 
+<!-- Agent Setup -->
+<section class="agent-setup" id="agent-setup">
+  <div class="container">
+    <div class="section-header">
+      <h2>Connect your agent in minutes</h2>
+      <p>Three ways to give your AI agent email capabilities.</p>
+    </div>
+    <div class="agent-cards">
+      <div class="agent-card">
+        <h3>REST API</h3>
+        <p>Direct API access. Sign up, create inbox, send email &mdash; 3 API calls, no human needed.</p>
+        <div class="card-links">
+          <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/main/docs/agent-instructions.md">Read agent instructions &rarr;</a>
+        </div>
+      </div>
+      <div class="agent-card">
+        <h3>MCP Server</h3>
+        <p>10 tools for AI agents via Model Context Protocol. Works with Claude, OpenClaw, and any MCP client.</p>
+        <pre><code>{
+  "mcpServers": {
+    "freemail": {
+      "command": "node",
+      "args": ["path/to/mcp-server/dist/index.js"],
+      "env": {"FREEMAIL_API_KEY": "am_live_..."}
+    }
+  }
+}</code></pre>
+        <div class="card-links">
+          <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/mcp-server">MCP server on GitHub &rarr;</a>
+        </div>
+      </div>
+      <div class="agent-card">
+        <h3>OpenClaw Skill</h3>
+        <p>Install FreeMail as an OpenClaw skill. Your agent gets email capabilities with zero configuration.</p>
+        <div class="card-links">
+          <a href="https://clawhub.ai/skills/freemail">View on ClawHub &rarr;</a>
+          <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/openclaw">SKILL.md on GitHub &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- How It Works -->
 <section class="how-it-works" id="how-it-works">
   <div class="container">
@@ -380,18 +462,18 @@
     <div class="steps">
       <div class="step">
         <div class="step-number">1</div>
-        <h3>Sign up and get an API key</h3>
-        <p>Create an account in the console. Your API key is ready instantly.</p>
+        <h3>Sign up via API</h3>
+        <p>One POST, get your API key instantly. No email verification needed.</p>
       </div>
       <div class="step">
         <div class="step-number">2</div>
         <h3>Create an inbox</h3>
-        <p>One API call gives you a fully functional email address.</p>
+        <p>Get an email address like <code>abc123@victorymail.dev</code> in one call.</p>
       </div>
       <div class="step">
         <div class="step-number">3</div>
-        <h3>Send, receive, or wait</h3>
-        <p>Send email, receive via webhook, or long-poll for matching messages.</p>
+        <h3>Send, receive, or extract OTP</h3>
+        <p>Send email, long-poll for incoming, extract verification codes.</p>
       </div>
     </div>
   </div>
@@ -545,26 +627,22 @@
       <p>Plug into your existing stack. SDKs, REST, and MCP for direct agent integration.</p>
     </div>
     <div class="integration-logos">
-      <div class="integration-item">
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/openclaw" class="integration-item">
         <div class="int-icon">&#129302;</div>
         <span>OpenClaw</span>
-      </div>
-      <div class="integration-item">
+      </a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/mcp-server" class="integration-item">
         <div class="int-icon">&#9672;</div>
-        <span>Claude</span>
-      </div>
-      <div class="integration-item">
+        <span>Claude / Claude Code</span>
+      </a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/docs" class="integration-item">
         <div class="int-icon">&#128279;</div>
-        <span>LangChain</span>
-      </div>
-      <div class="integration-item">
-        <div class="int-icon">&#128101;</div>
-        <span>CrewAI</span>
-      </div>
-      <div class="integration-item">
+        <span>REST API</span>
+      </a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/mcp-server" class="integration-item">
         <div class="int-icon">&#9889;</div>
-        <span>AutoGPT</span>
-      </div>
+        <span>MCP Protocol</span>
+      </a>
     </div>
     <div class="sdk-badges">
       <div class="sdk-badge">Python SDK</div>
@@ -599,16 +677,17 @@
     <div class="footer-links">
       <div class="footer-col">
         <h4>Product</h4>
-        <a href="https://docs.victorymail.dev">Docs</a>
-        <a href="https://docs.victorymail.dev/api">API Reference</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/docs">Docs</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/main/docs/api-reference.md">API Reference</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/main/docs/agent-instructions.md">Agent Instructions</a>
         <a href="https://console.victorymail.dev">Console</a>
         <a href="#pricing">Pricing</a>
       </div>
       <div class="footer-col">
         <h4>Resources</h4>
         <a href="https://github.com/IntergalacticTech/FreeMail.ai">GitHub</a>
-        <a href="https://status.victorymail.dev">Status</a>
-        <a href="https://docs.victorymail.dev/changelog">Changelog</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/mcp-server">MCP Server</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/tree/main/openclaw">OpenClaw Skill</a>
       </div>
     </div>
   </div>
