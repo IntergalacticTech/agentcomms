@@ -10,6 +10,7 @@ from shared.models import (
     inbox_keys, thread_keys, thread_gsi1,
 )
 from shared.pagination import get_pagination_params, decode_page_token, paginated_response
+from shared.rate_limit import check_rate_limit
 from shared.response import success, created, bad_request, not_found
 from shared.s3 import store_body, get_body
 from shared.ulid import generate_ulid
@@ -69,6 +70,21 @@ def _get_inbox(org_id: str, inbox_id: str) -> dict | None:
 
 def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None = None) -> dict:
     """Create and store a new outbound message."""
+    # Rate limit check
+    rate_check = check_rate_limit(org_id)
+    if rate_check and rate_check.get("limited"):
+        return {
+            "statusCode": 429,
+            "headers": {
+                "Content-Type": "application/json",
+                "Retry-After": str(rate_check["retry_after"]),
+                "X-RateLimit-Limit": str(rate_check["limit"]),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(rate_check["reset"]),
+            },
+            "body": json.dumps({"error": {"code": "RATE_LIMITED", "message": "Rate limit exceeded. Please retry later."}}),
+        }
+
     inbox = _get_inbox(org_id, inbox_id)
     if not inbox:
         return not_found("Inbox")
