@@ -94,6 +94,12 @@ export class ApiStack extends cdk.Stack {
     );
 
     const webhooksFn = createFn("WebhooksFn", "webhooks.handler");
+    const waitFn = createFn("WaitFn", "wait.handler", {
+      timeout: 30,
+      memory: 256,
+    });
+    const attachmentsFn = createFn("AttachmentsFn", "attachments.handler");
+    const listsFn = createFn("ListsFn", "lists.handler");
 
     // Workers
     const inboundFn = createFn(
@@ -330,6 +336,41 @@ export class ApiStack extends cdk.Stack {
       lambdaIntegration(webhooksFn),
       authOpts
     );
+
+    // ── Routes: Wait / OTP ───────────────────────────────────────────
+
+    inboxById
+      .addResource("wait")
+      .addMethod("POST", lambdaIntegration(waitFn), authOpts);
+    inboxById
+      .addResource("extract-otp")
+      .addMethod("POST", lambdaIntegration(waitFn), authOpts);
+
+    // ── Routes: Attachments ────────────────────────────────────────────
+
+    const attachments = msgById.addResource("attachments");
+    attachments.addMethod(
+      "GET",
+      lambdaIntegration(attachmentsFn),
+      authOpts
+    );
+    attachments
+      .addResource("{aid}")
+      .addMethod("GET", lambdaIntegration(attachmentsFn), authOpts);
+
+    // ── Routes: Lists ──────────────────────────────────────────────────
+
+    const lists = this.api.root.addResource("lists");
+    lists.addMethod("GET", lambdaIntegration(listsFn), authOpts);
+    lists.addMethod("POST", lambdaIntegration(listsFn), authOpts);
+    const listById = lists.addResource("{id}");
+    listById.addMethod("GET", lambdaIntegration(listsFn), authOpts);
+    listById.addMethod("DELETE", lambdaIntegration(listsFn), authOpts);
+    const listMembers = listById.addResource("members");
+    listMembers.addMethod("POST", lambdaIntegration(listsFn), authOpts);
+    listMembers
+      .addResource("{email}")
+      .addMethod("DELETE", lambdaIntegration(listsFn), authOpts);
 
     // ── Outputs ────────────────────────────────────────────────────────
 
