@@ -4,15 +4,25 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface FullMessage {
-  message_id: string;
+  id: string;
   inbox_id: string;
-  from: string;
+  from_addr: string | { name?: string; address: string };
   to: string;
   subject: string;
   body_text: string;
   body_html: string;
-  received_at: string;
+  created_at: string;
   headers: Record<string, string>;
+}
+
+function formatAddr(addr: string | { name?: string; address: string }): string {
+  if (typeof addr === "string") return addr;
+  if (addr && typeof addr === "object") {
+    const name = addr.name;
+    const address = addr.address;
+    return name ? `${name} <${address}>` : address || "";
+  }
+  return "";
 }
 
 export default function MessagePage() {
@@ -20,13 +30,23 @@ export default function MessagePage() {
   const [message, setMessage] = useState<FullMessage | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
     if (!id || !mid) return;
+    setError("");
     api
       .get(`/inboxes/${id}/messages/${mid}`)
       .then(setMessage)
-      .catch((e) => setError(e.message));
-  }, [id, mid]);
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get(`/inboxes/${id}/messages/${mid}`)
+            .then(setMessage)
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
+  }
+
+  useEffect(load, [id, mid]);
 
   return (
     <>
@@ -40,8 +60,14 @@ export default function MessagePage() {
         </Link>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -53,12 +79,12 @@ export default function MessagePage() {
               </h2>
               <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
                 <span className="text-gray-500">From</span>
-                <span className="text-gray-900">{message.from}</span>
+                <span className="text-gray-900">{formatAddr(message.from_addr)}</span>
                 <span className="text-gray-500">To</span>
                 <span className="text-gray-900">{message.to}</span>
                 <span className="text-gray-500">Date</span>
                 <span className="text-gray-900">
-                  {new Date(message.received_at).toLocaleString()}
+                  {new Date(message.created_at).toLocaleString()}
                 </span>
               </div>
             </div>

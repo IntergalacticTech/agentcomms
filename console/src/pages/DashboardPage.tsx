@@ -4,33 +4,50 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface OrgInfo {
-  org_id: string;
+  id: string;
   name: string;
   email: string;
   tier: string;
-  inbox_count?: number;
-  message_count?: number;
-  quota?: { inboxes: number; messages_per_day: number };
+  status: string;
+  settings?: Record<string, any>;
+  quotas?: { inboxes: number; messages_per_day: number };
+  usage?: { inboxes: number; pods: number };
 }
 
 export default function DashboardPage() {
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
+    setError("");
     api
       .get("/organizations/me")
       .then(setOrg)
-      .catch((e) => setError(e.message));
-  }, []);
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get("/organizations/me")
+            .then(setOrg)
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
+  }
+
+  useEffect(load, []);
 
   return (
     <>
       <Header title="Dashboard" />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -49,22 +66,22 @@ export default function DashboardPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <p className="text-sm text-gray-500">Inboxes</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {org.inbox_count ?? "--"}
+                  {org.usage?.inboxes ?? "--"}
                 </p>
-                {org.quota && (
+                {org.quotas && (
                   <p className="text-xs text-gray-400 mt-2">
-                    of {org.quota.inboxes} allowed
+                    of {org.quotas.inboxes} allowed
                   </p>
                 )}
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <p className="text-sm text-gray-500">Messages Today</p>
+                <p className="text-sm text-gray-500">Pods</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {org.message_count ?? "--"}
+                  {org.usage?.pods ?? "--"}
                 </p>
-                {org.quota && (
+                {org.quotas && (
                   <p className="text-xs text-gray-400 mt-2">
-                    of {org.quota.messages_per_day}/day
+                    of {org.quotas.messages_per_day}/day
                   </p>
                 )}
               </div>

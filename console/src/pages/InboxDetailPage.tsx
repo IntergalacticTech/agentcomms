@@ -4,19 +4,30 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface Inbox {
-  inbox_id: string;
+  id: string;
   email: string;
   display_name: string;
   status: string;
 }
 
 interface Message {
-  message_id: string;
-  from: string;
+  id: string;
+  from_addr: string | { name?: string; address: string };
   subject: string;
   snippet: string;
-  received_at: string;
+  created_at: string;
   is_read: boolean;
+  direction?: string;
+}
+
+function formatFrom(from_addr: Message["from_addr"]): string {
+  if (typeof from_addr === "string") return from_addr;
+  if (from_addr && typeof from_addr === "object") {
+    const name = from_addr.name;
+    const address = from_addr.address;
+    return name ? `${name} <${address}>` : address || "";
+  }
+  return "";
 }
 
 export default function InboxDetailPage() {
@@ -25,25 +36,45 @@ export default function InboxDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
     if (!id) return;
+    setError("");
     api
       .get(`/inboxes/${id}`)
       .then(setInbox)
-      .catch((e) => setError(e.message));
+      .catch(() => {
+        setTimeout(() => {
+          api.get(`/inboxes/${id}`).then(setInbox).catch(() => {});
+        }, 1000);
+      });
     api
       .get(`/inboxes/${id}/messages`)
-      .then((data) => setMessages(data.messages || data || []))
-      .catch((e) => setError(e.message));
-  }, [id]);
+      .then((resp: any) => setMessages(resp?.data || []))
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get(`/inboxes/${id}/messages`)
+            .then((resp: any) => setMessages(resp?.data || []))
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
+  }
+
+  useEffect(load, [id]);
 
   return (
     <>
       <Header title={inbox?.email || "Inbox"} />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -83,8 +114,8 @@ export default function InboxDetailPage() {
           <div className="divide-y divide-gray-200">
             {messages.map((msg) => (
               <Link
-                key={msg.message_id}
-                to={`/inboxes/${id}/messages/${msg.message_id}`}
+                key={msg.id}
+                to={`/inboxes/${id}/messages/${msg.id}`}
                 className={`block px-6 py-4 hover:bg-gray-50 ${!msg.is_read ? "bg-indigo-50/30" : ""}`}
               >
                 <div className="flex justify-between items-start">
@@ -96,7 +127,7 @@ export default function InboxDetailPage() {
                       <p
                         className={`text-sm truncate ${!msg.is_read ? "font-semibold text-gray-900" : "text-gray-700"}`}
                       >
-                        {msg.from}
+                        {formatFrom(msg.from_addr)}
                       </p>
                     </div>
                     <p className="text-sm text-gray-900 mt-0.5 truncate">
@@ -107,7 +138,7 @@ export default function InboxDetailPage() {
                     </p>
                   </div>
                   <p className="text-xs text-gray-400 ml-4 shrink-0">
-                    {new Date(msg.received_at).toLocaleString()}
+                    {new Date(msg.created_at).toLocaleString()}
                   </p>
                 </div>
               </Link>

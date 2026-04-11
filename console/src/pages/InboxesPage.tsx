@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface Inbox {
-  inbox_id: string;
+  id: string;
   email: string;
   display_name: string;
   status: string;
@@ -21,10 +21,18 @@ export default function InboxesPage() {
   const [newDisplayName, setNewDisplayName] = useState("");
 
   function load() {
+    setError("");
     api
       .get("/inboxes")
-      .then((data) => setInboxes(data.inboxes || data || []))
-      .catch((e) => setError(e.message));
+      .then((resp: any) => setInboxes(resp?.data || []))
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get("/inboxes")
+            .then((resp: any) => setInboxes(resp?.data || []))
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
   }
 
   useEffect(load, []);
@@ -35,8 +43,8 @@ export default function InboxesPage() {
     setError("");
     try {
       await api.post("/inboxes", {
+        display_name: newDisplayName || newPrefix,
         prefix: newPrefix,
-        display_name: newDisplayName,
       });
       setShowCreate(false);
       setNewPrefix("");
@@ -69,8 +77,14 @@ export default function InboxesPage() {
       <Header title="Inboxes" />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -150,10 +164,10 @@ export default function InboxesPage() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {inboxes.map((inbox) => (
-                <tr key={inbox.inbox_id} className="hover:bg-gray-50">
+                <tr key={inbox.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <Link
-                      to={`/inboxes/${inbox.inbox_id}`}
+                      to={`/inboxes/${inbox.id}`}
                       className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
                     >
                       {inbox.email}

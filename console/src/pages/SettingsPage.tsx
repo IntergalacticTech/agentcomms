@@ -3,18 +3,19 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface OrgInfo {
-  org_id: string;
+  id: string;
   name: string;
   email: string;
   tier: string;
-  quota?: {
+  status: string;
+  quotas?: {
     inboxes: number;
     messages_per_day: number;
     api_keys: number;
   };
   usage?: {
     inboxes: number;
-    messages_today: number;
+    pods: number;
     api_keys: number;
   };
 }
@@ -53,20 +54,36 @@ export default function SettingsPage() {
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
+    setError("");
     api
       .get("/organizations/me")
       .then(setOrg)
-      .catch((e) => setError(e.message));
-  }, []);
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get("/organizations/me")
+            .then(setOrg)
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
+  }
+
+  useEffect(load, []);
 
   return (
     <>
       <Header title="Settings" />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -83,7 +100,7 @@ export default function SettingsPage() {
                 <span className="text-gray-900">{org.email}</span>
                 <span className="text-gray-500">Org ID</span>
                 <span className="text-gray-900 font-mono text-xs">
-                  {org.org_id}
+                  {org.id}
                 </span>
                 <span className="text-gray-500">Tier</span>
                 <span>
@@ -94,7 +111,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {org.quota && org.usage && (
+            {org.quotas && org.usage && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-sm font-semibold text-gray-900 mb-4">
                   Usage & Quotas
@@ -103,17 +120,17 @@ export default function SettingsPage() {
                   <QuotaBar
                     label="Inboxes"
                     used={org.usage.inboxes}
-                    total={org.quota.inboxes}
+                    total={org.quotas.inboxes}
                   />
                   <QuotaBar
-                    label="Messages Today"
-                    used={org.usage.messages_today}
-                    total={org.quota.messages_per_day}
+                    label="Pods"
+                    used={org.usage.pods}
+                    total={org.quotas.messages_per_day}
                   />
                   <QuotaBar
                     label="API Keys"
                     used={org.usage.api_keys}
-                    total={org.quota.api_keys}
+                    total={org.quotas.api_keys}
                   />
                 </div>
               </div>

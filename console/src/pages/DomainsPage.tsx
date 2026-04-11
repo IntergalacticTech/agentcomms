@@ -9,7 +9,7 @@ interface DnsRecord {
 }
 
 interface Domain {
-  domain_id: string;
+  id: string;
   domain: string;
   status: string;
   dns_records?: DnsRecord[];
@@ -24,10 +24,18 @@ export default function DomainsPage() {
   const [newDomain, setNewDomain] = useState("");
 
   function load() {
+    setError("");
     api
       .get("/domains")
-      .then((data) => setDomains(data.domains || data || []))
-      .catch((e) => setError(e.message));
+      .then((resp: any) => setDomains(resp?.data || []))
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get("/domains")
+            .then((resp: any) => setDomains(resp?.data || []))
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
   }
 
   useEffect(load, []);
@@ -79,8 +87,14 @@ export default function DomainsPage() {
       <Header title="Domains" />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -131,7 +145,7 @@ export default function DomainsPage() {
         <div className="space-y-4">
           {domains.map((domain) => (
             <div
-              key={domain.domain_id}
+              key={domain.id}
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
             >
               <div className="flex justify-between items-start mb-4">
@@ -147,7 +161,7 @@ export default function DomainsPage() {
                   {statusBadge(domain.status)}
                   {domain.status !== "verified" && (
                     <button
-                      onClick={() => handleVerify(domain.domain_id)}
+                      onClick={() => handleVerify(domain.id)}
                       className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                     >
                       Verify

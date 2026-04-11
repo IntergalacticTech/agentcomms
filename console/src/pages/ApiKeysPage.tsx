@@ -3,9 +3,11 @@ import { api } from "../api/client";
 import Header from "../components/Header";
 
 interface ApiKey {
-  key_id: string;
+  id: string;
+  name?: string;
   prefix: string;
   scope: string;
+  status?: string;
   created_at: string;
   last_used_at?: string;
 }
@@ -15,15 +17,24 @@ export default function ApiKeysPage() {
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
   const [newScope, setNewScope] = useState("full");
   const [newKeyValue, setNewKeyValue] = useState("");
   const [copied, setCopied] = useState(false);
 
   function load() {
+    setError("");
     api
       .get("/api-keys")
-      .then((data) => setKeys(data.api_keys || data || []))
-      .catch((e) => setError(e.message));
+      .then((resp: any) => setKeys(resp?.data || []))
+      .catch(() => {
+        setTimeout(() => {
+          api
+            .get("/api-keys")
+            .then((resp: any) => setKeys(resp?.data || []))
+            .catch((e2) => setError(e2.message));
+        }, 1000);
+      });
   }
 
   useEffect(load, []);
@@ -33,8 +44,9 @@ export default function ApiKeysPage() {
     setCreating(true);
     setError("");
     try {
-      const data = await api.post("/api-keys", { scope: newScope });
-      setNewKeyValue(data.api_key || data.key);
+      const data = await api.post("/api-keys", { name: newName, scope: newScope });
+      setNewKeyValue(data.key || "");
+      setNewName("");
       load();
     } catch (err) {
       setError(
@@ -68,8 +80,14 @@ export default function ApiKeysPage() {
       <Header title="API Keys" />
       <div className="p-8">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={load}
+              className="ml-4 px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded hover:bg-red-200"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -128,6 +146,18 @@ export default function ApiKeysPage() {
             <form onSubmit={handleCreate} className="flex gap-4 items-end">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Key name (optional)"
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Scope
                 </label>
                 <select
@@ -163,6 +193,9 @@ export default function ApiKeysPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left text-xs font-medium text-gray-500 uppercase px-6 py-3">
+                  Name
+                </th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-6 py-3">
                   Key
                 </th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase px-6 py-3">
@@ -181,7 +214,10 @@ export default function ApiKeysPage() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {keys.map((key) => (
-                <tr key={key.key_id} className="hover:bg-gray-50">
+                <tr key={key.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {key.name || "--"}
+                  </td>
                   <td className="px-6 py-4 text-sm font-mono text-gray-700">
                     {key.prefix}...
                   </td>
@@ -200,7 +236,7 @@ export default function ApiKeysPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                      onClick={() => handleDelete(key.key_id)}
+                      onClick={() => handleDelete(key.id)}
                       className="text-sm text-red-600 hover:text-red-700 font-medium"
                     >
                       Delete
@@ -211,7 +247,7 @@ export default function ApiKeysPage() {
               {keys.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-12 text-center text-sm text-gray-400"
                   >
                     No API keys. Create one to start using the API.
