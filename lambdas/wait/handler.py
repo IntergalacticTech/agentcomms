@@ -146,7 +146,34 @@ def handle_extract_otp(event: dict) -> dict:
     if body.get("after"):
         filters["after"] = body["after"]
 
-    msg = _wait_for_message(inbox_id, filters, timeout)
+    # For OTP, scan all matching messages to find one that actually contains a code
+    deadline = time.time() + timeout
+    msg = None
+    code = None
+    while True:
+        items, _ = query(
+            pk=f"INBOX#{inbox_id}",
+            sk_prefix="MSG#",
+            limit=100,
+            ascending=False,
+        )
+        for item in items:
+            if not _matches_filter(item, filters):
+                continue
+            enriched = _enrich_with_body(item)
+            bt = enriched.get("body_text", "") or ""
+            bh = enriched.get("body_html", "") or ""
+            found_code = _extract_otp(bt) or _extract_otp(bh)
+            if found_code:
+                msg = enriched
+                code = found_code
+                break
+            if msg is None:
+                msg = enriched  # Keep first match as fallback
+        if code or time.time() >= deadline:
+            break
+        time.sleep(min(POLL_INTERVAL, deadline - time.time()))
+
     if msg is None:
         return error(
             "TIMEOUT",
@@ -154,11 +181,10 @@ def handle_extract_otp(event: dict) -> dict:
             408,
         )
 
-    msg = _enrich_with_body(msg)
-
     body_text = msg.get("body_text", "") or ""
     body_html = msg.get("body_html", "") or ""
-    code = _extract_otp(body_text) or _extract_otp(body_html)
+    if not code:
+        code = _extract_otp(body_text) or _extract_otp(body_html)
 
     from_addr = msg.get("from_addr", "")
     if isinstance(from_addr, dict):
