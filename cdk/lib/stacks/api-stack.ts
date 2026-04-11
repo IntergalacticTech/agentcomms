@@ -97,6 +97,7 @@ export class ApiStack extends cdk.Stack {
     );
 
     const webhooksFn = createFn("WebhooksFn", "webhooks.handler");
+    const billingFn = createFn("BillingFn", "billing.handler");
     const waitFn = createFn("WaitFn", "wait.handler", {
       timeout: 30,
       memory: 256,
@@ -414,6 +415,22 @@ export class ApiStack extends cdk.Stack {
     console
       .addResource("me")
       .addMethod("GET", lambdaIntegration(consoleAuthFn), authOpts);
+
+    // ── Routes: Billing ──────────────────────────────────────────────
+
+    const billing = this.api.root.addResource("billing");
+    billing
+      .addResource("checkout")
+      .addMethod("POST", lambdaIntegration(billingFn), authOpts);
+    billing
+      .addResource("portal")
+      .addMethod("POST", lambdaIntegration(billingFn), authOpts);
+    billing
+      .addResource("status")
+      .addMethod("GET", lambdaIntegration(billingFn), authOpts);
+    billing
+      .addResource("webhook")
+      .addMethod("POST", lambdaIntegration(billingFn)); // No auth - Stripe signs it
 
     // ── Outputs ────────────────────────────────────────────────────────
 
