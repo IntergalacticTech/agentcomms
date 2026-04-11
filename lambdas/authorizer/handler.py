@@ -28,6 +28,8 @@ def _extract_token(event: dict) -> str | None:
         return token[7:]
     if token.startswith("am_live_") or token.startswith("am_test_"):
         return token
+    if token.startswith("eyJ"):
+        return token  # JWT token passed directly via identity source header
 
     # Check headers
     headers = event.get("headers") or {}
