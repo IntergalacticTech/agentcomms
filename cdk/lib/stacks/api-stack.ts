@@ -24,6 +24,8 @@ export interface ApiStackProps extends cdk.StackProps {
   bounceTopic: sns.Topic;
   complaintTopic: sns.Topic;
   deliveryTopic: sns.Topic;
+  userPoolId: string;
+  userPoolClientId: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -41,6 +43,7 @@ export class ApiStack extends cdk.Stack {
       BODY_BUCKET: props.bodiesBucket.bucketName,
       SEND_QUEUE_URL: props.sendQueue.queueUrl,
       SES_CONFIG_SET: "victorymail-default",
+      USER_POOL_ID: props.userPoolId,
     };
 
     // Helper to create a Lambda function with common config
@@ -100,6 +103,30 @@ export class ApiStack extends cdk.Stack {
     });
     const attachmentsFn = createFn("AttachmentsFn", "attachments.handler");
     const listsFn = createFn("ListsFn", "lists.handler");
+
+    // Console auth Lambda (Cognito operations)
+    const consoleAuthFn = new lambda.Function(this, "ConsoleAuthFn", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "console_auth.handler.handler",
+      code: lambda.Code.fromAsset(lambdasDir),
+      environment: {
+        ...commonEnv,
+        COGNITO_CLIENT_ID: props.userPoolClientId,
+      },
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+    props.table.grantReadWriteData(consoleAuthFn);
+    consoleAuthFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "cognito-idp:SignUp",
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:AdminUpdateUserAttributes",
+        ],
+        resources: ["*"],
+      })
+    );
 
     // Workers
     const inboundFn = createFn(
@@ -371,6 +398,22 @@ export class ApiStack extends cdk.Stack {
     listMembers
       .addResource("{email}")
       .addMethod("DELETE", lambdaIntegration(listsFn), authOpts);
+
+    // ── Routes: Console Auth ─────────────────────────────────────────
+
+    const console = this.api.root.addResource("console");
+    console
+      .addResource("signup")
+      .addMethod("POST", lambdaIntegration(consoleAuthFn));
+    console
+      .addResource("login")
+      .addMethod("POST", lambdaIntegration(consoleAuthFn));
+    console
+      .addResource("refresh")
+      .addMethod("POST", lambdaIntegration(consoleAuthFn));
+    console
+      .addResource("me")
+      .addMethod("GET", lambdaIntegration(consoleAuthFn), authOpts);
 
     // ── Outputs ────────────────────────────────────────────────────────
 

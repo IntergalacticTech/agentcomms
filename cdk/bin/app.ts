@@ -5,6 +5,7 @@ import { DataStack } from "../lib/stacks/data-stack";
 import { EmailStack } from "../lib/stacks/email-stack";
 import { QueueStack } from "../lib/stacks/queue-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
+import { AuthStack } from "../lib/stacks/auth-stack";
 import { CicdStack } from "../lib/stacks/cicd-stack";
 
 const app = new cdk.App();
@@ -31,6 +32,11 @@ const queueStack = new QueueStack(app, `VictoryMail-Queue-${stage}`, {
   stage,
 });
 
+const authStack = new AuthStack(app, `VictoryMail-Auth-${stage}`, {
+  env,
+  stage,
+});
+
 const apiStack = new ApiStack(app, `VictoryMail-Api-${stage}`, {
   env,
   stage,
@@ -43,6 +49,8 @@ const apiStack = new ApiStack(app, `VictoryMail-Api-${stage}`, {
   bounceTopic: emailStack.bounceTopic,
   complaintTopic: emailStack.complaintTopic,
   deliveryTopic: emailStack.deliveryTopic,
+  userPoolId: authStack.userPool.userPoolId,
+  userPoolClientId: authStack.userPoolClient.userPoolClientId,
 });
 
 new CicdStack(app, `VictoryMail-CICD-${stage}`, { env, stage });
