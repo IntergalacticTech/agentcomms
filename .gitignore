@@ -31,3 +31,19 @@ __pycache__/
 # Vendored Lambda dependencies (installed via pip install -t lambdas/)
 lambdas/ulid/
 lambdas/python_ulid*
+lambdas/stripe/
+lambdas/stripe-*
+lambdas/requests/
+lambdas/requests-*
+lambdas/certifi/
+lambdas/certifi-*
+lambdas/idna/
+lambdas/idna-*
+lambdas/urllib3/
+lambdas/urllib3-*
+lambdas/charset_normalizer/
+lambdas/charset_normalizer-*
+lambdas/typing_extensions*
+lambdas/bin/
+lambdas/*.so
+lambdas/*.dist-info/
