@@ -5,7 +5,7 @@ Python SDK for the FreeMail email-as-a-service platform.
 ## Install
 
 ```bash
-pip install freemail
+pip install git+https://github.com/IntergalacticTech/FreeMail.ai.git#subdirectory=sdks/python
 ```
 
 ## Quickstart

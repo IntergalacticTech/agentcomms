@@ -147,5 +147,5 @@ curl -X POST https://api.victorymail.dev/v1/inboxes/{inbox_id}/extract-otp \
 - Console: https://console.victorymail.dev
 - API Reference: https://api.victorymail.dev/v1
 - GitHub: https://github.com/IntergalacticTech/FreeMail.ai
-- Python SDK: `pip install freemail`
-- Node.js SDK: `npm install @freemail/sdk`
+- Python SDK: `pip install git+https://github.com/IntergalacticTech/FreeMail.ai.git#subdirectory=sdks/python`
+- Node.js SDK: `npm install IntergalacticTech/FreeMail.ai#main --install-strategy=shallow`

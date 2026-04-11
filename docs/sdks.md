@@ -9,7 +9,7 @@ FreeMail provides official SDKs for Python and Node.js. Both SDKs cover the full
 ### Installation
 
 ```bash
-pip install freemail
+pip install git+https://github.com/IntergalacticTech/FreeMail.ai.git#subdirectory=sdks/python
 ```
 
 ### Initialization
@@ -171,7 +171,7 @@ except Exception as e:
 ### Installation
 
 ```bash
-npm install @freemail/sdk
+npm install IntergalacticTech/FreeMail.ai#main --install-strategy=shallow
 ```
 
 ### Initialization

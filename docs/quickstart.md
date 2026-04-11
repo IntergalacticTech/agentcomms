@@ -185,7 +185,7 @@ If no OTP can be extracted, `code` will be `null` and `body_text` will be includ
 ### Python
 
 ```bash
-pip install freemail
+pip install git+https://github.com/IntergalacticTech/FreeMail.ai.git#subdirectory=sdks/python
 ```
 
 ```python
@@ -221,7 +221,7 @@ client.inboxes.delete(inbox["id"])
 ### Node.js
 
 ```bash
-npm install @freemail/sdk
+npm install IntergalacticTech/FreeMail.ai#main --install-strategy=shallow
 ```
 
 ```typescript

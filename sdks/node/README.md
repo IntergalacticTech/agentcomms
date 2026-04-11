@@ -5,7 +5,7 @@ Node.js SDK for the FreeMail email platform.
 ## Installation
 
 ```bash
-npm install @freemail/sdk
+npm install IntergalacticTech/FreeMail.ai#main --install-strategy=shallow
 ```
 
 ## Quickstart
