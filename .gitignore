@@ -19,3 +19,11 @@ node_modules/
 # Build / cache
 *.cache
 *.log
+cdk/cdk.out/
+cdk/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
