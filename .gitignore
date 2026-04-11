@@ -27,3 +27,7 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+
+# Vendored Lambda dependencies (installed via pip install -t lambdas/)
+lambdas/ulid/
+lambdas/python_ulid*
