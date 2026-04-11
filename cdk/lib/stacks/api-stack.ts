@@ -106,6 +106,14 @@ export class ApiStack extends cdk.Stack {
     const attachmentsFn = createFn("AttachmentsFn", "attachments.handler");
     const listsFn = createFn("ListsFn", "lists.handler");
     const searchFn = createFn("SearchFn", "search.handler");
+    const aiFn = createFn("AiFn", "ai.handler", { timeout: 60, memory: 512 });
+    aiFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      })
+    );
+    const metricsFn = createFn("MetricsFn", "metrics.handler");
 
     // Webhook delivery worker (SQS consumer)
     const webhookWorkerFn = createFn(
@@ -449,6 +457,26 @@ export class ApiStack extends cdk.Stack {
     this.api.root
       .addResource("search")
       .addMethod("POST", lambdaIntegration(searchFn), authOpts);
+
+    // ── Routes: AI ──────────────────────────────────────────────────
+
+    const ai = this.api.root.addResource("ai");
+    ai.addResource("categorize")
+      .addMethod("POST", lambdaIntegration(aiFn), authOpts);
+    ai.addResource("extract")
+      .addMethod("POST", lambdaIntegration(aiFn), authOpts);
+    ai.addResource("summarize")
+      .addMethod("POST", lambdaIntegration(aiFn), authOpts);
+
+    // ── Routes: Metrics ────────────────────────────────────────────────
+
+    const metrics = this.api.root.addResource("metrics");
+    metrics
+      .addResource("query")
+      .addMethod("POST", lambdaIntegration(metricsFn), authOpts);
+    metrics
+      .addResource("usage")
+      .addMethod("GET", lambdaIntegration(metricsFn), authOpts);
 
     // ── SQS Send Permissions for Webhook Publishing ────────────────
 
