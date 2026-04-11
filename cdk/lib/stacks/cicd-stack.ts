@@ -10,11 +10,12 @@ export class CicdStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: CicdStackProps) {
     super(scope, id, props);
 
-    // GitHub OIDC Provider
-    const provider = new iam.OpenIdConnectProvider(this, 'GitHubOIDC', {
-      url: 'https://token.actions.githubusercontent.com',
-      clientIds: ['sts.amazonaws.com'],
-    });
+    // GitHub OIDC Provider - import existing (one per account)
+    const provider = iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+      this,
+      'GitHubOIDC',
+      `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`,
+    );
 
     // Deploy Role for GitHub Actions
     const deployRole = new iam.Role(this, 'GitHubActionsDeployRole', {
