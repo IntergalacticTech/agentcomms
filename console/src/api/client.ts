@@ -1,6 +1,6 @@
 const API_BASE =
   import.meta.env.VITE_API_URL ||
-  "https://1h2sal7gf4.execute-api.us-east-1.amazonaws.com/v1";
+  "https://api.victorymail.dev/v1";
 
 class ApiClient {
   private token: string | null = null;

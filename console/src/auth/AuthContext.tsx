@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const interval = setInterval(async () => {
       try {
         const data = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://1h2sal7gf4.execute-api.us-east-1.amazonaws.com/v1"}/console/refresh`,
+          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/refresh`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -104,17 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
     try {
-      const data = await fetch(
-        `${import.meta.env.VITE_API_URL || "https://1h2sal7gf4.execute-api.us-east-1.amazonaws.com/v1"}/console/login`,
+      const loginResp = await fetch(
+        `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
         }
-      ).then((r) => {
-        if (!r.ok) throw new Error(`Login failed: ${r.status}`);
-        return r.json();
-      });
+      );
+      const data = await loginResp.json();
+      if (!loginResp.ok) {
+        const msg = data?.error?.message || `Login failed (${loginResp.status})`;
+        throw new Error(msg);
+      }
       const state: AuthState = {
         idToken: data.id_token,
         refreshToken: data.refresh_token,
@@ -131,17 +133,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, orgName: string) => {
       setLoading(true);
       try {
-        const data = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://1h2sal7gf4.execute-api.us-east-1.amazonaws.com/v1"}/console/signup`,
+        const resp = await fetch(
+          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/signup`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, org_name: orgName }),
+            body: JSON.stringify({ email, password, name: orgName }),
           }
-        ).then((r) => {
-          if (!r.ok) throw new Error(`Signup failed: ${r.status}`);
-          return r.json();
-        });
+        );
+        const data = await resp.json();
+        if (!resp.ok) {
+          const msg = data?.error?.message || `Signup failed (${resp.status})`;
+          throw new Error(msg);
+        }
         return { apiKey: data.api_key };
       } finally {
         setLoading(false);
