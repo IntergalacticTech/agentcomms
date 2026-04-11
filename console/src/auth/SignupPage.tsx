@@ -12,9 +12,26 @@ export default function SignupPage() {
   const [apiKey, setApiKey] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const passwordErrors = (() => {
+    const errs: string[] = [];
+    if (password.length > 0) {
+      if (password.length < 8) errs.push("at least 8 characters");
+      if (!/[a-z]/.test(password)) errs.push("a lowercase letter");
+      if (!/[A-Z]/.test(password)) errs.push("an uppercase letter");
+      if (!/[0-9]/.test(password)) errs.push("a number");
+    }
+    return errs;
+  })();
+
+  const passwordValid = password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!passwordValid) {
+      setError("Password must include an uppercase letter, a lowercase letter, and a number.");
+      return;
+    }
     try {
       const result = await signup(email, password, orgName);
       if (result.apiKey) {
@@ -128,13 +145,23 @@ export default function SignupPage() {
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${password.length > 0 && !passwordValid ? "border-red-300" : "border-gray-300"}`}
                 placeholder="Min. 8 characters"
               />
+              {password.length > 0 && passwordErrors.length > 0 && (
+                <p className="mt-1 text-xs text-red-600">
+                  Needs {passwordErrors.join(", ")}
+                </p>
+              )}
+              {password.length > 0 && passwordValid && (
+                <p className="mt-1 text-xs text-green-600">
+                  Password meets requirements
+                </p>
+              )}
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !passwordValid}
               className="w-full py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Creating account..." : "Create account"}
