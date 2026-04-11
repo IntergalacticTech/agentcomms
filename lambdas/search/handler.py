@@ -10,6 +10,11 @@ from shared.dynamo import query_gsi
 from shared.response import success, bad_request
 from shared.validation import parse_body
 
+RESULT_FIELDS = [
+    "id", "inbox_id", "thread_id", "direction", "from_addr", "to",
+    "subject", "snippet", "is_read", "category", "received_at", "created_at",
+]
+
 
 def handler(event, context):
     """Search messages across an org."""
@@ -58,7 +63,8 @@ def handler(event, context):
         if before and created_at > before:
             continue
 
-        results.append(item)
+        filtered = {k: item[k] for k in RESULT_FIELDS if k in item}
+        results.append(filtered)
         if len(results) >= limit:
             break
 
