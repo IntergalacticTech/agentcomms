@@ -1,5 +1,37 @@
 # SaaS Platform Layer
 
+## Planning Refresh
+
+This file contains both current launch planning and older future-state detail.
+
+The current source of truth is:
+
+- the product is **FreeMail**
+- `victorymail.dev` is the temporary deployment and testing domain
+- direct SaaS launches before AWS Marketplace
+- the self-serve plan ladder is **Free -> Pro**
+- AI features are **paid-only**
+- AWS Marketplace is the path **beyond Pro**, not the first launch channel
+
+If a later section in this file conflicts with those rules, follow this section and the current [build plan](/Users/jwc/code/Victory/FreeMail.ai/BUILD_PLAN.md).
+
+### Current Tier Model
+
+| Tier | Channel | Purpose | AI |
+|------|---------|---------|----|
+| Free | Direct SaaS | developer adoption and proof of value | No |
+| Pro | Direct SaaS | higher quotas and paid self-serve usage | Yes |
+| Marketplace | AWS Marketplace | higher mailbox/domain/throughput needs and procurement-led buying | Yes |
+
+### Current Launch Principles
+
+- Keep the free tier generous, especially on custom domains.
+- Do not add Business or Scale self-serve tiers before Free and Pro are live.
+- Do not make Marketplace a launch dependency.
+- Use Marketplace when a customer outgrows Pro or needs AWS procurement.
+
+---
+
 AgentMail was originally designed as a pure AWS Marketplace product -- enterprise customers subscribe through Marketplace, usage is metered hourly, and billing flows through AWS's consolidated invoicing. That model works for enterprise procurement but creates a fatal bottleneck for developer adoption: requiring an AWS account, navigating Marketplace, and committing to a contract before sending a single email is too much friction for the individual developer or small team who just wants to try the product.
 
 The SaaS Platform Layer solves this by adding a **direct-to-consumer channel** alongside the existing Marketplace channel. A developer can visit the AgentMail website, sign up with an email address, get an API key, and create their first inbox in under two minutes -- no AWS account, no credit card, no procurement process. The free tier gives them enough capacity to build a proof of concept. When they outgrow the free tier, they upgrade to a paid SaaS plan with a credit card. When they outgrow the paid plans -- or when their enterprise procurement team gets involved -- they migrate to AWS Marketplace for custom contracts, committed spend credits, and enterprise features.
@@ -127,6 +159,8 @@ Migrates to AWS Marketplace (custom contract)      ← revenue engine
 ## 2. Tier System
 
 ### Tier Comparison Table
+
+Note: the table below reflects an earlier future-state plan. For the current launch plan, use the `Planning Refresh` section above: direct SaaS is `Free` and `Pro`, and AWS Marketplace starts above Pro.
 
 | Feature | Free | Pro ($29/mo) | Business ($99/mo) | Scale ($299/mo) | Enterprise (Marketplace) |
 |---------|------|--------------|--------------------|-----------------|--------------------------| 

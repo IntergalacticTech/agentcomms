@@ -118,7 +118,7 @@ PRICING:
 - Scale: $499/month (100,000 messages, 100 inboxes included)
 - Enterprise: Custom pricing via private offer
 - Pay-as-you-go overage for usage above tier commitments
-- 31-day free trial available
+- Marketplace trial optional; duration TBD within AWS Marketplace limits
 
 TECHNICAL HIGHLIGHTS:
 - 99.95% uptime SLA
@@ -148,9 +148,9 @@ TECHNICAL HIGHLIGHTS:
 
 | Field | Value |
 |-------|-------|
-| Support email | support@agentmail.aws |
-| Support URL | https://docs.agentmail.aws/support |
-| Documentation URL | https://docs.agentmail.aws |
+| Support email | support@freemail.dev |
+| Support URL | https://docs.freemail.dev/support |
+| Documentation URL | https://docs.freemail.dev |
 | Support tiers | Basic (email, <24h response), Premium (email + Slack, <4h response), Enterprise (dedicated TAM, <1h response) |
 
 ### EULA

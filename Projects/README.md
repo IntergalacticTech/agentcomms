@@ -1,10 +1,19 @@
-# AgentMail on AWS - Complete Project Documentation
+# FreeMail - Complete Project Documentation
 
 ## Executive Summary
 
-AgentMail is a cloud-native API platform built on AWS that provides AI agents with fully programmatic email capabilities. The platform enables autonomous AI systems to create, manage, and operate email inboxes entirely through API calls -- no human intervention, no OAuth flows, no per-seat licensing. Unlike traditional email providers that charge $4-12 per inbox per month and impose automation-hostile rate limits, AgentMail is designed from the ground up for machine-scale email operations, targeting 10 million inboxes and 10 million messages per day at a fraction of the cost of incumbent solutions.
+FreeMail is a cloud-native API platform built on AWS that gives AI agents fully programmatic email capabilities. The product launches as a **free SaaS offering first**, with a generous developer experience and custom-domain support as the main wedge. The immediate goal is not to maximize feature breadth; it is to get real users sending and receiving mail quickly, then monetize the cost-heavy parts later.
 
-The platform is available through two billing channels: a **direct SaaS product** (with Stripe billing) for self-service sign-up and a growth funnel of free and paid tiers, and the **AWS Marketplace** (SaaS Contracts with Consumption model) for enterprise procurement. The direct SaaS product offers a free tier (5 inboxes, 1,000 emails/month) plus paid tiers (Pro $29, Business $99, Scale $299), while the Marketplace serves enterprise customers who need AWS-native billing and higher limits. Both channels share a single infrastructure. Built entirely on managed AWS services -- SES for transport, DynamoDB for storage, Lambda for compute, Bedrock for AI capabilities -- AgentMail achieves high reliability with minimal operational overhead. The architecture is designed for multi-tenant isolation at every layer, enabling aggressive unit economics that support 70%+ gross margins even at the lowest pricing tiers. This documentation set covers every aspect of the system: architecture, implementation, cost analysis, security, and go-to-market strategy.
+The current plan is:
+
+- **FreeMail** is the product name.
+- `victorymail.dev` is the temporary deployment and testing domain.
+- the initial go-to-market motion is **direct SaaS**, not Marketplace-first.
+- the paid self-serve tier is **Pro**.
+- **AI features are paid-only** because Bedrock and OpenSearch are the first major marginal-cost drivers.
+- customers who outgrow Pro should move to **AWS Marketplace** for higher mailbox/domain/throughput needs and procurement-led buying.
+
+The documentation in this repo covers architecture, implementation, cost analysis, security, and go-to-market planning. Some lower-level documents still use the legacy `AgentMail` name; the canonical product identity is now **FreeMail**.
 
 ---
 

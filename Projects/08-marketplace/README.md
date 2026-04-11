@@ -1,6 +1,43 @@
 # AWS Marketplace Integration
 
-AgentMail is distributed exclusively through the AWS Marketplace as a SaaS product using the **SaaS Contracts with Consumption** hybrid billing model. This approach combines committed contract revenue with pay-as-you-go consumption metering, enabling predictable base revenue while allowing customers to scale usage seamlessly. Selling through the Marketplace eliminates procurement friction for enterprise buyers -- customers purchase AgentMail using existing AWS accounts, consolidated billing, and committed spend (EDP) credits.
+AWS Marketplace is a **post-Pro growth channel** for FreeMail. It is not the initial launch motion.
+
+The product should launch as a free and Pro SaaS offering first, then use Marketplace for customers who:
+
+- outgrow Pro mailbox counts
+- outgrow Pro custom-domain counts
+- need more throughput
+- want heavier AI usage under contract
+- require AWS-native procurement
+
+---
+
+## Current Role of Marketplace
+
+Marketplace exists to solve three problems:
+
+1. **Procurement**
+   Enterprise buyers want to buy through AWS.
+
+2. **Scaling beyond Pro**
+   Once a customer has clearly grown past self-serve economics, Marketplace becomes the natural commercial upgrade path.
+
+3. **Contract-backed higher-cost usage**
+   AI and higher-volume traffic are easier to support under committed or negotiated Marketplace terms.
+
+---
+
+## Launch Order
+
+The current build order is:
+
+1. Free SaaS MVP
+2. Public beta hardening
+3. Pro billing and paid AI
+4. Marketplace migration path
+5. Public Marketplace listing
+
+This order is deliberate. Marketplace should not block product launch.
 
 ---
 
@@ -8,71 +45,82 @@ AgentMail is distributed exclusively through the AWS Marketplace as a SaaS produ
 
 | Document | Description |
 |----------|-------------|
-| [Listing Setup](./listing-setup.md) | Seller registration, product listing configuration, FTR requirements, ISV Accelerate program, and listing approval process |
-| [Pricing Model](./pricing-model.md) | Metering dimensions, contract tiers, pay-as-you-go rates, free trial configuration, private offers, and CPPO |
-| [Metering Pipeline](./metering-pipeline.md) | Usage event collection, hourly aggregation, BatchMeterUsage submission, error handling, DLQ, reconciliation, and complete Lambda code |
-| [Customer Lifecycle](./customer-lifecycle.md) | Onboarding flow, ResolveCustomer integration, SNS notifications, entitlement checking, unsubscribe handling, and edge cases |
+| [Pricing Model](./pricing-model.md) | Current commercial structure, proposed metering dimensions, and trial strategy |
+| [Metering Pipeline](./metering-pipeline.md) | Hourly metering architecture and current AWS identifier rules |
+| [Customer Lifecycle](./customer-lifecycle.md) | Fulfillment, entitlement refresh, and SaaS-to-Marketplace migration planning |
+| [Listing Setup](./listing-setup.md) | Listing mechanics, seller workflow, FTR, and private offers |
+
+---
+
+## Current Integration Decisions
+
+### 1. Marketplace is not exclusive
+
+FreeMail uses a dual-channel model:
+
+- direct SaaS for free and Pro
+- Marketplace for growth beyond Pro
+
+### 2. Marketplace identifiers must follow current AWS guidance
+
+For a new SaaS product, planning should treat these as first-class fields:
+
+- `CustomerAWSAccountId`
+- `LicenseArn`
+- `ProductCode`
+
+Retain `CustomerIdentifier` only as a compatibility/reference field where AWS still returns it.
+
+### 3. Metering dimensions must be frozen only once
+
+Do not publish a listing until the metering dimensions are finalized. They are effectively a contract boundary.
+
+### 4. Free trials are optional and must not be modeled as auto-converting
+
+If FreeMail offers a Marketplace free trial, it should be designed as a bounded evaluation path inside AWS limits, with explicit follow-up conversion to a paid offer.
+
+### 5. Private offers should come before public scale assumptions
+
+The first usable Marketplace motion is likely:
+
+- private offers
+- migration of specific Pro customers
+- limited-visibility listing
+- public listing later
 
 ---
 
 ## Architecture Overview
 
 ```
-Customer subscribes via AWS Marketplace
+Existing FreeMail SaaS customer exceeds Pro limits
         |
         v
-AWS Marketplace ──POST──> API Gateway (fulfillment URL)
-        |                        |
-        |                  Lambda: ResolveCustomer
-        |                        |
-        |                  Create Tenant + API Keys
-        |                        |
-        v                        v
-SNS Topic ───> SQS Queue ───> Lambda: Lifecycle Handler
-(subscribe, unsubscribe,        |
- entitlement changes)      Update tenant state
-                                 |
-                                 v
-                           DynamoDB (tenant table)
-                                 |
-                                 v
-API Gateway ──> Lambda ──> Usage Events ──> Kinesis
-                                 |
-                           EventBridge (hourly)
-                                 |
-                           Lambda: Aggregator
-                                 |
-                           DynamoDB (hourly aggregates)
-                                 |
-                           Lambda: MeterUsage
-                                 |
-                           BatchMeterUsage API
-                                 |
-                           AWS Marketplace Billing
+Team offers AWS Marketplace contract or private offer
+        |
+        v
+Customer subscribes on AWS Marketplace
+        |
+        v
+Fulfillment endpoint calls ResolveCustomer
+        |
+        v
+Existing org is linked to Marketplace account and license
+        |
+        v
+Usage metering begins hourly via BatchMeterUsage
+        |
+        v
+Entitlements and quotas now come from Marketplace
 ```
 
 ---
 
-## Key Integration Points
+## Success Criteria
 
-| AWS Service | Role | API/Action |
-|-------------|------|------------|
-| **AWS Marketplace Metering Service** | Report hourly usage per dimension per customer | `BatchMeterUsage`, `MeterUsage` |
-| **AWS Marketplace Entitlement Service** | Check what a customer has paid for | `GetEntitlements` |
-| **AWS Marketplace Catalog API** | Manage product listing programmatically | `StartChangeSet` |
-| **Amazon SNS** | Receive customer lifecycle events | Subscribe to Marketplace SNS topic |
-| **Amazon SQS** | Buffer SNS messages for durable processing | Queue subscribed to SNS topic |
+Marketplace work is complete when:
 
----
-
-## Key Design Decisions
-
-1. **SaaS Contracts with Consumption over pure SaaS Subscriptions.** Pure subscriptions limit revenue to fixed tiers. The hybrid model captures base commitment revenue while metering overages, aligning cost with value delivered.
-
-2. **Hourly batch metering over real-time per-request metering.** `BatchMeterUsage` accepts up to 25 records per call and requires UTC-hour-aligned timestamps. Batching reduces API calls and aligns with the Marketplace's hourly billing granularity.
-
-3. **SQS queue for SNS lifecycle events, not direct Lambda invocation.** SNS-to-Lambda drops messages on Lambda errors. SNS-to-SQS-to-Lambda provides automatic retry, dead-letter queue support, and visibility timeout for exactly-once processing.
-
-4. **Local ledger for metering reconciliation.** Every usage record submitted to `BatchMeterUsage` is also written to DynamoDB. This enables dispute resolution, audit trails, and detection of lost records (the 6-hour submission window means late records are permanently lost revenue).
-
-5. **Entitlement caching with SNS-triggered refresh.** Calling `GetEntitlements` on every API request adds latency and risks throttling. A 15-minute cache with SNS-triggered immediate refresh balances freshness against performance.
+- an existing Pro customer can migrate without losing data
+- entitlements can be refreshed safely
+- metering is auditable and retry-safe
+- private offers can be fulfilled without custom operator workflows

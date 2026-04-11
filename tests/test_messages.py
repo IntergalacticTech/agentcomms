@@ -66,7 +66,7 @@ def test_send_message(aws_env):
     assert data["from_addr"] == "test@example.com"
     assert data["to"] == ["recipient@example.com"]
     assert data["status"] == "queued"
-    assert data["body_s3_key"] is not None
+    assert "body_s3_key" not in data  # internal field filtered from response
 
 
 def test_send_message_missing_fields(aws_env):

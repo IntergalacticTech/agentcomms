@@ -9,6 +9,17 @@ from shared.ulid import generate_ulid
 from shared.validation import parse_body
 
 
+DRAFT_FIELDS = [
+    "id", "inbox_id", "thread_id", "in_reply_to_message_id",
+    "to", "cc", "bcc", "subject", "body_text", "body_html",
+    "attachments", "created_at", "updated_at",
+]
+
+
+def _filter_draft(item: dict) -> dict:
+    return {k: item[k] for k in DRAFT_FIELDS if k in item}
+
+
 def _list_drafts(inbox_id: str, event: dict) -> dict:
     """List drafts in an inbox."""
     limit, page_token, ascending = get_pagination_params(event)
@@ -21,7 +32,8 @@ def _list_drafts(inbox_id: str, event: dict) -> dict:
         ascending=ascending,
         exclusive_start_key=start_key,
     )
-    return success(paginated_response(items, last_key))
+    filtered = [_filter_draft(i) for i in items]
+    return success(paginated_response(filtered, last_key))
 
 
 def _get_draft(inbox_id: str, draft_id: str) -> dict:
@@ -30,7 +42,7 @@ def _get_draft(inbox_id: str, draft_id: str) -> dict:
     item = get_item(keys["PK"], keys["SK"])
     if not item:
         return not_found("Draft")
-    return success(item)
+    return success(_filter_draft(item))
 
 
 def _create_draft(org_id: str, inbox_id: str, body: dict) -> dict:
@@ -67,7 +79,7 @@ def _create_draft(org_id: str, inbox_id: str, body: dict) -> dict:
         "updated_at": now,
     }
     put_item(item)
-    return created(item)
+    return created(_filter_draft(item))
 
 
 def _update_draft(inbox_id: str, draft_id: str, body: dict) -> dict:
@@ -87,7 +99,7 @@ def _update_draft(inbox_id: str, draft_id: str, body: dict) -> dict:
 
     updates["updated_at"] = now_iso()
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_draft(updated))
 
 
 def _delete_draft(inbox_id: str, draft_id: str) -> dict:

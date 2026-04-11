@@ -1,12 +1,18 @@
 # Customer Lifecycle
 
-This document covers the complete customer lifecycle for AgentMail on the AWS Marketplace: from initial subscription through onboarding, entitlement management, and unsubscribe handling.
+This document covers the customer lifecycle for FreeMail on AWS Marketplace: from subscription through fulfillment, entitlement management, metering linkage, and unsubscribe handling.
+
+Current planning notes:
+
+- Marketplace is the **post-Pro upgrade path**, not the launch path for initial product adoption.
+- The opening flow and examples in this document are the current source of truth.
+- Some lower sections still use legacy `CustomerIdentifier`-centric wording and should be updated before implementation.
 
 ---
 
 ## Onboarding Flow
 
-When a customer subscribes to AgentMail through the AWS Marketplace, the following sequence executes:
+When a customer subscribes to FreeMail through AWS Marketplace, the following sequence executes:
 
 ```
 1. Customer clicks "Subscribe" on AWS Marketplace listing
@@ -19,13 +25,13 @@ When a customer subscribes to AgentMail through the AWS Marketplace, the followi
    | (POST body contains x-amzn-marketplace-token)
    |
 5. Our backend calls ResolveCustomer with the token
-   | → Returns: CustomerIdentifier, ProductCode, CustomerAWSAccountId
+   | → Returns: CustomerIdentifier, ProductCode, CustomerAWSAccountId, LicenseArn
    |
 6. Create tenant in DynamoDB (or link to existing tenant)
    |
 7. Provision resources: default pod, generate API keys
    |
-8. Associate CustomerIdentifier with tenant record
+8. Associate CustomerAWSAccountId and LicenseArn with tenant record
    |
 9. Redirect customer to onboarding dashboard
    |
@@ -34,14 +40,14 @@ When a customer subscribes to AgentMail through the AWS Marketplace, the followi
 
 ### Step 1-3: Customer Subscribes on AWS Marketplace
 
-The customer visits the AgentMail listing on AWS Marketplace, selects a contract tier (Starter, Growth, Scale, or accepts a private offer), chooses the contract duration, and clicks "Subscribe." AWS handles all payment processing.
+The customer visits the FreeMail listing on AWS Marketplace, selects a contract tier (or accepts a private offer), chooses the contract duration, and clicks "Subscribe." AWS handles the billing and entitlement workflow.
 
 ### Step 4: Fulfillment URL Receives POST
 
 AWS redirects the customer's browser to our **fulfillment URL** via an HTTP POST. The POST body contains a single form-encoded parameter:
 
 ```
-POST https://api.agentmail.aws/v1/marketplace/fulfill
+POST https://api.freemail.dev/v1/marketplace/fulfill
 Content-Type: application/x-www-form-urlencoded
 
 x-amzn-marketplace-token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -112,16 +118,19 @@ def handle_fulfillment(event, context):
 
     customer_id = resolve_response["CustomerIdentifier"]
     product_code = resolve_response["ProductCode"]
-    customer_aws_account = resolve_response.get("CustomerAWSAccountId", "unknown")
+    customer_aws_account = resolve_response["CustomerAWSAccountId"]
+    license_arn = resolve_response["LicenseArn"]
 
-    print(f"Resolved customer: {customer_id}, product: {product_code}, "
-          f"AWS account: {customer_aws_account}")
+    print(
+        f"Resolved customer: {customer_id}, product: {product_code}, "
+        f"AWS account: {customer_aws_account}, license: {license_arn}"
+    )
 
     # Check if this customer already has a tenant (re-subscribe scenario)
     existing = tenant_table.query(
-        IndexName="MarketplaceCustomerIndex",
-        KeyConditionExpression="marketplace_customer_id = :cid",
-        ExpressionAttributeValues={":cid": customer_id},
+        IndexName="MarketplaceAccountIndex",
+        KeyConditionExpression="marketplace_customer_aws_account_id = :acct",
+        ExpressionAttributeValues={":acct": customer_aws_account},
     )
 
     if existing["Items"]:
@@ -153,7 +162,7 @@ def handle_fulfillment(event, context):
 
     # Redirect to onboarding dashboard
     dashboard_url = (
-        f"https://dashboard.agentmail.aws/onboard?"
+        f"https://app.victorymail.dev/onboard?"
         f"token={registration_token}&org={org_id}"
     )
 
@@ -648,7 +657,7 @@ Use `GetEntitlements` to verify what a customer is entitled to before processing
 response = marketplace_entitlements.get_entitlements(
     ProductCode="prod-abcdef1234567",
     Filter={
-        "CUSTOMER_IDENTIFIER": ["cust-abc123"]
+        "CUSTOMER_AWS_ACCOUNT_ID": ["123456789012"]
     }
 )
 ```
@@ -660,6 +669,8 @@ response = marketplace_entitlements.get_entitlements(
   "Entitlements": [
     {
       "CustomerIdentifier": "cust-abc123",
+      "CustomerAWSAccountId": "123456789012",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
       "ProductCode": "prod-abcdef1234567",
       "Dimension": "messages_sent",
       "Value": {
@@ -669,6 +680,8 @@ response = marketplace_entitlements.get_entitlements(
     },
     {
       "CustomerIdentifier": "cust-abc123",
+      "CustomerAWSAccountId": "123456789012",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
       "ProductCode": "prod-abcdef1234567",
       "Dimension": "inboxes_active",
       "Value": {
@@ -678,6 +691,8 @@ response = marketplace_entitlements.get_entitlements(
     },
     {
       "CustomerIdentifier": "cust-abc123",
+      "CustomerAWSAccountId": "123456789012",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
       "ProductCode": "prod-abcdef1234567",
       "Dimension": "ai_searches",
       "Value": {
@@ -691,7 +706,7 @@ response = marketplace_entitlements.get_entitlements(
 
 ### Entitlement Caching Strategy
 
-Calling `GetEntitlements` on every API request adds 50-100ms latency and risks throttling (the API has a low TPS limit). Instead, cache entitlements and refresh on a schedule:
+Calling `GetEntitlements` on every API request adds latency and risks throttling. Instead, cache entitlements and refresh on a schedule. Use `CustomerAWSAccountId` as the primary lookup key and persist `LicenseArn` alongside the org record for downstream metering:
 
 ```python
 """

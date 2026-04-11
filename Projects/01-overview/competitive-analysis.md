@@ -71,9 +71,10 @@ The category is currently defined by two purpose-built startups -- AgentMail.to 
 **Overview**: Purpose-built email infrastructure for AI agents with a broader scope that includes browser automation and credential management. Positions itself as a complete "agent infrastructure" platform rather than purely email.
 
 **Product**:
-- REST API + MCP server (32+ tools)
+- REST API + MCP server
 - Focus on agent workflows beyond just email
 - Self-hosting option available
+- Includes browser automation and credential handling features
 
 **Key Features (Unique to Lumbox)**:
 
@@ -115,8 +116,7 @@ The category is currently defined by two purpose-built startups -- AgentMail.to 
 - Credential vault mixes concerns (email platform vs. secrets management)
 - No semantic search capabilities
 - No structured data extraction (beyond OTP)
-- No IMAP/SMTP compatibility
-- No custom domain support (unclear)
+- Broader scope may dilute focus on core email infrastructure
 - Young product with limited track record
 
 ---
@@ -200,8 +200,8 @@ The category is currently defined by two purpose-built startups -- AgentMail.to 
 | Scheduled sending | Unknown | Unknown | Yes | Yes | No | **Yes** |
 | Bulk send (batch API) | No | Yes (100) | Yes | Yes | No | **Yes (100)** |
 | **Domain Management** | | | | | | |
-| Custom domains | Yes | Unknown | Yes | Yes | N/A | **Yes** |
-| DKIM/SPF/DMARC | Yes | Unknown | Yes | Yes | N/A | **Yes** |
+| Custom domains | Yes | Yes | Yes | Yes | N/A | **Yes** |
+| DKIM/SPF/DMARC | Yes | Yes | Yes | Yes | N/A | **Yes** |
 | Automated DNS setup | Unknown | Unknown | Partial | Partial | N/A | **Yes (Route 53)** |
 | **Organization** | | | | | | |
 | Multi-tenant pods | Yes | Unknown | No | Subusers | No | **Yes** |
@@ -224,8 +224,8 @@ The category is currently defined by two purpose-built startups -- AgentMail.to 
 | MCP server | Yes | **Yes (32+ tools)** | No | No | No | **Yes (planned)** |
 | OpenAPI spec | Yes | Unknown | Yes | Yes | Yes | **Yes** |
 | **Protocol Compat** | | | | | | |
-| IMAP support | Yes | No | No | No | Yes | **Yes** |
-| SMTP support | Yes | No | Yes | Yes | Yes | **Yes** |
+| IMAP support | Yes | Yes | No | No | Yes | **Yes** |
+| SMTP support | Yes | Yes | Yes | Yes | Yes | **Yes** |
 | **Security** | | | | | | |
 | Credential vault | No | **Yes** | No | No | No | Deferred |
 | Prompt injection defense | No | **Yes** | N/A | N/A | N/A | **Yes (planned)** |
@@ -301,7 +301,7 @@ The category is currently defined by two purpose-built startups -- AgentMail.to 
 
 ## Gaps Exposed by Lumbox
 
-Lumbox's product reveals several features that are genuinely valuable for AI agent workflows and missing from our current plan. These should be prioritized for addition:
+Lumbox's product reveals several features that are genuinely valuable for AI agent workflows and still worth prioritizing. These should be incorporated into the FreeMail launch or near-launch plan:
 
 | Gap | Priority | Why It Matters | Our Response |
 |-----|----------|---------------|--------------|
@@ -325,6 +325,6 @@ Lumbox's product reveals several features that are genuinely valuable for AI age
 
 3. **Lead on enterprise features where neither competitor can follow.** AWS Marketplace billing, multi-region, SOC 2 compliance, IAM integration -- these are the features that unlock six-figure enterprise contracts.
 
-4. **Price aggressively at the low end to capture developers, then monetize at scale.** A generous free tier (matching or exceeding Lumbox's 3 inboxes/500 emails) brings developers in. Consumption-based pricing keeps them as they scale.
+4. **Price aggressively at the low end to capture developers, then monetize at scale.** A generous free tier that exceeds Lumbox on custom-domain access is a strong wedge. Keep AI paid-only and push higher-volume users toward Marketplace.
 
 5. **Ship the MCP server early.** With MCP adoption accelerating, having a first-class MCP server is increasingly table stakes for any developer tool. It should be available at launch, not as a follow-on feature.

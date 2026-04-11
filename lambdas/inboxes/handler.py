@@ -19,7 +19,8 @@ DEFAULT_DOMAIN = "victorymail.dev"
 
 INBOX_FIELDS = [
     "id", "org_id", "pod_id", "email", "display_name",
-    "status", "settings", "forwarding", "created_at", "updated_at",
+    "status", "message_count", "unread_count", "settings", "forwarding",
+    "created_at", "updated_at",
 ]
 
 

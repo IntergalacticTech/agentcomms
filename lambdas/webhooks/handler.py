@@ -24,6 +24,16 @@ VALID_EVENTS = {
 }
 
 
+WEBHOOK_FIELDS = [
+    "id", "url", "events", "status", "secret", "filter",
+    "delivery_stats", "created_at", "updated_at",
+]
+
+
+def _filter_webhook(item: dict) -> dict:
+    return {k: item[k] for k in WEBHOOK_FIELDS if k in item}
+
+
 def _validate_events(events: list) -> str | None:
     """Validate webhook events. Returns error message or None."""
     if not events:
@@ -46,7 +56,8 @@ def _list_webhooks(org_id: str, event: dict) -> dict:
         ascending=ascending,
         exclusive_start_key=start_key,
     )
-    return success(paginated_response(items, last_key))
+    filtered = [_filter_webhook(i) for i in items]
+    return success(paginated_response(filtered, last_key))
 
 
 def _get_webhook(org_id: str, webhook_id: str) -> dict:
@@ -55,7 +66,7 @@ def _get_webhook(org_id: str, webhook_id: str) -> dict:
     item = get_item(keys["PK"], keys["SK"])
     if not item:
         return not_found("Webhook")
-    return success(item)
+    return success(_filter_webhook(item))
 
 
 def _create_webhook(org_id: str, body: dict) -> dict:
@@ -97,7 +108,7 @@ def _create_webhook(org_id: str, body: dict) -> dict:
         "updated_at": now,
     }
     put_item(item)
-    return created(item)
+    return created(_filter_webhook(item))
 
 
 def _update_webhook(org_id: str, webhook_id: str, body: dict) -> dict:
@@ -122,7 +133,7 @@ def _update_webhook(org_id: str, webhook_id: str, body: dict) -> dict:
 
     updates["updated_at"] = now_iso()
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_webhook(updated))
 
 
 def _delete_webhook(org_id: str, webhook_id: str) -> dict:

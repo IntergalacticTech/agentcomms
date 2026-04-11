@@ -1,8 +1,8 @@
 # 15 - Lumbox-Inspired Features: Analysis and AWS Implementation Designs
 
-This section documents features identified from Lumbox (lumbox.co) that are valuable additions to our AgentMail on AWS platform. Each feature includes priority, effort estimate, AWS services required, API design, and target implementation phase.
+This section documents features identified from Lumbox (lumbox.co) that are valuable additions to the FreeMail platform. Each feature includes priority, effort estimate, AWS services required, API design, and target implementation phase.
 
-**Context**: Lumbox is a direct competitor offering email infrastructure for AI agents. While we differ strategically (we are AWS-native, enterprise-focused, and deeper on AI), Lumbox has several features that are genuinely better for agent developer experience. This document covers what we should adopt, how to build it on AWS, and what to skip.
+**Context**: Lumbox is a direct competitor offering email infrastructure for AI agents. While we differ strategically, Lumbox has several features that are materially better for agent developer experience. This document covers what FreeMail should adopt, how to build it on AWS, and what to skip.
 
 ---
 
@@ -103,21 +103,21 @@ Agent -> API Gateway -> Lambda (request handler)
 
 3. **Cleanup**: SQS messages have a 10-minute visibility timeout and 1-hour retention. Consumed messages are deleted.
 
-**Option B: API Gateway HTTP API with Lambda Streaming Response**
+**Option B: API Gateway REST API with Lambda Streaming Response**
 
-For timeouts longer than 29 seconds (API Gateway REST limit), use HTTP API with Lambda response streaming:
+For timeouts longer than the normal request timeout on the core API, use REST API with Lambda response streaming:
 
 ```
-Agent -> API Gateway HTTP API -> Lambda (streaming response)
+Agent -> API Gateway REST API -> Lambda (streaming response)
                                       |
                                       v
                                DynamoDB Streams subscription
                                (filtered to inbox + OTP detection)
 ```
 
-Lambda uses response streaming to keep the connection open for up to 15 minutes, polling DynamoDB Streams for new emails matching OTP patterns. This is more complex but supports longer timeouts.
+Lambda uses response streaming to keep the connection open for up to 15 minutes, polling for new emails matching OTP patterns. This is more complex but supports longer waits.
 
-**Recommended approach**: Option A for timeouts up to 300 seconds (use API Gateway HTTP API, not REST, to avoid the 29-second limit). HTTP API supports up to 30 minutes Lambda integration timeout.
+**Recommended approach**: Option A remains the default. Only use REST API response streaming if FreeMail needs waits longer than the standard request pattern comfortably supports.
 
 ### OTP Extraction Patterns
 
@@ -369,25 +369,25 @@ All three remain valuable. Long-poll is the simplest for the most common agent p
 
 Model Context Protocol (MCP) is becoming the standard interface for AI tool integration. Claude Code, Cursor, Windsurf, and other AI-powered development tools use MCP to discover and invoke external tools. An MCP server turns our REST API into a set of tools that any MCP-compatible AI can use natively -- no SDK integration code, no API documentation reading.
 
-Lumbox ships with 32+ MCP tools. AgentMail.to also has an MCP server. This is table stakes for the category.
+Lumbox ships with a large MCP surface. AgentMail.to also has an MCP server. This is table stakes for the category.
 
 ### Package Design
 
-**Package name**: `@agentmail-aws/mcp-server`
+**Package name**: `@freemail/mcp-server`
 
 **Installation**:
 ```bash
 # npx (no install required)
-npx @agentmail-aws/mcp-server
+npx @freemail/mcp-server
 
 # Global install
-npm install -g @agentmail-aws/mcp-server
+npm install -g @freemail/mcp-server
 
 # Run with API key
-AGENTMAIL_API_KEY=am_xxx npx @agentmail-aws/mcp-server
+FREEMAIL_API_KEY=fm_xxx npx @freemail/mcp-server
 ```
 
-**Architecture**: Thin wrapper over our REST API. The MCP server translates MCP tool calls into HTTP requests against `api.agentmail.dev/v1/`. No business logic in the MCP server itself -- it is a translation layer.
+**Architecture**: Thin wrapper over our REST API. The MCP server translates MCP tool calls into HTTP requests against the FreeMail API. No business logic in the MCP server itself -- it is a translation layer.
 
 ```
 AI Tool (Claude Code, Cursor, etc.)
@@ -396,10 +396,10 @@ AI Tool (Claude Code, Cursor, etc.)
 MCP Protocol (stdio or SSE transport)
     |
     v
-@agentmail-aws/mcp-server (Node.js)
+@freemail/mcp-server (Node.js)
     |
     v
-HTTPS -> api.agentmail.dev/v1/
+HTTPS -> current FreeMail API endpoint
 ```
 
 ### Tool Inventory (40+ tools)
@@ -496,11 +496,11 @@ HTTPS -> api.agentmail.dev/v1/
 ```json
 {
   "mcpServers": {
-    "agentmail": {
+    "freemail": {
       "command": "npx",
-      "args": ["@agentmail-aws/mcp-server"],
+      "args": ["@freemail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_your_api_key_here"
+        "FREEMAIL_API_KEY": "fm_your_api_key_here"
       }
     }
   }
@@ -511,11 +511,11 @@ HTTPS -> api.agentmail.dev/v1/
 ```json
 {
   "mcpServers": {
-    "agentmail": {
+    "freemail": {
       "command": "npx",
-      "args": ["@agentmail-aws/mcp-server"],
+      "args": ["@freemail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_your_api_key_here"
+        "FREEMAIL_API_KEY": "fm_your_api_key_here"
       }
     }
   }
@@ -525,7 +525,7 @@ HTTPS -> api.agentmail.dev/v1/
 **SSE Transport** (for remote/hosted MCP):
 ```bash
 # Hosted MCP endpoint (future)
-https://mcp.agentmail.dev/sse?api_key=am_xxx
+https://mcp.freemail.dev/sse?api_key=fm_xxx
 ```
 
 ### Implementation Notes
@@ -1020,9 +1020,9 @@ Customer's AWS Account
 
 ### Packaging
 
-1. **CDK Constructs** (`@agentmail-aws/cdk`):
+1. **CDK Constructs** (`@freemail/cdk`):
    - Published as an npm package
-   - Single `AgentMailStack` construct that deploys everything
+   - Single `FreeMailStack` construct that deploys everything
    - Configuration via construct props (region, scale tier, feature flags)
    - Versioned with semver
 
@@ -1048,8 +1048,8 @@ Customer's AWS Account
 
 | Component | SaaS | Self-Hosted |
 |-----------|------|-------------|
-| API endpoint | `api.agentmail.dev` | Customer's API Gateway URL |
-| Email domain | `*.inbox.agentmail.dev` | Customer's domains only |
+| API endpoint | `api.freemail.dev` | Customer's API Gateway URL |
+| Email domain | `*.inbox.freemail.dev` | Customer's domains only |
 | SES reputation | Shared (our account) | Customer's own SES reputation |
 | Bedrock access | Our account | Customer must enable Bedrock models |
 | Scaling | We manage | Customer manages (CDK provides sensible defaults) |

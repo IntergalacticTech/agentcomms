@@ -8,6 +8,29 @@ from shared.response import success, bad_request, not_found
 from shared.validation import parse_body
 
 
+THREAD_FIELDS = [
+    "id", "inbox_id", "subject", "snippet", "message_count",
+    "is_read", "is_starred", "is_trash", "labels",
+    "last_message_at", "created_at", "updated_at",
+]
+
+# Reuse message list fields for embedded messages in thread detail
+MESSAGE_LIST_FIELDS = [
+    "id", "thread_id", "inbox_id", "direction", "from_addr", "to", "cc",
+    "subject", "snippet", "is_read", "is_starred", "is_spam", "is_trash",
+    "labels", "category", "has_attachments", "attachment_count",
+    "received_at", "created_at",
+]
+
+
+def _filter_thread(item: dict) -> dict:
+    return {k: item[k] for k in THREAD_FIELDS if k in item}
+
+
+def _filter_message(item: dict) -> dict:
+    return {k: item[k] for k in MESSAGE_LIST_FIELDS if k in item}
+
+
 def _list_threads(inbox_id: str, event: dict) -> dict:
     """List threads in an inbox."""
     limit, page_token, ascending = get_pagination_params(event)
@@ -20,7 +43,8 @@ def _list_threads(inbox_id: str, event: dict) -> dict:
         ascending=ascending,
         exclusive_start_key=start_key,
     )
-    return success(paginated_response(items, last_key))
+    filtered = [_filter_thread(i) for i in items]
+    return success(paginated_response(filtered, last_key))
 
 
 def _get_thread(inbox_id: str, thread_id: str) -> dict:
@@ -32,8 +56,9 @@ def _get_thread(inbox_id: str, thread_id: str) -> dict:
 
     # Fetch messages in this thread
     messages, _ = query_gsi("GSI1", f"THREAD#{thread_id}")
-    item["messages"] = messages
-    return success(item)
+    result = _filter_thread(item)
+    result["messages"] = [_filter_message(m) for m in messages]
+    return success(result)
 
 
 def _update_thread(inbox_id: str, thread_id: str, body: dict) -> dict:
@@ -50,7 +75,7 @@ def _update_thread(inbox_id: str, thread_id: str, body: dict) -> dict:
 
     updates["updated_at"] = now_iso()
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_thread(updated))
 
 
 def _delete_thread(inbox_id: str, thread_id: str) -> dict:
@@ -62,7 +87,7 @@ def _delete_thread(inbox_id: str, thread_id: str) -> dict:
 
     updates = {"is_trash": True, "updated_at": now_iso()}
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_thread(updated))
 
 
 def handler(event, context):

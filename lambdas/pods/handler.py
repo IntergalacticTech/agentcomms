@@ -13,7 +13,7 @@ from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
 
 POD_FIELDS = [
-    "id", "name", "org_id", "inbox_count", "status",
+    "id", "name", "description", "org_id", "inbox_count", "status",
     "settings", "created_at", "updated_at",
 ]
 

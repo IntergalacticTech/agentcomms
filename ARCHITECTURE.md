@@ -1,19 +1,33 @@
-# AgentMail on AWS: Complete Architecture for an AWS Marketplace Email Platform for AI Agents
+# FreeMail on AWS: Architecture for an Email Platform for AI Agents
 
 ## Executive Summary
 
-This document describes a complete AWS-native architecture for building **AgentMail** -- an API platform that gives AI agents their own email inboxes to send, receive, and act upon emails. The platform is designed to be sold as a **SaaS product on AWS Marketplace** with consumption-based billing.
+This document describes the AWS-native architecture for building **FreeMail** -- an API platform that gives AI agents their own email inboxes to send, receive, and act upon emails.
 
-**What AgentMail does:**
+Current planning direction:
+
+- launch as direct SaaS first
+- use `victorymail.dev` for initial deployment and testing
+- keep AI features paid-only
+- use AWS Marketplace after customers outgrow Pro or require AWS procurement
+
+Technical implementation decision:
+
+- use **Python 3.12** for API handlers, email processing, workers, and metering
+- use **TypeScript** for AWS CDK, the developer console, and the MCP server
+- launch with **Python and Node.js SDKs**; defer Go until later
+- do **not** introduce a Laravel/PHP backend on the launch path
+
+**What FreeMail does:**
 - Creates email inboxes on-demand via API (no human provisioning)
 - Sends/receives email with full DKIM/SPF/DMARC authentication
 - Provides AI-powered semantic search, email categorization, and structured data extraction
 - Delivers real-time events via webhooks and WebSockets
 - Supports custom domains, multi-tenant pods, and allow/block lists
-- Exposes SDKs (Python, Node.js, Go) and a REST API
+- Exposes SDKs (Python, Node.js) and a REST API at launch
 
 **Why it matters for AI agents:**
-Traditional email providers (Gmail, Outlook) charge $4-12/inbox/month, lack programmatic inbox creation APIs, impose automation-hostile rate limits, and require OAuth flows. AgentMail solves all four problems with an API-first, consumption-based model purpose-built for autonomous systems.
+Traditional email providers (Gmail, Outlook) charge $4-12/inbox/month, lack programmatic inbox creation APIs, impose automation-hostile rate limits, and require OAuth flows. FreeMail solves those problems with an API-first model purpose-built for autonomous systems.
 
 ---
 
@@ -83,7 +97,7 @@ Traditional email providers (Gmail, Outlook) charge $4-12/inbox/month, lack prog
 |-------|---------|---------|
 | **Transport** | SES | Send and receive email (SMTP, DKIM, SPF, DMARC) |
 | **API** | API Gateway (REST + WebSocket) | Request routing, auth, throttling, WebSocket connections |
-| **Compute** | Lambda + ECS Fargate | API handlers (Lambda), long-running workers (Fargate) |
+| **Compute** | Lambda at launch, ECS Fargate only if later justified | API handlers, workers, and future long-running services |
 | **Primary DB** | DynamoDB | All metadata: orgs, inboxes, messages, threads, API keys |
 | **Blob Storage** | S3 | Raw MIME, attachments, large HTML bodies |
 | **Cache** | ElastiCache Redis | API key auth, rate limiting, inbox routing cache |
@@ -132,7 +146,7 @@ SES inbound does not have an "inbox" concept. We build virtual inboxes on top:
 
 ```
 Internet → MX Record → SES Inbound → Receipt Rule (catch-all for all verified domains)
-  ├─→ S3Action: store raw MIME to s3://agentmail-raw-email/inbound/{message-id}
+  ├─→ S3Action: store raw MIME to s3://victorymail-raw-email/inbound/{message-id}
   └─→ LambdaAction (async): inbound-router
         ├─→ Parse recipient address
         ├─→ DynamoDB/Redis lookup: inbox exists? domain verified?
@@ -146,7 +160,7 @@ Internet → MX Record → SES Inbound → Receipt Rule (catch-all for all verif
 
 **MX Records (per domain):**
 ```
-agentmail.dev.     MX  10  inbound-smtp.us-east-1.amazonaws.com.
+victorymail.dev.   MX  10  inbound-smtp.us-east-1.amazonaws.com.
 customer.com.      MX  10  inbound-smtp.us-east-1.amazonaws.com.
 ```
 
@@ -202,7 +216,7 @@ Pool: "transactional"→ Separate IPs for transactional email
 
 **Choice justification:** API Gateway provides built-in API key management, usage plans, throttling, and request validation. Lambda cold starts of 200-400ms are acceptable for AI agent workloads. Graduate to ALB + ECS at ~500M requests/month.
 
-**Endpoints (matching AgentMail's API):**
+**Initial FreeMail API surface:**
 
 | Resource | Key Endpoints | Lambda Memory | Timeout |
 |----------|--------------|---------------|---------|
@@ -262,7 +276,7 @@ Provisioned concurrency of 50 on the authorizer Lambda eliminates cold starts on
 
 ### 4.2 Entity Layouts
 
-**Table: `agentmail` (Primary)**
+**Table: `victorymail` (Primary)**
 
 | Entity | PK | SK | Key Attributes |
 |--------|----|----|----------------|
@@ -293,9 +307,9 @@ Provisioned concurrency of 50 on the authorizer Lambda eliminates cold starts on
 
 ```
 DynamoDB item (~1-2 KB):    Headers, subject, from/to, status, thread_id, body_preview (first 4KB)
-S3 raw MIME (1KB-40MB):     s3://agentmail-raw-email/{org_id}/{inbox_id}/{msg_id}.eml
-S3 attachments (1KB-25MB):  s3://agentmail-attachments/{org_id}/{msg_id}/{att_id}/{filename}
-S3 large HTML (>4KB):       s3://agentmail-bodies/{org_id}/{msg_id}/body.html
+S3 raw MIME (1KB-40MB):     s3://victorymail-raw-email/{org_id}/{inbox_id}/{msg_id}.eml
+S3 attachments (1KB-25MB):  s3://victorymail-attachments/{org_id}/{msg_id}/{att_id}/{filename}
+S3 large HTML (>4KB):       s3://victorymail-bodies/{org_id}/{msg_id}/body.html
 ```
 
 ### 4.5 S3 Lifecycle Policies
@@ -329,7 +343,7 @@ Thread items updated atomically with `ADD message_count 1` and `SET last_message
 
 **Configuration:**
 ```
-Stream: agentmail-events
+Stream: victorymail-events
   Shards: 4 (auto-scale via Application Auto Scaling)
   Partition key: inboxId (preserves per-inbox ordering)
   Retention: 7 days
@@ -382,9 +396,9 @@ SQS (webhook-delivery-queue) → Lambda (webhook-sender)
 
 **Signature Headers:**
 ```
-X-AgentMail-Signature: v1={sha256-hmac}
-X-AgentMail-Timestamp: {unix-epoch}
-X-AgentMail-Event-Id: {event-id}
+X-FreeMail-Signature: v1={sha256-hmac}
+X-FreeMail-Timestamp: {unix-epoch}
+X-FreeMail-Event-Id: {event-id}
 ```
 
 **Endpoint Validation:** On registration, send a challenge POST. Endpoint must echo `{"challenge": "ch_xxx"}` within 10 seconds.
@@ -538,11 +552,14 @@ NLB (TCP)
 
 ### 8.1 Listing Model: SaaS Contracts with Consumption (Hybrid)
 
-Customers can commit to a base contract AND pay overage on consumption. This supports:
-- Free trial ($0 contract, limited usage metered at $0)
-- Starter/Growth/Scale committed tiers
-- Pure pay-as-you-go overage
-- Enterprise private offers
+Marketplace is the **post-Pro** channel, not the initial launch channel.
+
+When implemented, customers will be able to commit to a base contract and pay overage on consumption. This supports:
+
+- Growth/Scale committed tiers above Pro
+- negotiated private offers
+- heavier AI and throughput workloads
+- procurement-led enterprise buying
 
 **AWS Revenue Share:** 3% of all revenue processed through Marketplace.
 
@@ -553,21 +570,21 @@ Customers can commit to a base contract AND pay overage on consumption. This sup
 | `messages_sent` | Outbound emails | Per message |
 | `messages_received` | Inbound emails | Per message |
 | `inboxes_active` | Active inboxes | Per inbox-hour |
+| `domains_active` | Active custom domains | Per domain-hour |
 | `api_calls` | Non-message API requests | Per 1,000 |
 | `storage_gb` | Email storage consumed | Per GB-hour |
 | `webhooks_delivered` | Webhook notifications | Per 1,000 |
-| `ai_searches` | Semantic search queries | Per query |
-| `ai_categorizations` | Email categorizations | Per email |
+| `ai_ops` | Paid AI operations | Per operation |
 
 ### 8.3 Customer Onboarding Flow
 
 ```
 1. Customer subscribes on AWS Marketplace
-2. AWS redirects POST to https://app.agentmail.com/aws-marketplace/register
+2. AWS redirects POST to the FreeMail fulfillment endpoint
    with x-amzn-marketplace-token
-3. Backend calls ResolveCustomer API → gets CustomerIdentifier + AWS Account ID
+3. Backend calls ResolveCustomer API → gets CustomerIdentifier, CustomerAWSAccountId, LicenseArn, ProductCode
 4. Create tenant, provision resources, generate API keys
-5. Associate CustomerIdentifier with tenant for metering
+5. Associate CustomerAWSAccountId and LicenseArn with tenant for metering
 6. Begin metering usage via BatchMeterUsage (hourly)
 ```
 
@@ -689,7 +706,17 @@ Enabled on API Gateway + Lambda + SES SDK. 5% sampling rate. End-to-end trace fr
 
 ## 11. CI/CD & Infrastructure as Code
 
-### 11.1 CDK Stack Structure
+### 11.1 Canonical Implementation Stack
+
+- **Backend runtime:** Python 3.12 on AWS Lambda
+- **Python libraries:** boto3, Pydantic v2, AWS Lambda Powertools, pytest
+- **Infrastructure:** TypeScript with AWS CDK v2
+- **Frontend and MCP tooling:** TypeScript, React, Vite, Vitest, Playwright
+- **Launch SDKs:** Python and Node.js
+
+This keeps the initial system to two languages instead of splitting the backend across Python and PHP. Laravel remains a possible future choice for a different service, but it should not shape the launch platform.
+
+### 11.2 CDK Stack Structure
 
 ```
 cdk/lib/
@@ -698,20 +725,37 @@ cdk/lib/
   ├── cache-stack.ts         # ElastiCache Redis
   ├── email-stack.ts         # SES rules, configuration sets
   ├── api-stack.ts           # API Gateway, Lambda functions, authorizer
-  ├── compute-stack.ts       # ECS Fargate services, SQS queues
+  ├── compute-stack.ts       # Lambda functions, shared layers, SQS queues
   ├── events-stack.ts        # Kinesis, EventBridge, WebSocket API
   ├── ai-stack.ts            # Bedrock config, OpenSearch Serverless, Step Functions
   ├── marketplace-stack.ts   # Marketplace integration (metering, SNS)
   └── observability-stack.ts # CloudWatch dashboards, alarms, X-Ray
 ```
 
-### 11.2 Deployment Strategy
+### 11.3 Deployment Strategy
 
-- **Staging:** Auto-deploy on merge to `main`
-- **Production:** Manual approval gate, canary deployment (Lambda: Linear10PercentEvery1Minute via CodeDeploy, API Gateway: 10% canary for 10 minutes)
-- **Rollback:** Automatic on CloudWatch error rate alarm
+- **CI/CD tool:** GitHub Actions only
+- **AWS auth from CI:** GitHub OIDC federation, no long-lived deploy keys
+- **Staging:** auto-deploy on merge to `main`
+- **Production:** protected-environment approval and promotion of a commit already deployed to staging
+- **Rollback:** automatic for Lambda aliases and manual environment rollback playbook for broader failures
 
-### 11.3 Multi-Region Plan
+### 11.4 Testing Strategy
+
+- **Python unit tests:** `pytest` on handlers, services, MIME parsing, quota logic, and metering
+- **Python integration tests:** Local AWS emulation for DynamoDB, S3, SQS, SES, and EventBridge-compatible flows
+- **Frontend unit tests:** `vitest` for the console and MCP-adjacent TypeScript packages
+- **Browser smoke tests:** Playwright against staging for signup, inbox creation, send/receive basics, and domain onboarding
+- **Infrastructure tests:** CDK synth plus assertion and snapshot tests for every stack
+
+Coverage standards:
+
+- backend coverage floor: **85%**
+- critical modules target: **90%+**
+- frontend coverage floor: **80%**
+- bug fixes require regression tests
+
+### 11.5 Multi-Region Plan
 
 | Phase | Regions | Strategy |
 |-------|---------|----------|
@@ -782,47 +826,38 @@ At $0.003/message average revenue, gross margins are 60-70% at scale.
 
 ## 13. Phased Implementation Roadmap
 
-### Phase 1: Core Platform (Months 1-3)
-- SES sending and receiving with catch-all routing
-- DynamoDB single-table with core entities (orgs, inboxes, messages, threads)
-- S3 for raw email and attachments
-- API Gateway + Lambda for REST API (CRUD endpoints)
-- API key authentication with Redis caching
-- Email text extraction (MIME parsing, reply stripping)
-- Basic webhook delivery (SQS + Lambda)
-- CDK infrastructure, CI/CD pipeline
-- Python and Node.js SDK generation
+### Phase 0: Foundation
+- CDK bootstrap and shared repository structure
+- GitHub Actions CI with OIDC-based staging deployment
+- Python Lambda package layout and shared test harnesses
+- SES verification for `victorymail.dev`
 
-### Phase 2: AI + Marketplace (Months 4-6)
-- Semantic search (Titan Embeddings + OpenSearch Serverless)
-- Email categorization (Bedrock Haiku/Sonnet)
-- Structured data extraction (Bedrock + JSON schemas)
-- Step Functions orchestration for AI pipeline
-- AWS Marketplace listing (SaaS Contracts with Consumption)
-- Metering pipeline (Kinesis → DynamoDB → BatchMeterUsage)
-- Customer onboarding flow (ResolveCustomer + provisioning)
-- Custom domain support (SES identity verification + DNS records)
-- Pods and scoped API keys
+### Phase 1: Free SaaS MVP
+- Cognito onboarding and API key issuance
+- SES send and receive pipelines
+- DynamoDB and S3 data model for orgs, inboxes, messages, threads, and domains
+- custom domains, webhooks, `wait`, `otp`, and MCP
+- developer console plus Python and Node.js SDKs
 
-### Phase 3: Advanced Features (Months 7-9)
-- WebSocket real-time events (API Gateway WebSocket)
-- Kinesis event bus (replace initial SQS fan-out)
-- Allow/block lists
-- Drafts
-- Metrics API
-- IMAP/SMTP proxy (ECS + Stalwart/Haraka)
-- Dedicated IP pool management
-- Advanced deliverability (VDM, per-tenant reputation)
+### Phase 2: Public Beta Hardening
+- coverage and smoke-test enforcement
+- abuse controls, quotas, alerts, and retention jobs
+- operational runbooks and repeatable staging deploys
 
-### Phase 4: Scale + Multi-Region (Months 10-12)
-- EU region deployment (eu-west-1)
-- DynamoDB global tables
-- S3 cross-region replication
-- Hot path migration to ECS (if needed)
-- DynamoDB provisioned capacity optimization
-- ISV Accelerate / AWS Partner Network
-- Enterprise private offers
-- SOC 2 Type II compliance
+### Phase 3: Pro + Paid AI
+- single Pro plan
+- AI features gated behind paid plans
+- Bedrock/OpenSearch cost controls and billing regression coverage
+
+### Phase 4: Marketplace Beyond Pro
+- customer migration flow from SaaS to Marketplace
+- entitlement sync, `LicenseArn` storage, metering, and private offers
+
+### Phase 5: Scale and Enterprise
+- IMAP/SMTP
+- multi-region
+- enterprise compliance packaging
+- dedicated infrastructure where justified
 
 ---
 
@@ -830,6 +865,7 @@ At $0.003/message average revenue, gross margins are 60-70% at scale.
 
 | Decision | Chose | Over | Rationale |
 |----------|-------|------|-----------|
+| Backend runtime | Python 3.12 on Lambda | Laravel/PHP, ECS-first backend | Matches the AWS-native serverless design and keeps launch complexity low |
 | API layer | API Gateway + Lambda | ALB + ECS | Built-in auth, throttling, usage plans at lower initial cost |
 | Primary DB | DynamoDB single-table | Aurora PostgreSQL | Auto-scaling, natural tenant isolation, no connection management |
 | Message storage | DynamoDB (metadata) + S3 (blobs) | All-in-one DB | Keeps items <4KB, avoids 400KB limit, tiered cost |

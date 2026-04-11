@@ -9,6 +9,17 @@ from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
 
 
+DOMAIN_FIELDS = [
+    "id", "domain", "status", "mx_verified", "spf_verified", "dkim_verified",
+    "dmarc_verified", "dns_records", "catch_all_inbox_id",
+    "created_at", "verified_at", "updated_at",
+]
+
+
+def _filter_domain(item: dict) -> dict:
+    return {k: item[k] for k in DOMAIN_FIELDS if k in item}
+
+
 def _generate_dns_records(domain: str) -> dict:
     """Generate DNS records required for email setup."""
     return {
@@ -82,7 +93,8 @@ def _list_domains(org_id: str, event: dict) -> dict:
         ascending=ascending,
         exclusive_start_key=start_key,
     )
-    return success(paginated_response(items, last_key))
+    filtered = [_filter_domain(i) for i in items]
+    return success(paginated_response(filtered, last_key))
 
 
 def _get_domain(org_id: str, domain_id: str) -> dict:
@@ -91,7 +103,7 @@ def _get_domain(org_id: str, domain_id: str) -> dict:
     item = get_item(keys["PK"], keys["SK"])
     if not item:
         return not_found("Domain")
-    return success(item)
+    return success(_filter_domain(item))
 
 
 def _create_domain(org_id: str, body: dict) -> dict:
@@ -118,7 +130,7 @@ def _create_domain(org_id: str, body: dict) -> dict:
         "updated_at": now,
     }
     put_item(item)
-    return created(item)
+    return created(_filter_domain(item))
 
 
 def _update_domain(org_id: str, domain_id: str, body: dict) -> dict:
@@ -135,7 +147,7 @@ def _update_domain(org_id: str, domain_id: str, body: dict) -> dict:
 
     updates["updated_at"] = now_iso()
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_domain(updated))
 
 
 def _delete_domain(org_id: str, domain_id: str) -> dict:
@@ -158,7 +170,7 @@ def _verify_domain(org_id: str, domain_id: str) -> dict:
 
     updates = {"status": "verifying", "updated_at": now_iso()}
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_domain(updated))
 
 
 def _zone_file(org_id: str, domain_id: str) -> dict:

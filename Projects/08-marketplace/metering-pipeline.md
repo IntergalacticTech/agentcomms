@@ -1,6 +1,12 @@
 # Metering Pipeline
 
-This document covers the complete implementation of usage metering for AWS Marketplace, including the pipeline architecture, BatchMeterUsage API integration, error handling, reconciliation, and full Lambda code.
+This document covers the implementation of usage metering for FreeMail on AWS Marketplace.
+
+Current planning notes:
+
+- Marketplace metering is **post-Pro** work.
+- The important outcome now is to lock the correct integration pattern before any code is written.
+- Some lower sections still use legacy variable names such as `customer_identifier`; treat the request/response shapes in the opening sections as authoritative.
 
 ---
 
@@ -18,6 +24,15 @@ AWS Marketplace provides two metering APIs:
 2. Batch processing is more resilient to transient failures (retry the batch, not individual requests)
 3. Separates metering from the request path (no latency impact on API responses)
 4. Aligns naturally with the Marketplace's hourly billing granularity
+
+### Current AWS Identifier Rule
+
+For new SaaS products launched on or after June 1, 2026, AWS Marketplace requires planning around:
+
+- `CustomerAWSAccountId` instead of relying only on `CustomerIdentifier`
+- `LicenseArn` on each usage record
+
+`CustomerIdentifier` and `ProductCode` can still be retained, but new implementations should center on the newer fields.
 
 ---
 
@@ -88,19 +103,22 @@ Kinesis has an "at least once" delivery model with potential delays of seconds t
   "ProductCode": "prod-abcdef1234567",
   "UsageRecords": [
     {
-      "CustomerIdentifier": "cust-abc123",
+      "CustomerAWSAccountId": "123456789012",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
       "Dimension": "messages_sent",
       "Quantity": 1547,
       "Timestamp": "2026-04-10T14:00:00Z"
     },
     {
-      "CustomerIdentifier": "cust-abc123",
+      "CustomerAWSAccountId": "123456789012",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
       "Dimension": "messages_received",
       "Quantity": 892,
       "Timestamp": "2026-04-10T14:00:00Z"
     },
     {
-      "CustomerIdentifier": "cust-def456",
+      "CustomerAWSAccountId": "210987654321",
+      "LicenseArn": "arn:aws:aws-marketplace:us-east-1:210987654321:AWSMarketplace/Agreement/agmt-def456",
       "Dimension": "messages_sent",
       "Quantity": 3201,
       "Timestamp": "2026-04-10T14:00:00Z"
@@ -118,8 +136,9 @@ Kinesis has an "at least once" delivery model with potential delays of seconds t
 | Timestamp window | Current hour minus 6 hours (records older than 6h are rejected) |
 | Quantity | Non-negative integer (0 is valid) |
 | Dimension | Must match a registered dimension key exactly |
-| CustomerIdentifier | Obtained from `ResolveCustomer` during onboarding |
-| ProductCode | Your registered product code (found in AMMP) |
+| CustomerAWSAccountId | Obtained from `ResolveCustomer` during onboarding |
+| LicenseArn | Obtained from `ResolveCustomer` during onboarding |
+| ProductCode | Still supplied for product identification |
 
 ### CRITICAL: Timestamp Rounding
 
@@ -134,7 +153,8 @@ If you submit multiple records for the same customer + dimension + hour, **the l
   "Results": [
     {
       "UsageRecord": {
-        "CustomerIdentifier": "cust-abc123",
+        "CustomerAWSAccountId": "123456789012",
+        "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
         "Dimension": "messages_sent",
         "Quantity": 1547,
         "Timestamp": "2026-04-10T14:00:00Z"
@@ -144,7 +164,8 @@ If you submit multiple records for the same customer + dimension + hour, **the l
     },
     {
       "UsageRecord": {
-        "CustomerIdentifier": "cust-abc123",
+        "CustomerAWSAccountId": "123456789012",
+        "LicenseArn": "arn:aws:aws-marketplace:us-east-1:123456789012:AWSMarketplace/Agreement/agmt-abc123",
         "Dimension": "messages_received",
         "Quantity": 892,
         "Timestamp": "2026-04-10T14:00:00Z"
@@ -154,7 +175,8 @@ If you submit multiple records for the same customer + dimension + hour, **the l
     },
     {
       "UsageRecord": {
-        "CustomerIdentifier": "cust-def456",
+        "CustomerAWSAccountId": "210987654321",
+        "LicenseArn": "arn:aws:aws-marketplace:us-east-1:210987654321:AWSMarketplace/Agreement/agmt-def456",
         "Dimension": "messages_sent",
         "Quantity": 3201,
         "Timestamp": "2026-04-10T14:00:00Z"

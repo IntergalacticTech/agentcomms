@@ -1,360 +1,305 @@
-# 01 - AgentMail Overview
+# 01 - FreeMail Overview
 
-## What Is AgentMail?
+## Current Product Identity
 
-AgentMail is an API-first email platform purpose-built for AI agents. It provides a complete set of RESTful APIs that allow autonomous software systems to create email inboxes, send and receive messages, manage threads, process attachments, and perform AI-powered email analysis -- all without human intervention.
+- **Product name**: `FreeMail`
+- **Temporary deploy/test domain**: `victorymail.dev`
+- **Target public brand/domain**: `freemail.dev` when acquired
+- **Legacy name in inherited docs**: `AgentMail`
 
-### The Problem
-
-AI agents need email. They need to send onboarding sequences, receive customer replies, process invoices, handle support tickets, and communicate with external systems. But existing email infrastructure was built for humans:
-
-- **Cost**: Traditional email providers (Google Workspace, Microsoft 365) charge $4-12 per inbox per month. An AI agent platform managing 100,000 agents would pay $400K-$1.2M/month just for email.
-- **No Programmatic Creation**: Creating a mailbox on Google Workspace or Exchange requires admin console workflows, provisioning delays, and often manual approval. There is no "create inbox" API call that returns in milliseconds.
-- **Automation-Hostile Rate Limits**: Gmail limits sending to 500 messages/day for consumer accounts and 2,000/day for Workspace. These limits exist to prevent spam from humans, but they cripple legitimate AI workflows.
-- **OAuth Complexity**: Accessing email programmatically requires OAuth 2.0 flows designed for interactive human consent. AI agents cannot click "Allow" in a browser popup.
-- **No AI-Native Features**: Traditional email has no built-in semantic search, no email categorization, no structured data extraction. AI agents must build these capabilities themselves.
-
-### The Solution
-
-AgentMail solves every one of these problems:
-
-- **$0.10/inbox/month at scale** -- 40-120x cheaper than traditional providers
-- **Instant programmatic inbox creation** -- one API call, sub-second response
-- **10M messages/day capacity** -- no artificial rate limits for legitimate use
-- **API key authentication** -- no OAuth flows, no browser popups, no consent screens
-- **Built-in AI capabilities** -- semantic search, categorization, and data extraction powered by Amazon Bedrock
+This document is the canonical product overview for the current planning direction.
 
 ---
 
-## Target Market
+## What Is FreeMail?
 
-### Primary: AI Agent Platforms
+FreeMail is an API-first email platform for AI agents and automation systems.
 
-Companies building platforms where AI agents operate autonomously and need email communication capabilities:
+It gives developers:
 
-- **Autonomous AI agent frameworks** (AutoGPT, LangChain agents, CrewAI, etc.) that need agents to send/receive email as part of multi-step workflows
-- **AI-powered customer service platforms** that deploy email-based support agents handling thousands of simultaneous conversations
-- **AI email assistants** that manage inboxes on behalf of human users, triaging, drafting, and responding to messages
-- **AI sales development platforms** that run personalized outbound email campaigns through individual agent inboxes
-- **RPA/workflow automation platforms** that need email as a trigger or action in automated business processes
+- programmatic inbox creation
+- send and receive email via API
+- threads, attachments, and webhooks
+- custom domains
+- agent-friendly wait/OTP workflows
+- an MCP server for tool-based agent access
 
-### Secondary: Developer Tools and SaaS
-
-- **SaaS platforms** that provide per-customer email inboxes (e.g., helpdesk tools, CRM systems)
-- **Testing and staging environments** that need disposable email inboxes for automated testing
-- **Email-based API integrations** where legacy systems communicate via email and need programmatic processing
-
-### Market Sizing
-
-- AI agent market projected to reach $65B by 2028 (Gartner)
-- Email infrastructure TAM: $8.5B (2025)
-- Addressable segment (programmatic email for AI): estimated $500M-$2B by 2027
-- Initial target: 100 customers at $1K-50K/month average = $1.2M-$60M ARR
+The initial product is deliberately simple: make core email infrastructure easy and cheap enough that developers can try it without procurement friction.
 
 ---
 
-## Competitive Landscape
+## The Problem
 
-### Direct Competitor: AgentMail.to
+AI agents need email, but traditional providers are a poor fit.
 
-AgentMail.to is the product we are cloning and improving upon. It is the first mover in the "email for AI agents" space.
-
-| Dimension | AgentMail.to | Our AgentMail (AWS) |
-|-----------|-------------|---------------------|
-| Infrastructure | Unknown (likely multi-cloud) | 100% AWS-native |
-| Billing | Stripe direct | AWS Marketplace (enterprise procurement) |
-| AI capabilities | Email categorization, extraction | Same + semantic search via OpenSearch |
-| Scale ceiling | Unknown | Designed for 10M inboxes |
-| Enterprise readiness | Limited | AWS Marketplace, IAM integration, SOC 2 path |
-| Custom domains | Yes | Yes (Route 53 automated) |
-| IMAP/SMTP | Yes | Yes (ECS Fargate) |
-
-### Transactional Email Providers
-
-| Provider | Strengths | Why We Differentiate |
-|----------|-----------|---------------------|
-| **Mailgun** | Reliable sending, good APIs | No inbox management, no receiving, no AI features, sending-only |
-| **SendGrid** | Scale, deliverability tools | Same as Mailgun -- sending-only platform, no inbox concept |
-| **Postmark** | Delivery speed, transactional focus | Sending-only, no inbox creation, no receiving APIs |
-| **Amazon SES** | Low cost, high volume | Raw transport only -- no inbox abstraction, no storage, no AI |
-
-**Key differentiation**: None of these provide the *inbox* abstraction. They send email. AgentMail creates, manages, and operates complete email inboxes with bidirectional communication and AI processing.
-
-### Traditional Email Providers
-
-| Provider | Strengths | Why We Differentiate |
-|----------|-----------|---------------------|
-| **Google Workspace** | Reliability, ecosystem | $7.20/user/month minimum, no programmatic creation, OAuth required |
-| **Microsoft 365** | Enterprise adoption | $6/user/month minimum, complex Graph API, Azure AD required |
-| **Zoho Mail** | Lower cost | Still $1/user/month, limited API, manual provisioning |
-
-**Key differentiation**: 40-120x cost advantage, instant programmatic provisioning, API-key auth, no per-seat licensing.
+- **Too expensive per inbox**: human-oriented mailbox pricing breaks down at agent scale.
+- **No fast provisioning API**: creating mailboxes usually requires admin console work.
+- **Automation-hostile auth**: OAuth and interactive consent flows are built for humans.
+- **Human-oriented usage patterns**: rate limits and workflows assume a person, not a fleet of agents.
+- **No agent-native DX**: waiting for an email, extracting an OTP, or wiring an inbox into an MCP client is still awkward with traditional tools.
 
 ---
 
-## Product Capabilities
+## The Solution
 
-### Core Email Operations
+FreeMail solves the problem with a launch strategy built around distribution and cost discipline.
 
-1. **Programmatic Inbox Creation and Management**
-   - Create inboxes via single API call (POST /inboxes)
-   - Assign to pods for multi-tenant grouping
-   - Configure display name, default from address
-   - Enable/disable inboxes without deletion
-   - Bulk creation support (up to 1,000 per batch request)
+### Core Product Principles
 
-2. **Send Email**
-   - Full MIME support (HTML, plain text, multipart)
-   - DKIM signing with per-domain or platform keys
-   - SPF and DMARC alignment
-   - Attachment support (up to 25MB per message via S3 presigned URLs)
-   - Scheduled sending (send_at parameter)
-   - CC, BCC, Reply-To headers
+1. **Launch free SaaS first.**
+   The first product should be usable without AWS Marketplace, procurement, or sales.
 
-3. **Receive Email**
-   - Inbound email processing via SES receipt rules
-   - Automatic threading by Message-ID/References/In-Reply-To headers
-   - Attachment extraction and S3 storage
-   - Real-time delivery via webhooks and WebSockets
+2. **Use custom domains as the wedge.**
+   Offering custom domains on the free tier is a meaningful differentiator and a strong proof-of-value moment.
 
-4. **Threading**
-   - Automatic thread detection using email headers
-   - Thread listing with message count and last activity timestamp
-   - Thread-level operations (archive, label, mute)
+3. **Keep AI paid-only.**
+   Bedrock and OpenSearch are the first features with meaningful variable cost. They should not be bundled into free usage.
 
-5. **Attachments**
-   - Upload via presigned S3 URLs
-   - Download via presigned S3 URLs (time-limited)
-   - Virus scanning via Lambda (ClamAV layer)
-   - Size limits enforced per organization tier
-   - Content-type detection and validation
+4. **Keep self-serve pricing simple.**
+   Start with `Free` and `Pro`. Avoid a large self-serve tier ladder before demand exists.
 
-6. **Drafts**
-   - Create, update, delete draft messages
-   - Auto-save support
-   - Convert draft to sent message
-
-### Domain Management
-
-7. **Custom Domains**
-   - Verify domain ownership via DNS TXT records
-   - Automated DKIM key generation and DNS record creation
-   - SPF record guidance
-   - DMARC policy configuration
-   - MX record setup for inbound email routing
-   - Domain health monitoring dashboard
-   - Support for subdomains (e.g., agents.company.com)
-
-### Organization and Multi-Tenancy
-
-8. **Pods (Multi-Tenant Grouping)**
-   - Group inboxes into isolated pods
-   - Per-pod configuration (webhooks, domains, quotas)
-   - Pod-level metrics and billing
-   - Useful for: one pod per customer, per department, per AI agent team
-
-### Real-Time Communication
-
-9. **Webhooks**
-   - Configure per-inbox or per-pod webhook URLs
-   - Events: message.received, message.sent, message.bounced, message.opened, inbox.created, etc.
-   - HMAC-SHA256 signature verification
-   - Automatic retry with exponential backoff (up to 72 hours)
-   - Webhook delivery logs and health status
-
-10. **WebSockets**
-    - Persistent connections for real-time message delivery
-    - Per-inbox or per-pod subscription
-    - Automatic reconnection support
-    - Heartbeat/ping-pong for connection health
-
-### AI-Powered Features
-
-11. **Semantic Search**
-    - Full-text search across all emails in an inbox or pod
-    - Vector-based semantic search (find emails by meaning, not just keywords)
-    - Powered by Amazon OpenSearch Serverless with vector engine
-    - Embeddings generated by Amazon Bedrock (Titan Embeddings v2)
-    - Filters: date range, sender, has_attachment, thread_id, labels
-
-12. **AI Email Categorization**
-    - Classify incoming emails into categories using LLM
-    - Default categories: inquiry, notification, marketing, transactional, spam, urgent
-    - Custom category definitions via prompt configuration
-    - Per-inbox or per-pod category prompts
-    - Powered by Amazon Bedrock (Claude 3.5 Haiku for cost-efficiency)
-
-13. **Structured Data Extraction**
-    - Extract structured JSON from email bodies
-    - Define extraction schema per inbox or pod
-    - Examples: extract invoice amounts, shipping tracking numbers, meeting times, contact information
-    - Powered by Amazon Bedrock (Claude 3.5 Sonnet for accuracy)
-    - Results stored alongside message metadata
-
-### Access Control
-
-14. **Allow/Block Lists**
-    - Per-inbox sender allow lists (only accept email from these addresses/domains)
-    - Per-inbox sender block lists (reject email from these addresses/domains)
-    - Wildcard domain support (e.g., *.company.com)
-    - Pod-level and organization-level lists that cascade
-
-### Observability
-
-15. **Usage Metrics**
-    - Messages sent/received per hour, day, month
-    - Inbox count over time
-    - API call volume by endpoint
-    - Bounce rate, complaint rate
-    - AI feature usage (categorizations, extractions, searches)
-    - Export via API or CloudWatch metrics
-
-### Protocol Compatibility
-
-16. **IMAP/SMTP Support**
-    - IMAP server for reading email via traditional email clients
-    - SMTP server for sending email via traditional email clients
-    - Runs on ECS Fargate behind NLB
-    - Protocol translation layer converts IMAP/SMTP to internal API calls
-    - Enables backward compatibility with existing email tooling
+5. **Use AWS Marketplace as the path above Pro.**
+   Marketplace is for customers who need more mailboxes, more domains, more throughput, heavier AI usage, or AWS-native procurement.
 
 ---
 
-## API Resource Model
+## Target Users
 
-```
-Organization (top-level account)
-  |
-  +-- API Keys (authentication tokens)
-  |
-  +-- Domains (verified custom domains)
-  |
-  +-- Pods (multi-tenant grouping)
-  |     |
-  |     +-- Inboxes (email addresses)
-  |     |     |
-  |     |     +-- Messages (sent/received emails)
-  |     |     +-- Threads (conversation threads)
-  |     |     +-- Drafts (unsent messages)
-  |     |     +-- Attachments (files)
-  |     |     +-- Allow/Block Lists (access control)
-  |     |
-  |     +-- Webhooks (event delivery endpoints)
-  |     +-- Metrics (usage data)
-  |
-  +-- Webhooks (org-level event delivery)
-  +-- Metrics (org-level usage data)
-  +-- Lists (org-level allow/block)
-```
+### Primary
 
-### Key API Endpoints
+- AI agent builders
+- developer tools teams
+- workflow automation products
+- platforms that need many low-friction inboxes
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/organizations` | Create organization |
-| POST | `/api-keys` | Generate API key |
-| POST | `/domains` | Add and verify custom domain |
-| GET | `/domains/{id}/verify` | Check domain DNS verification status |
-| POST | `/pods` | Create pod |
-| POST | `/inboxes` | Create inbox |
-| GET | `/inboxes` | List inboxes (filterable by pod) |
-| POST | `/inboxes/{id}/messages` | Send message from inbox |
-| GET | `/inboxes/{id}/messages` | List messages in inbox |
-| GET | `/inboxes/{id}/threads` | List threads in inbox |
-| GET | `/inboxes/{id}/threads/{thread_id}` | Get thread with messages |
-| POST | `/inboxes/{id}/drafts` | Create draft |
-| PUT | `/inboxes/{id}/drafts/{draft_id}` | Update draft |
-| POST | `/inboxes/{id}/drafts/{draft_id}/send` | Send draft |
-| GET | `/inboxes/{id}/attachments/{att_id}` | Get attachment download URL |
-| POST | `/inboxes/{id}/search` | Semantic search within inbox |
-| PUT | `/inboxes/{id}/categorization` | Configure AI categorization |
-| PUT | `/inboxes/{id}/extraction` | Configure data extraction schema |
-| POST | `/webhooks` | Register webhook |
-| GET | `/metrics` | Get usage metrics |
-| PUT | `/inboxes/{id}/lists/allow` | Update allow list |
-| PUT | `/inboxes/{id}/lists/block` | Update block list |
+### Secondary
+
+- testing and staging systems that need disposable inboxes
+- SaaS products that need per-customer mailboxes
+- teams moving email-based workflows into software
 
 ---
 
-## SDK Strategy
+## Competitive Position
 
-All SDKs are auto-generated from a single OpenAPI 3.1 specification to ensure consistency and reduce maintenance burden.
+### AgentMail.to
 
-### Python SDK
+AgentMail.to is the closest product analogue on the core email-infrastructure shape.
 
-- **Package**: `agentmail-python` (PyPI)
-- **Generator**: OpenAPI Generator with Python template
-- **Features**: Async support (asyncio), type hints, Pydantic models, automatic retries
-- **Priority**: First SDK (Python dominates AI/ML ecosystem)
+Our intended differentiation:
 
-### Node.js SDK
+- freer entry point
+- more generous custom-domain access on free
+- lower-cost self-serve paid path
+- AWS Marketplace migration path once usage exceeds Pro
 
-- **Package**: `@agentmail/sdk` (npm)
-- **Generator**: OpenAPI Generator with TypeScript template
-- **Features**: TypeScript-first, ESM and CJS support, automatic retries, WebSocket client
-- **Priority**: Second SDK (Node.js dominates web backend ecosystem)
+### Lumbox
 
-### Go SDK
+Lumbox is a strong competitor on agent ergonomics and workflow-oriented features.
 
-- **Package**: `github.com/agentmail/agentmail-go`
-- **Generator**: OpenAPI Generator with Go template
-- **Features**: Context-based cancellation, structured errors, connection pooling
-- **Priority**: Third SDK (Go used in infrastructure and DevOps tooling)
+Features worth copying or matching early:
 
-### OpenAPI Spec
+- OTP extraction
+- wait/long-poll flows
+- MCP-first tooling
+- prompt-injection-aware parsing
 
-- Hosted at `api.agentmail.com/openapi.json`
-- Versioned (v1, v2, etc.) with backward compatibility guarantees
-- Includes request/response examples for every endpoint
-- Used to generate SDKs, API documentation, and Postman collections
+Areas we should **not** chase on the launch path:
+
+- browser automation scope
+- credential vault scope
+- self-hosting before product-market signal
+
+---
+
+## Current Launch Scope
+
+### Must-Have for Launch
+
+- account signup and login
+- API key issuance
+- inbox CRUD
+- send email
+- receive email
+- threads and attachments
+- webhooks
+- custom domains
+- wait-for-email
+- OTP extraction
+- MCP server
+- developer console
+- free-tier quotas
+
+### Paid-Only at Launch
+
+- semantic search
+- AI categorization
+- structured extraction
+- any Bedrock-backed parsing pipeline beyond low-cost regex-style OTP handling
+
+### Explicitly Deferred
+
+- IMAP/SMTP
+- multi-region
+- enterprise SSO/SAML
+- audit logging beyond basic operational logging
+- compliance packaging
+- self-hosting
+
+---
+
+## Product Capabilities by Stage
+
+### Launch Capabilities
+
+1. **Programmatic inboxes**
+   - create inboxes by API
+   - manage status and metadata
+   - support platform-domain and custom-domain addresses
+
+2. **Send and receive**
+   - SES-backed outbound delivery
+   - SES inbound via receipt rules
+   - attachments and MIME handling
+
+3. **Threads and retrieval**
+   - message listing
+   - thread grouping
+   - attachment access
+
+4. **Integrations**
+   - webhooks
+   - MCP server
+   - wait/OTP endpoints
+
+5. **Self-service domains**
+   - DNS-based verification
+   - DKIM/SPF/DMARC guidance
+   - inbound and outbound on customer domains
+
+### Post-Launch Paid Capabilities
+
+1. **AI search**
+2. **AI categorization**
+3. **Structured extraction**
+4. **Higher throughput and quota levels**
+
+---
+
+## API Shape
+
+The initial API should stay focused.
+
+### Core Endpoints
+
+- `POST /v1/organizations`
+- `POST /v1/api-keys`
+- `POST /v1/inboxes`
+- `GET /v1/inboxes`
+- `GET /v1/inboxes/{inbox_id}`
+- `PATCH /v1/inboxes/{inbox_id}`
+- `POST /v1/inboxes/{inbox_id}/messages`
+- `GET /v1/inboxes/{inbox_id}/messages`
+- `GET /v1/inboxes/{inbox_id}/threads`
+- `POST /v1/domains`
+- `GET /v1/domains/{domain_id}/verify`
+- `POST /v1/webhooks`
+- `GET /v1/inboxes/{inbox_id}/wait`
+- `GET /v1/inboxes/{inbox_id}/otp`
+
+### Paid AI Endpoints
+
+- `POST /v1/inboxes/{inbox_id}/search`
+- `PUT /v1/inboxes/{inbox_id}/categorization`
+- `PUT /v1/inboxes/{inbox_id}/extraction`
 
 ---
 
 ## Business Model
 
-### Pricing Structure: Consumption-Based via AWS Marketplace
+### Direct SaaS First
 
-AgentMail is sold as a SaaS product through the AWS Marketplace using the **SaaS Contracts with Consumption** model. Customers commit to a base contract and pay for usage above that commitment.
+The first commercial model is direct SaaS.
 
-### Pricing Dimensions
+### Launch Tiers
 
-| Dimension | Unit | Estimated Price |
-|-----------|------|----------------|
-| Inboxes | Per inbox per month | $0.10 - $0.50 (volume-tiered) |
-| Messages Sent | Per message | $0.0005 - $0.002 |
-| Messages Received | Per message | $0.0003 - $0.001 |
-| AI Categorizations | Per categorization | $0.001 - $0.005 |
-| AI Extractions | Per extraction | $0.005 - $0.02 |
-| Semantic Searches | Per search | $0.002 - $0.01 |
-| Storage | Per GB/month | $0.10 - $0.50 |
-| Custom Domains | Per domain/month | $1.00 - $5.00 |
-| IMAP/SMTP Connections | Per connection-hour | $0.001 - $0.005 |
+| Tier | Purpose | Key traits |
+|------|---------|------------|
+| `Free` | onboarding and proof of value | generous limits, custom domain access, no AI |
+| `Pro` | paid self-serve | more inboxes, more domains, more throughput, paid AI access |
 
-### Contract Tiers
+Pricing is intentionally not frozen yet. The guiding rule is that Pro should be clearly competitive with the current market while still covering non-AI AWS costs comfortably.
 
-| Tier | Monthly Commitment | Included | Overage Rate |
-|------|-------------------|----------|-------------|
-| **Starter** | $29/month | 5 inboxes, 1,000 emails | Standard rates |
-| **Growth** | $99/month | 25 inboxes, 10,000 emails | 20% discount |
-| **Scale** | $499/month | 100 inboxes, 100,000 emails | 40% discount |
-| **Enterprise** | Custom | Custom | Negotiated |
+### Marketplace After Pro
 
-### AWS Marketplace Integration
+AWS Marketplace is for customers who:
 
-- **SaaS Contract**: Customer subscribes through AWS Marketplace, payment handled by AWS
-- **Consumption Metering**: Usage reported hourly via AWS Marketplace Metering API
-- **Entitlement Checks**: API validates customer entitlements before processing requests
-- **Revenue Share**: AWS takes 3-5% of revenue (varies by program participation)
-- **Enterprise Benefits**: Customers can use AWS committed spend (EDP) credits
+- exceed Pro quotas
+- need higher mailbox/domain counts
+- need higher send/receive throughput
+- use AI heavily enough that committed contracts make sense
+- prefer procurement through AWS
 
-### Target Unit Economics (at Full Scale)
+Marketplace should be implemented as a migration path, not as the initial signup experience.
 
-| Metric | Target |
-|--------|--------|
-| Blended COGS per inbox/month | < $0.03 |
-| Blended COGS per message | < $0.0002 |
-| Gross margin (Starter tier) | 70% |
-| Gross margin (Scale tier) | 75% |
-| Gross margin (Enterprise tier) | 80% |
-| AWS Marketplace fee | 3-5% |
-| Net margin after Marketplace fee | 65-77% |
+---
+
+## Current Tier Philosophy
+
+### Free
+
+- generous enough to attract developers
+- custom domains included
+- hard quota enforcement
+- no Bedrock-backed AI
+
+### Pro
+
+- more inboxes
+- more domains
+- higher throughput
+- access to AI
+- still self-serve
+
+### Marketplace
+
+- starts where Pro stops
+- better fit for higher-volume and procurement-led buyers
+- supports private offers and committed spend
+
+---
+
+## Success Metrics
+
+### Product Metrics
+
+- time to first inbox under 5 minutes
+- time to first sent email under 10 minutes
+- free users successfully onboarding custom domains
+- users exercising wait/OTP and MCP flows in real usage
+
+### Commercial Metrics
+
+- meaningful free-tier adoption
+- clear upgrade pressure from free to Pro
+- identifiable set of users who exceed Pro and justify Marketplace work
+
+### Cost Metrics
+
+- free-tier cost ceiling remains bounded
+- non-AI free usage remains cheap to serve
+- AI usage is only unlocked once billing and quotas exist
+
+---
+
+## What Not to Optimize Yet
+
+Do not spend launch time optimizing for:
+
+- enterprise compliance packaging
+- multi-region
+- IMAP/SMTP compatibility
+- elaborate Marketplace public-tier pricing
+- advanced AI workflows
+
+The product needs real usage first.

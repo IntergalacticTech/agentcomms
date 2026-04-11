@@ -9,6 +9,8 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as sns_subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as lambda_events from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as ses from "aws-cdk-lib/aws-ses";
+import * as ses_actions from "aws-cdk-lib/aws-ses-actions";
 import * as path from "path";
 
 export interface ApiStackProps extends cdk.StackProps {
@@ -125,6 +127,50 @@ export class ApiStack extends cdk.Stack {
     props.complaintTopic.addSubscription(
       new sns_subs.LambdaSubscription(bounceFn)
     );
+
+    // ── SES Inbound Receipt Rules ──────────────────────────────────────
+
+    // Grant SES permission to write to S3 bucket
+    props.rawEmailBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal("ses.amazonaws.com")],
+        actions: ["s3:PutObject"],
+        resources: [props.rawEmailBucket.arnForObjects("*")],
+        conditions: {
+          StringEquals: {
+            "AWS:SourceAccount": this.account,
+          },
+        },
+      })
+    );
+
+    // Grant SES permission to invoke the inbound Lambda
+    inboundFn.addPermission("SESInvoke", {
+      principal: new iam.ServicePrincipal("ses.amazonaws.com"),
+      sourceAccount: this.account,
+    });
+
+    // Receipt rule set
+    const ruleSet = new ses.ReceiptRuleSet(this, "InboundRuleSet", {
+      receiptRuleSetName: "victorymail-inbound",
+    });
+
+    // Catch-all rule for victorymail.dev
+    ruleSet.addRule("VictorymailCatchAll", {
+      recipients: ["victorymail.dev"],
+      scanEnabled: true,
+      actions: [
+        new ses_actions.S3({
+          bucket: props.rawEmailBucket,
+          objectKeyPrefix: "inbound/",
+        }),
+        new ses_actions.Lambda({
+          function: inboundFn,
+          invocationType: ses_actions.LambdaInvocationType.EVENT,
+        }),
+      ],
+    });
 
     // ── API Gateway ────────────────────────────────────────────────────
 

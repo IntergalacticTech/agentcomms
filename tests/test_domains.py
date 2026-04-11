@@ -34,7 +34,7 @@ def test_create_domain(aws_env):
     data = json.loads(resp["body"])
     assert data["domain"] == "example.com"
     assert data["status"] == "pending"
-    assert data["org_id"] == ORG_ID
+    assert "org_id" not in data  # Internal field should be stripped
 
     # Check DNS records
     dns = data["dns_records"]

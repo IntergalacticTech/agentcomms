@@ -17,17 +17,47 @@ from shared.validation import parse_body, require_fields
 
 SEND_QUEUE_URL = os.environ.get("SEND_QUEUE_URL", "")
 
+# Fields to include in list/summary responses
+MESSAGE_LIST_FIELDS = [
+    "id", "thread_id", "inbox_id", "direction", "from_addr", "to", "cc",
+    "subject", "snippet", "is_read", "is_starred", "is_spam", "is_trash",
+    "labels", "category", "has_attachments", "attachment_count",
+    "received_at", "created_at",
+]
+
+# Additional fields for detail responses (get, send, reply, forward)
+MESSAGE_DETAIL_FIELDS = MESSAGE_LIST_FIELDS + [
+    "bcc", "reply_to", "body_text", "body_html", "headers",
+    "ses_message_id", "status",
+]
+
+
+def _filter_message(item: dict, detail: bool = False) -> dict:
+    fields = MESSAGE_DETAIL_FIELDS if detail else MESSAGE_LIST_FIELDS
+    return {k: item[k] for k in fields if k in item}
+
 
 def _enqueue_send(message_id: str, inbox_id: str):
     """Enqueue message to SQS for sending if SEND_QUEUE_URL is configured."""
     if not SEND_QUEUE_URL:
         return
-    import boto3
-    sqs = boto3.client("sqs")
-    sqs.send_message(
-        QueueUrl=SEND_QUEUE_URL,
-        MessageBody=json.dumps({"message_id": message_id, "inbox_id": inbox_id}),
-    )
+    try:
+        import boto3
+        sqs = boto3.client("sqs")
+        kwargs = {
+            "QueueUrl": SEND_QUEUE_URL,
+            "MessageBody": json.dumps({"message_id": message_id, "inbox_id": inbox_id}),
+        }
+        # FIFO queues require MessageGroupId (and MessageDeduplicationId
+        # unless content-based deduplication is enabled on the queue).
+        if SEND_QUEUE_URL.endswith(".fifo"):
+            kwargs["MessageGroupId"] = inbox_id
+            kwargs["MessageDeduplicationId"] = message_id
+        sqs.send_message(**kwargs)
+    except Exception:
+        # Don't let SQS failures crash the API response; the message is
+        # already persisted in DynamoDB and can be retried later.
+        pass
 
 
 def _get_inbox(org_id: str, inbox_id: str) -> dict | None:
@@ -123,7 +153,7 @@ def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None 
 
     _enqueue_send(msg_id, inbox_id)
 
-    return created(msg_item)
+    return created(_filter_message(msg_item, detail=True))
 
 
 def _list_messages(inbox_id: str, event: dict) -> dict:
@@ -138,7 +168,8 @@ def _list_messages(inbox_id: str, event: dict) -> dict:
         ascending=ascending,
         exclusive_start_key=start_key,
     )
-    return success(paginated_response(items, last_key))
+    filtered = [_filter_message(i) for i in items]
+    return success(paginated_response(filtered, last_key))
 
 
 def _get_message(inbox_id: str, message_id: str) -> dict:
@@ -156,7 +187,7 @@ def _get_message(inbox_id: str, message_id: str) -> dict:
         except Exception:
             pass
 
-    return success(item)
+    return success(_filter_message(item, detail=True))
 
 
 def _update_message(inbox_id: str, message_id: str, body: dict) -> dict:
@@ -173,7 +204,7 @@ def _update_message(inbox_id: str, message_id: str, body: dict) -> dict:
 
     updates["updated_at"] = now_iso()
     updated = update_item(keys["PK"], keys["SK"], updates)
-    return success(updated)
+    return success(_filter_message(updated, detail=True))
 
 
 def _reply(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
