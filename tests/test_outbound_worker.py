@@ -37,8 +37,8 @@ def test_outbound_worker_reads_message(aws_env):
         "thread_id": thread_id,
         "direction": "outbound",
         "status": "queued",
-        "from_address": "user@victorymail.dev",
-        "to_addresses": ["recipient@example.com"],
+        "from_addr": {"name": "Test", "address": "user@victorymail.dev"},
+        "to": [{"address": "recipient@example.com"}],
         "subject": "Test Outbound",
         "body_s3_key": body_s3_key,
         "created_at": now_iso(),
@@ -54,7 +54,6 @@ def test_outbound_worker_reads_message(aws_env):
         process_message(
             message_id=message_id,
             inbox_id=inbox_id,
-            org_id=org_id,
         )
     except Exception:
         # Expected - moto doesn't fully support SES v2 send_email
@@ -93,8 +92,8 @@ def test_outbound_worker_skips_non_queued(aws_env):
         "thread_id": thread_id,
         "direction": "outbound",
         "status": "sent",  # Already sent
-        "from_address": "user@victorymail.dev",
-        "to_addresses": ["recipient@example.com"],
+        "from_addr": {"name": "Test", "address": "user@victorymail.dev"},
+        "to": [{"address": "recipient@example.com"}],
         "subject": "Already Sent",
         "body_s3_key": body_s3_key,
         "created_at": now_iso(),
@@ -108,7 +107,6 @@ def test_outbound_worker_skips_non_queued(aws_env):
     process_message(
         message_id=message_id,
         inbox_id=inbox_id,
-        org_id=org_id,
     )
 
     # Status should remain "sent"

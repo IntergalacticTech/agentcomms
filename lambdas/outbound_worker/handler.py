@@ -28,11 +28,10 @@ def handler(event, context):
         process_message(
             message_id=body["message_id"],
             inbox_id=body["inbox_id"],
-            org_id=body["org_id"],
         )
 
 
-def process_message(message_id: str, inbox_id: str, org_id: str) -> None:
+def process_message(message_id: str, inbox_id: str) -> None:
     """Process a single outbound message."""
     # Get message from DynamoDB
     keys = message_keys(inbox_id, message_id)
@@ -105,22 +104,40 @@ def build_mime_message(msg: dict, body_data: dict) -> MIMEMultipart:
     """Build a MIME message from message record and body data."""
     mime = MIMEMultipart("alternative")
 
-    # Set headers
-    mime["From"] = msg.get("from_address", "")
+    # Set From header from from_addr dict
+    from_addr = msg.get("from_addr", {})
+    if isinstance(from_addr, dict):
+        name = from_addr.get("name", "")
+        address = from_addr.get("address", "")
+        mime["From"] = f"{name} <{address}>" if name else address
+    else:
+        mime["From"] = str(from_addr)
+
     mime["Subject"] = msg.get("subject", "")
 
-    # Handle To addresses
-    to_addresses = msg.get("to_addresses", [])
-    if isinstance(to_addresses, list):
-        mime["To"] = ", ".join(to_addresses)
-    else:
-        mime["To"] = to_addresses
+    # Handle To addresses (list of {name, address} dicts)
+    to_list = msg.get("to", [])
+    to_addresses = []
+    for recipient in to_list:
+        if isinstance(recipient, dict):
+            to_addresses.append(recipient.get("address", ""))
+        else:
+            to_addresses.append(str(recipient))
+    mime["To"] = ", ".join(to_addresses)
+
+    # CC addresses
+    cc_list = msg.get("cc", [])
+    if cc_list:
+        cc_addresses = [r.get("address", "") if isinstance(r, dict) else str(r) for r in cc_list]
+        mime["Cc"] = ", ".join(cc_addresses)
 
     # Optional headers
-    if msg.get("in_reply_to"):
-        mime["In-Reply-To"] = msg["in_reply_to"]
-    if msg.get("references"):
-        mime["References"] = msg["references"]
+    headers = msg.get("headers", {})
+    if isinstance(headers, dict):
+        if headers.get("in_reply_to"):
+            mime["In-Reply-To"] = headers["in_reply_to"]
+        if headers.get("references"):
+            mime["References"] = headers["references"]
 
     # Add body parts
     body_text = body_data.get("body_text")
