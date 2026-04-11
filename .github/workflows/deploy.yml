@@ -31,6 +31,12 @@ jobs:
       - name: Install CDK dependencies
         run: cd cdk && npm ci
 
+      - name: Build console
+        run: cd console && npm ci && npm run build
+
+      - name: Install Lambda dependencies
+        run: cd lambdas && pip install stripe -t . --quiet
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:

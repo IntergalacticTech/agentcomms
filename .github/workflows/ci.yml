@@ -39,6 +39,9 @@ jobs:
       - name: Install CDK dependencies
         run: cd cdk && npm ci
 
+      - name: Build console (required for CDK synth)
+        run: cd console && npm ci && npm run build
+
       - name: TypeScript type check
         run: cd cdk && npx tsc --noEmit
 
