@@ -47,3 +47,4 @@ lambdas/typing_extensions*
 lambdas/bin/
 lambdas/*.so
 lambdas/*.dist-info/
+.exterminator/state.json

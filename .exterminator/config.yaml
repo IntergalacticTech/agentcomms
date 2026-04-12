@@ -1,0 +1,224 @@
+meta:
+  checklist_version: "1.0.0"
+  created: "2026-04-11"
+  last_updated: "2026-04-11"
+  project_name: "FreeMail"
+
+aws:
+  region: us-east-1
+  account: "933022096014"
+  credentials_env: .env
+
+github:
+  repo: IntergalacticTech/FreeMail.ai
+  labels: ["exterminator"]
+  digest_issue_title: "[Exterminator] Daily Digest"
+
+escalation:
+  comment_threshold: 1
+  promote_threshold: 3
+  auto_close_after: 3
+
+checks:
+  compute:
+    ec2:
+      enabled: false  # No EC2 instances
+    ecs:
+      enabled: false  # No ECS services
+    lambda:
+      enabled: true
+      error_rate_warning: 5
+      error_rate_critical: 15
+      throttle_alert: true
+      duration_pct_of_timeout: 80
+      functions_prefix: "VictoryMail-"
+
+  queues:
+    sqs:
+      enabled: true
+      queues:
+        - name: victorymail-send-queue.fifo
+          depth_warning: 1000
+          depth_critical: 10000
+          max_age_warning: 3600
+          max_age_critical: 21600
+          is_dlq: false
+        - name: victorymail-send-dlq.fifo
+          depth_warning: 1
+          depth_critical: 100
+          is_dlq: true
+          dlq_alert: true
+        - name: victorymail-webhook-queue
+          depth_warning: 1000
+          depth_critical: 10000
+          max_age_warning: 3600
+          max_age_critical: 21600
+          is_dlq: false
+        - name: victorymail-webhook-dlq
+          depth_warning: 1
+          depth_critical: 100
+          is_dlq: true
+          dlq_alert: true
+    sns:
+      enabled: true
+      topics:
+        - victorymail-ses-bounces
+        - victorymail-ses-complaints
+        - victorymail-ses-deliveries
+      delivery_failure_warning: 5
+    eventbridge:
+      enabled: false
+
+  databases:
+    rds:
+      enabled: false  # Using DynamoDB
+    dynamodb:
+      enabled: true
+      tables:
+        - victorymail
+      throttle_alert: true
+    elasticache:
+      enabled: false
+
+  networking:
+    alb:
+      enabled: false  # Using API Gateway directly
+    api_gateway:
+      enabled: true
+      apis:
+        - name: FreeMail API
+          id: 1h2sal7gf4
+          stage: v1
+      error_5xx_warning: 1
+      error_5xx_critical: 5
+      error_4xx_warning: 10
+      p99_latency_warning: 5000
+    cloudfront:
+      enabled: true
+      distributions:
+        - id: EMXOOVKKLAW52
+          name: console.victorymail.dev
+        - id: E1KC5X66LE47JW
+          name: victorymail.dev (landing)
+      error_rate_warning: 5
+
+  ses:
+    enabled: true
+    bounce_rate_warning: 5
+    bounce_rate_critical: 10
+    complaint_rate_warning: 0.1
+    complaint_rate_critical: 0.5
+    send_failure_warning: 5
+    reputation_alert: true
+    configuration_set: victorymail-default
+
+  waf:
+    enabled: false  # No WAF configured yet
+
+  security:
+    guardduty: true
+    security_hub: false
+    iam_unused_days: 90
+    public_s3: true
+    exclude_buckets:
+      - victorymail-console-933022096014-dev  # CloudFront origin
+      - victorymail-landing-933022096014-dev  # CloudFront origin
+
+  cost:
+    budget_warning_pct: 80
+    budget_critical_pct: 100
+    anomaly_detection: true
+    ri_coverage_info: 70
+
+  log_groups:
+    - name: /aws/lambda/VictoryMail-Api-dev-AuthorizerFn97B9AA7C-LCsDU8dsTuAe
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "Runtime.ImportModuleError"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: true  # Active endpoint
+
+    - name: /aws/lambda/VictoryMail-Api-dev-MessagesFnD30972E8-YHYN6WwCNTLD
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-InboundProcessorFn29BE01FA-8YxJ16l3jrZN
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false  # Triggered by SES only
+
+    - name: /aws/lambda/VictoryMail-Api-dev-OutboundWorkerFnA6E00EE2-UZ376NZIZ9hM
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "MessageRejected"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false  # Triggered by SQS only
+
+    - name: /aws/lambda/VictoryMail-Api-dev-ConsoleAuthFnCAA0D5EC-wY8gh5Qx5e6A
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-BillingFnBAE8FE0F-JjbTTulgdrrX
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "stripe.error"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-WebhookWorkerFn83E84FCD-Ex07iiTOJpkL
+      framework: python
+      patterns:
+        - "[ERROR]"
+        - "Traceback"
+        - "Exception"
+        - "HTTPError"
+        - "Task timed out"
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-InboxesFn4DF19F74-zsjBitopeFX1
+      framework: python
+      patterns: ["[ERROR]", "Traceback", "Exception", "Task timed out"]
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-DomainsFn52F735F1-rKklA6vdXq2Y
+      framework: python
+      patterns: ["[ERROR]", "Traceback", "Exception", "Task timed out"]
+      spike_threshold: 3x
+      zero_ingest_alert: false
+
+    - name: /aws/lambda/VictoryMail-Api-dev-WaitFn12D4AC46-uTUDOaZinRKH
+      framework: python
+      patterns: ["[ERROR]", "Traceback", "Exception", "Task timed out"]
+      spike_threshold: 3x
+      zero_ingest_alert: false
