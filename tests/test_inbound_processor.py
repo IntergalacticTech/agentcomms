@@ -96,9 +96,11 @@ def test_inbound_processor_creates_message(aws_env):
     msg = messages[0]
     assert msg["subject"] == "Hello World"
     assert msg["direction"] == "inbound"
-    assert msg["from_address"] == "sender@example.com"
+    assert msg["from_addr"]["address"] == "sender@example.com"
+    assert msg["to"][0]["address"] == "test@victorymail.dev"
     assert msg["org_id"] == org_id
     assert msg["inbox_id"] == inbox_id
+    assert msg["entity_type"] == "Message"
 
     # Verify thread was created
     threads, _ = query(pk=f"INBOX#{inbox_id}", sk_prefix="THREAD#")

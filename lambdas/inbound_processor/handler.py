@@ -251,27 +251,41 @@ def process_destination(
     if body_text:
         snippet = body_text[:200]
 
-    # Build message item
+    # Build message item - use canonical field names that match the
+    # outbound handler and SDK expectations
     msg_item = {
         **message_keys(inbox_id, message_id),
         **message_gsi1(thread_id, message_id),
         **message_gsi3(org_id, message_id),
-        "entity_type": "message",
-        "message_id": message_id,
+        "entity_type": "Message",
+        "id": message_id,
         "inbox_id": inbox_id,
         "org_id": org_id,
         "thread_id": thread_id,
         "direction": "inbound",
         "status": "received",
-        "from_address": from_addr or source,
-        "from_name": from_name,
-        "to_addresses": [dest_address],
+        "from_addr": {
+            "name": from_name or "",
+            "address": from_addr or source,
+        },
+        "to": [{"name": "", "address": dest_address}],
+        "cc": [],
+        "bcc": [],
+        "reply_to": [],
         "subject": subject,
         "snippet": snippet,
         "body_s3_key": body_s3_key,
+        "is_read": False,
+        "is_starred": False,
+        "is_spam": False,
+        "is_trash": False,
+        "labels": [],
+        "category": None,
+        "headers": {},
         "has_attachments": len(attachment_parts) > 0,
         "attachment_count": len(attachment_parts),
         "ses_message_id": ses_message_id,
+        "received_at": timestamp,
         "created_at": timestamp,
         "updated_at": timestamp,
     }
@@ -298,13 +312,18 @@ def process_destination(
 
         att_item = {
             **attachment_keys(message_id, att_id),
-            "entity_type": "attachment",
-            "attachment_id": att_id,
+            "entity_type": "Attachment",
+            "id": att_id,
             "message_id": message_id,
+            "inbox_id": inbox_id,
+            "org_id": org_id,
             "filename": att["filename"],
             "content_type": att["content_type"],
             "size": att["size"],
+            "s3_bucket": ATTACHMENT_BUCKET,
             "s3_key": att_s3_key,
+            "is_inline": False,
+            "content_id": None,
             "created_at": timestamp,
         }
         put_item(att_item)
@@ -333,18 +352,28 @@ def process_destination(
         )
     else:
         # Create new thread item
+        sender_addr = from_addr or source
         thread_item = {
             **thread_keys(inbox_id, thread_id),
             **thread_gsi1(inbox_id, thread_id),
-            "entity_type": "thread",
-            "thread_id": thread_id,
+            "entity_type": "Thread",
+            "id": thread_id,
             "inbox_id": inbox_id,
             "org_id": org_id,
             "subject": subject,
             "snippet": snippet,
-            "last_message_at": timestamp,
             "message_count": 1,
             "unread_count": 1,
+            "participants": [
+                {"name": from_name or "", "address": sender_addr},
+                {"name": "", "address": dest_address},
+            ],
+            "labels": [],
+            "category": None,
+            "is_read": False,
+            "is_starred": False,
+            "is_trash": False,
+            "last_message_at": timestamp,
             "created_at": timestamp,
             "updated_at": timestamp,
         }
