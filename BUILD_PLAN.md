@@ -6,7 +6,7 @@
 **Public brand**: `FreeMail`
 **Current deployment/test domain**: `victorymail.dev`
 **Target public domain**: `freemail.dev` when acquired
-**AWS Account**: `933022096014`
+**AWS Account**: `732770059798`
 **Primary region**: `us-east-1`
 **IaC**: AWS CDK (TypeScript)
 **App runtimes**: Python 3.12 for Lambda, TypeScript for CDK and frontend

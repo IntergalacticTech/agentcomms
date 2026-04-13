@@ -8,7 +8,7 @@
 
 **Tech Stack:** AWS CDK v2 (TypeScript), Python 3.12 (Lambda), DynamoDB, S3, SES, SQS, SNS, API Gateway REST
 
-**Domain:** `victorymail.dev` (temporary), AWS Account `933022096014`, Region `us-east-1`
+**Domain:** `victorymail.dev` (temporary), AWS Account `732770059798`, Region `us-east-1`
 
 ---
 
@@ -166,7 +166,7 @@ Create `cdk/cdk.json`:
 {
   "app": "npx ts-node bin/app.ts",
   "context": {
-    "account": "933022096014",
+    "account": "732770059798",
     "region": "us-east-1",
     "domain": "victorymail.dev",
     "stage": "dev"
@@ -4317,7 +4317,7 @@ cd /Users/jwc/code/Victory/FreeMail.ai/cdk
 export AWS_ACCESS_KEY_ID=$(grep AWS_ACCESS_KEY /Users/jwc/code/Victory/FreeMail.ai/.env | cut -d= -f2)
 export AWS_SECRET_ACCESS_KEY=$(grep AWS_SECRET_KEY /Users/jwc/code/Victory/FreeMail.ai/.env | cut -d= -f2)
 export AWS_DEFAULT_REGION=us-east-1
-npx cdk bootstrap aws://933022096014/us-east-1
+npx cdk bootstrap aws://732770059798/us-east-1
 ```
 
 - [ ] **Step 3: CDK deploy**

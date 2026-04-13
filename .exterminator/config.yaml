@@ -6,7 +6,7 @@ meta:
 
 aws:
   region: us-east-1
-  account: "933022096014"
+  account: "732770059798"
   credentials_env: .env
 
 github:
@@ -121,8 +121,8 @@ checks:
     iam_unused_days: 90
     public_s3: true
     exclude_buckets:
-      - victorymail-console-933022096014-dev  # CloudFront origin
-      - victorymail-landing-933022096014-dev  # CloudFront origin
+      - victorymail-console-732770059798-dev  # CloudFront origin
+      - victorymail-landing-732770059798-dev  # CloudFront origin
 
   cost:
     budget_warning_pct: 80

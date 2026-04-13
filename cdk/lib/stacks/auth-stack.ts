@@ -34,12 +34,19 @@ export class AuthStack extends cdk.Stack {
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      email: cognito.UserPoolEmail.withSES({
-        fromEmail: "noreply@victorymail.dev",
-        fromName: "FreeMail",
-        sesRegion: "us-east-1",
-        sesVerifiedDomain: "victorymail.dev",
-      }),
+      // SES email delivery is enabled via context flag `sesEmailEnabled`.
+      // Requires victorymail.dev to be a verified SES identity first.
+      // Default: use Cognito's built-in email (50/day limit, no verification needed).
+      ...(scope.node.tryGetContext("sesEmailEnabled")
+        ? {
+            email: cognito.UserPoolEmail.withSES({
+              fromEmail: "noreply@victorymail.dev",
+              fromName: "FreeMail",
+              sesRegion: "us-east-1",
+              sesVerifiedDomain: "victorymail.dev",
+            }),
+          }
+        : {}),
       userVerification: {
         emailSubject: "Verify your FreeMail account",
         emailBody:

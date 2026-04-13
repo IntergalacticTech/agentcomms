@@ -16,7 +16,7 @@ const app = new cdk.App();
 const stage = app.node.tryGetContext("stage") ?? "dev";
 
 const env: cdk.Environment = {
-  account: "933022096014",
+  account: "732770059798",
   region: "us-east-1",
 };
 
