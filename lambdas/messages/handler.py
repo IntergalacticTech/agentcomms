@@ -252,8 +252,39 @@ def _reply(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
         **body,
         "to": body.get("to", [original.get("from_addr", "")]),
         "subject": subject,
+        "headers": _build_reply_headers(original, body.get("headers", {})),
     }
     return _send_message(org_id, inbox_id, reply_body, thread_id=original.get("thread_id"))
+
+
+def _build_reply_headers(original: dict, extra_headers: dict) -> dict:
+    """Build In-Reply-To and References headers for a reply.
+
+    The original message may have either:
+    - ses_message_id (we sent it via SES) -> wrap as <{id}@email.amazonses.com>
+    - headers.message_id (received via SES inbound) -> use as-is
+    """
+    headers = dict(extra_headers) if isinstance(extra_headers, dict) else {}
+
+    # Determine the Message-ID of the original message in RFC822 format
+    original_msg_id = ""
+    orig_headers = original.get("headers", {})
+    if isinstance(orig_headers, dict) and orig_headers.get("message_id"):
+        original_msg_id = orig_headers["message_id"]
+    elif original.get("ses_message_id"):
+        ses_id = original["ses_message_id"]
+        original_msg_id = f"<{ses_id}@email.amazonses.com>"
+
+    if original_msg_id:
+        headers["in_reply_to"] = original_msg_id
+        # Build References: existing references + original Message-ID
+        existing_refs = ""
+        if isinstance(orig_headers, dict):
+            existing_refs = orig_headers.get("references", "")
+        refs_parts = [r for r in (existing_refs, original_msg_id) if r]
+        headers["references"] = " ".join(refs_parts)
+
+    return headers
 
 
 def _reply_all(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
@@ -282,6 +313,7 @@ def _reply_all(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
         **body,
         "to": body.get("to", list(all_recipients)),
         "subject": subject,
+        "headers": _build_reply_headers(original, body.get("headers", {})),
     }
     return _send_message(org_id, inbox_id, reply_body, thread_id=original.get("thread_id"))
 

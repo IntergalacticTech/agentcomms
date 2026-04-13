@@ -310,7 +310,10 @@ def process_destination(
         "is_trash": False,
         "labels": [],
         "category": None,
-        "headers": {},
+        "headers": {
+            "in_reply_to": in_reply_to,
+            "references": references,
+        },
         "has_attachments": len(attachment_parts) > 0,
         "attachment_count": len(attachment_parts),
         "ses_message_id": ses_message_id,
