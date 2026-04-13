@@ -69,6 +69,7 @@ def process_ses_record(record: dict) -> None:
     # Parse threading headers
     in_reply_to = msg.get("In-Reply-To", "").strip()
     references = msg.get("References", "").strip()
+    rfc_message_id = msg.get("Message-ID", "").strip()
 
     # Process for each destination
     for dest_address in destinations:
@@ -84,6 +85,7 @@ def process_ses_record(record: dict) -> None:
             attachment_parts=attachment_parts,
             in_reply_to=in_reply_to,
             references=references,
+            rfc_message_id=rfc_message_id,
         )
 
 
@@ -234,6 +236,7 @@ def process_destination(
     attachment_parts: list,
     in_reply_to: str = "",
     references: str = "",
+    rfc_message_id: str = "",
 ) -> None:
     """Process inbound email for a single destination address."""
     # Look up inbox by email address
@@ -311,6 +314,7 @@ def process_destination(
         "labels": [],
         "category": None,
         "headers": {
+            "message_id": rfc_message_id,
             "in_reply_to": in_reply_to,
             "references": references,
         },
