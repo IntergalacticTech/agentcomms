@@ -168,18 +168,19 @@ def _extract_local_id(raw: str) -> str:
 def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: str) -> dict | None:
     """Search for an existing thread by matching In-Reply-To or References headers.
 
-    The reply's In-Reply-To header references an outbound message we sent.
-    Our outbound worker stamps Message-ID as '<{ulid}@victorymail.dev>',
-    where {ulid} is the message's id field. So we extract the local part
-    of In-Reply-To and look up that message id directly.
+    The reply's In-Reply-To header references a message we sent. AWS SES
+    rewrites the Message-ID to <{ses_api_id}@email.amazonses.com>, so we
+    match against the outbound message's ses_message_id field.
 
-    Also fall back to matching against headers.message_id for inbound-
-    received messages whose Message-IDs were captured.
+    Also handles:
+    - Our own <{ulid}@victorymail.dev> format (direct message lookup)
+    - headers.message_id for inbound-received messages whose Message-IDs
+      were captured (multi-hop reply chains)
     """
     if not in_reply_to and not references:
         return None
 
-    # Collect candidate IDs (both raw RFC822 form and extracted local part)
+    # Collect candidate IDs (raw RFC822 + extracted local part)
     candidate_local_ids = set()
     candidate_raw = set()
     if in_reply_to:
@@ -202,6 +203,24 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
         item = get_item(f"INBOX#{inbox_id}", f"MSG#{local_id}")
         if item:
             return item
+
+    # Look up by ses_message_id via GSI6 (best effort - skip if GSI not present)
+    try:
+        for local_id in candidate_local_ids:
+            items, _ = query_gsi("GSI6", f"SES#{local_id}", limit=1)
+            if items:
+                # Verify it's in the same inbox
+                item = items[0]
+                if item.get("inbox_id") == inbox_id or item.get("PK") == f"INBOX#{inbox_id}":
+                    # GSI6 only projects keys + a few attrs, fetch full item
+                    pk = item.get("PK", f"INBOX#{inbox_id}")
+                    sk = item.get("SK", "")
+                    if sk:
+                        full = get_item(pk, sk)
+                        if full:
+                            return full
+    except Exception:
+        pass
 
     # Fall back to scanning the inbox for headers.message_id matches
     last_key = None
