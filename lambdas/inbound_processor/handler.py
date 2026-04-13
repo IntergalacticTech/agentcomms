@@ -148,31 +148,53 @@ def extract_attachments(msg: email.message.Message) -> list:
     return attachments
 
 
+def _normalize_message_id(raw: str) -> str:
+    """Normalize a Message-ID header value for comparison.
+
+    Strips angle brackets and the @host suffix. SES sends messages with
+    a Message-ID like '<{ses_id}@email.amazonses.com>' or similar, but
+    we store just the SES message ID portion in ses_message_id.
+    """
+    if not raw:
+        return ""
+    raw = raw.strip().strip("<>")
+    if "@" in raw:
+        raw = raw.split("@", 1)[0]
+    return raw
+
+
 def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: str) -> dict | None:
     """Search for an existing thread by matching In-Reply-To or References headers.
 
-    Looks for a message in this inbox whose headers.message_id matches
-    the In-Reply-To header (or any Message-ID in the References chain).
+    The reply's In-Reply-To header references an outbound message we sent.
+    Match by either:
+    - headers.message_id (stored as RFC822 Message-ID by some clients)
+    - ses_message_id (stored by our outbound worker after SES accepts the send)
+
     Returns the matching message item if found, or None.
     """
     if not in_reply_to and not references:
         return None
 
-    # Collect all candidate Message-IDs to search for
-    candidate_ids = set()
+    # Collect candidate IDs in BOTH raw and normalized forms for matching
+    candidate_raw = set()
+    candidate_normalized = set()
     if in_reply_to:
-        candidate_ids.add(in_reply_to)
+        candidate_raw.add(in_reply_to.strip())
+        candidate_normalized.add(_normalize_message_id(in_reply_to))
     if references:
-        # References header contains space-separated Message-IDs
         for ref in references.split():
             ref = ref.strip()
             if ref:
-                candidate_ids.add(ref)
+                candidate_raw.add(ref)
+                candidate_normalized.add(_normalize_message_id(ref))
 
-    if not candidate_ids:
+    candidate_normalized.discard("")
+
+    if not candidate_raw and not candidate_normalized:
         return None
 
-    # Query all messages in this inbox and check for matching headers.message_id
+    # Query all messages in this inbox and check for a match
     last_key = None
     while True:
         items, last_key = query(
@@ -182,11 +204,18 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
             exclusive_start_key=last_key,
         )
         for item in items:
+            # Check headers.message_id (raw match)
             headers = item.get("headers", {})
             if isinstance(headers, dict):
                 msg_id = headers.get("message_id", "")
-                if msg_id and msg_id in candidate_ids:
+                if msg_id and (msg_id in candidate_raw or _normalize_message_id(msg_id) in candidate_normalized):
                     return item
+
+            # Check ses_message_id (our outbound worker stores this)
+            ses_id = item.get("ses_message_id", "")
+            if ses_id and ses_id in candidate_normalized:
+                return item
+
         if not last_key:
             break
 
