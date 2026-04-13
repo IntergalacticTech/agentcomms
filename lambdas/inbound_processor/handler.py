@@ -204,25 +204,7 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
         if item:
             return item
 
-    # Look up by ses_message_id via GSI6 (best effort - skip if GSI not present)
-    try:
-        for local_id in candidate_local_ids:
-            items, _ = query_gsi("GSI6", f"SES#{local_id}", limit=1)
-            if items:
-                # Verify it's in the same inbox
-                item = items[0]
-                if item.get("inbox_id") == inbox_id or item.get("PK") == f"INBOX#{inbox_id}":
-                    # GSI6 only projects keys + a few attrs, fetch full item
-                    pk = item.get("PK", f"INBOX#{inbox_id}")
-                    sk = item.get("SK", "")
-                    if sk:
-                        full = get_item(pk, sk)
-                        if full:
-                            return full
-    except Exception:
-        pass
-
-    # Fall back to scanning the inbox for headers.message_id matches
+    # Scan the inbox for matching messages (ses_message_id or headers.message_id)
     last_key = None
     while True:
         items, last_key = query(
@@ -232,10 +214,18 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
             exclusive_start_key=last_key,
         )
         for item in items:
+            # Check ses_message_id (outbound messages we sent)
+            ses_id = item.get("ses_message_id", "")
+            if ses_id and ses_id in candidate_local_ids:
+                logger.info("Thread match via ses_message_id %s", ses_id)
+                return item
+
+            # Check headers.message_id (inbound messages we received)
             headers = item.get("headers", {})
             if isinstance(headers, dict):
                 msg_id = headers.get("message_id", "")
                 if msg_id and (msg_id in candidate_raw or _extract_local_id(msg_id) in candidate_local_ids):
+                    logger.info("Thread match via headers.message_id %s", msg_id)
                     return item
         if not last_key:
             break
