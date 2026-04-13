@@ -148,12 +148,12 @@ def extract_attachments(msg: email.message.Message) -> list:
     return attachments
 
 
-def _normalize_message_id(raw: str) -> str:
-    """Normalize a Message-ID header value for comparison.
+def _extract_local_id(raw: str) -> str:
+    """Extract the local part of a Message-ID header.
 
-    Strips angle brackets and the @host suffix. SES sends messages with
-    a Message-ID like '<{ses_id}@email.amazonses.com>' or similar, but
-    we store just the SES message ID portion in ses_message_id.
+    Strips angle brackets and the @host suffix. For our outbound emails,
+    the Message-ID header is '<{ulid}@victorymail.dev>', so this returns
+    the message ULID.
     """
     if not raw:
         return ""
@@ -167,34 +167,41 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
     """Search for an existing thread by matching In-Reply-To or References headers.
 
     The reply's In-Reply-To header references an outbound message we sent.
-    Match by either:
-    - headers.message_id (stored as RFC822 Message-ID by some clients)
-    - ses_message_id (stored by our outbound worker after SES accepts the send)
+    Our outbound worker stamps Message-ID as '<{ulid}@victorymail.dev>',
+    where {ulid} is the message's id field. So we extract the local part
+    of In-Reply-To and look up that message id directly.
 
-    Returns the matching message item if found, or None.
+    Also fall back to matching against headers.message_id for inbound-
+    received messages whose Message-IDs were captured.
     """
     if not in_reply_to and not references:
         return None
 
-    # Collect candidate IDs in BOTH raw and normalized forms for matching
+    # Collect candidate IDs (both raw RFC822 form and extracted local part)
+    candidate_local_ids = set()
     candidate_raw = set()
-    candidate_normalized = set()
     if in_reply_to:
         candidate_raw.add(in_reply_to.strip())
-        candidate_normalized.add(_normalize_message_id(in_reply_to))
+        candidate_local_ids.add(_extract_local_id(in_reply_to))
     if references:
         for ref in references.split():
             ref = ref.strip()
             if ref:
                 candidate_raw.add(ref)
-                candidate_normalized.add(_normalize_message_id(ref))
+                candidate_local_ids.add(_extract_local_id(ref))
 
-    candidate_normalized.discard("")
+    candidate_local_ids.discard("")
 
-    if not candidate_raw and not candidate_normalized:
+    if not candidate_raw and not candidate_local_ids:
         return None
 
-    # Query all messages in this inbox and check for a match
+    # Direct lookup by local id (our outbound message ulids)
+    for local_id in candidate_local_ids:
+        item = get_item(f"INBOX#{inbox_id}", f"MSG#{local_id}")
+        if item:
+            return item
+
+    # Fall back to scanning the inbox for headers.message_id matches
     last_key = None
     while True:
         items, last_key = query(
@@ -204,18 +211,11 @@ def _find_thread_by_reply_headers(inbox_id: str, in_reply_to: str, references: s
             exclusive_start_key=last_key,
         )
         for item in items:
-            # Check headers.message_id (raw match)
             headers = item.get("headers", {})
             if isinstance(headers, dict):
                 msg_id = headers.get("message_id", "")
-                if msg_id and (msg_id in candidate_raw or _normalize_message_id(msg_id) in candidate_normalized):
+                if msg_id and (msg_id in candidate_raw or _extract_local_id(msg_id) in candidate_local_ids):
                     return item
-
-            # Check ses_message_id (our outbound worker stores this)
-            ses_id = item.get("ses_message_id", "")
-            if ses_id and ses_id in candidate_normalized:
-                return item
-
         if not last_key:
             break
 

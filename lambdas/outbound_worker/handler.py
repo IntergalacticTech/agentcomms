@@ -104,6 +104,13 @@ def build_mime_message(msg: dict, body_data: dict) -> MIMEMultipart:
     """Build a MIME message from message record and body data."""
     mime = MIMEMultipart("alternative")
 
+    # Set our own Message-ID so we can match it on inbound replies.
+    # SES would generate one if we don't, but its format differs from the
+    # SendEmail API response and we'd have no way to correlate them.
+    message_id = msg.get("id", "")
+    if message_id:
+        mime["Message-ID"] = f"<{message_id}@victorymail.dev>"
+
     # Set From header from from_addr dict
     from_addr = msg.get("from_addr", {})
     if isinstance(from_addr, dict):
