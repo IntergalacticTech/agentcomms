@@ -183,3 +183,145 @@ class Channel(BaseModel):
             created_at=datetime.fromisoformat(item["created_at"]),
             updated_at=datetime.fromisoformat(item["updated_at"]),
         )
+
+
+class MessageDirection(str, Enum):
+    INBOUND = "inbound"
+    OUTBOUND = "outbound"
+
+
+class MessageStatus(str, Enum):
+    RECEIVED = "received"
+    QUEUED = "queued"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    BOUNCED = "bounced"
+    FAILED = "failed"
+    REJECTED = "rejected"
+
+
+class Party(BaseModel):
+    """One endpoint of a message (sender or recipient)."""
+    model_config = ConfigDict(extra="forbid")
+
+    address: str
+    display_name: str | None = None
+    platform_user_id: str | None = None
+
+
+class Attachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attachment_id: str
+    filename: str
+    content_type: str
+    size: int
+    s3_key: str
+
+
+class UnifiedMessage(BaseModel):
+    """
+    The normalized message shape for every channel. Written to DynamoDB under
+    PK=AGT#{agent_id} SK=MSG#{timestamp_ms}#{message_id}.
+
+    `is_dm=True` projects into GSI3 (unified inbox). Non-DM traffic is read via
+    channel-native surfaces (GSI4).
+    """
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    message_id: str
+    agent_id: str
+    org_id: str
+    channel_id: str
+    channel: ChannelType
+    direction: MessageDirection
+    status: MessageStatus
+    from_: Party = Field(alias="from")
+    to: list[Party] = Field(default_factory=list)
+    subject: str | None = None
+    body_text: str = ""
+    body_html: str | None = None
+    body_s3_key: str | None = None
+    attachments: list[Attachment] = Field(default_factory=list)
+    thread_key: str | None = None
+    is_dm: bool = False
+    received_at: datetime = Field(default_factory=_now_utc)
+    channel_native: dict[str, Any] = Field(default_factory=dict)
+    external_id: str | None = None
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def _sort_key(self) -> str:
+        ts_ms = int(self.received_at.timestamp() * 1000)
+        return f"MSG#{ts_ms}#{self.message_id}"
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        sk = self._sort_key()
+        item: dict[str, Any] = {
+            "PK": f"AGT#{self.agent_id}",
+            "SK": sk,
+            "entity": "message",
+            "message_id": self.message_id,
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "channel_id": self.channel_id,
+            "channel": self.channel.value,
+            "direction": self.direction.value,
+            "status": self.status.value,
+            "from": self.from_.model_dump(exclude_none=True),
+            "to": [p.model_dump(exclude_none=True) for p in self.to],
+            "subject": self.subject,
+            "body_text": self.body_text,
+            "body_html": self.body_html,
+            "body_s3_key": self.body_s3_key,
+            "attachments": [a.model_dump() for a in self.attachments],
+            "thread_key": self.thread_key,
+            "is_dm": self.is_dm,
+            "received_at": self.received_at.isoformat(),
+            "channel_native": self.channel_native,
+            "external_id": self.external_id,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            # GSI4: channel-native listing
+            "gsi4_pk": f"CHAN#{self.channel_id}",
+            "gsi4_sk": sk,
+        }
+        # GSI3: sparse — only if is_dm=True
+        if self.is_dm:
+            item["gsi3_pk"] = f"AGT_DM#{self.agent_id}"
+            item["gsi3_sk"] = sk
+        # GSI5: threading
+        if self.thread_key:
+            item["gsi5_pk"] = f"THR#{self.thread_key}"
+            item["gsi5_sk"] = sk
+        # GSI6: external-id idempotency
+        if self.external_id:
+            item["gsi6_pk"] = f"EXTID#{self.channel.value}#{self.external_id}"
+            item["gsi6_sk"] = f"MSG#{self.message_id}"
+        return item
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> UnifiedMessage:
+        return cls(
+            message_id=item["message_id"],
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            channel_id=item["channel_id"],
+            channel=ChannelType(item["channel"]),
+            direction=MessageDirection(item["direction"]),
+            status=MessageStatus(item["status"]),
+            **{"from": Party(**item["from"])},
+            to=[Party(**p) for p in item.get("to") or []],
+            subject=item.get("subject"),
+            body_text=item.get("body_text") or "",
+            body_html=item.get("body_html"),
+            body_s3_key=item.get("body_s3_key"),
+            attachments=[Attachment(**a) for a in item.get("attachments") or []],
+            thread_key=item.get("thread_key"),
+            is_dm=bool(item.get("is_dm", False)),
+            received_at=datetime.fromisoformat(item["received_at"]),
+            channel_native=item.get("channel_native") or {},
+            external_id=item.get("external_id"),
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )

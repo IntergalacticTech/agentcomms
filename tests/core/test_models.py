@@ -119,3 +119,77 @@ def test_channel_roundtrip():
     )
     restored = Channel.from_dynamodb_item(ch.to_dynamodb_item())
     assert restored == ch
+
+
+from core.data.models import (
+    UnifiedMessage, MessageDirection, MessageStatus, Party
+)
+
+
+def _email_message():
+    return UnifiedMessage(
+        message_id="msg_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel_id="chan_em_01HJKL",
+        channel=ChannelType.EMAIL,
+        direction=MessageDirection.INBOUND,
+        status=MessageStatus.RECEIVED,
+        from_=Party(address="alice@example.com", display_name="Alice"),
+        to=[Party(address="bot@agentcomms.dev")],
+        subject="hi",
+        body_text="hello",
+        is_dm=True,
+        thread_key="thr_01HMNO",
+        received_at=datetime(2026, 4, 17, tzinfo=timezone.utc),
+        channel_native={"message_id_header": "<abc@x>"},
+        external_id="<abc@x>",
+    )
+
+
+def test_unified_message_is_dm_projects_to_gsi3():
+    msg = _email_message()
+    item = msg.to_dynamodb_item()
+    assert item["PK"] == "AGT#agt_01HDEF"
+    assert item["SK"].startswith("MSG#")
+    assert item["gsi3_pk"] == "AGT_DM#agt_01HDEF"
+    assert item["gsi3_sk"] == item["SK"]
+
+
+def test_unified_message_not_dm_omits_gsi3():
+    msg = _email_message()
+    msg.is_dm = False
+    item = msg.to_dynamodb_item()
+    assert "gsi3_pk" not in item
+    assert "gsi3_sk" not in item
+
+
+def test_unified_message_populates_gsi4_channel():
+    msg = _email_message()
+    item = msg.to_dynamodb_item()
+    assert item["gsi4_pk"] == "CHAN#chan_em_01HJKL"
+
+
+def test_unified_message_populates_gsi5_thread_when_present():
+    msg = _email_message()
+    item = msg.to_dynamodb_item()
+    assert item["gsi5_pk"] == "THR#thr_01HMNO"
+
+
+def test_unified_message_populates_gsi6_external_id():
+    msg = _email_message()
+    item = msg.to_dynamodb_item()
+    assert item["gsi6_pk"] == "EXTID#email#<abc@x>"
+
+
+def test_unified_message_sort_key_uses_timestamp_ms_then_id():
+    msg = _email_message()
+    item = msg.to_dynamodb_item()
+    expected_ts_ms = int(msg.received_at.timestamp() * 1000)
+    assert item["SK"] == f"MSG#{expected_ts_ms}#msg_01HABC"
+
+
+def test_unified_message_roundtrip():
+    msg = _email_message()
+    restored = UnifiedMessage.from_dynamodb_item(msg.to_dynamodb_item())
+    assert restored == msg
