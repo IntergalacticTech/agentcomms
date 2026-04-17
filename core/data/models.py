@@ -67,3 +67,41 @@ class Organization(BaseModel):
             created_at=datetime.fromisoformat(item["created_at"]),
             updated_at=datetime.fromisoformat(item["updated_at"]),
         )
+
+
+class Agent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    agent_id: str
+    org_id: str
+    name: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    status: str = "active"
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        return {
+            "PK": f"ORG#{self.org_id}",
+            "SK": f"AGT#{self.agent_id}",
+            "entity": "agent",
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "name": self.name,
+            "metadata": self.metadata,
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Agent:
+        return cls(
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            name=item["name"],
+            metadata=item.get("metadata") or {},
+            status=item.get("status") or "active",
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
