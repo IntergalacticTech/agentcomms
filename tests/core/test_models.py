@@ -58,3 +58,64 @@ def test_agent_roundtrip():
     )
     restored = Agent.from_dynamodb_item(agent.to_dynamodb_item())
     assert restored == agent
+
+
+from core.data.models import Channel, ChannelMode, ChannelStatus, ChannelType
+
+
+def test_channel_email_provision_defaults():
+    ch = Channel(
+        channel_id="chan_em_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=ChannelType.EMAIL,
+        mode=ChannelMode.PROVISION,
+        config={"address": "bot@agentcomms.dev"},
+    )
+    assert ch.channel == ChannelType.EMAIL
+    assert ch.status == ChannelStatus.PROVISIONING
+
+
+def test_channel_dynamodb_keys_and_gsi2():
+    ch = Channel(
+        channel_id="chan_em_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=ChannelType.EMAIL,
+        mode=ChannelMode.PROVISION,
+        config={"address": "bot@agentcomms.dev"},
+        address_index_value="bot@agentcomms.dev",
+    )
+    item = ch.to_dynamodb_item()
+    assert item["PK"] == "AGT#agt_01HDEF"
+    assert item["SK"] == "CHAN#email#chan_em_01HABC"
+    assert item["gsi2_pk"] == "ADDR#email#bot@agentcomms.dev"
+    assert item["gsi2_sk"] == "CHAN#chan_em_01HABC"
+
+
+def test_channel_without_address_index_value_has_no_gsi2():
+    ch = Channel(
+        channel_id="chan_sl_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=ChannelType.SLACK,
+        mode=ChannelMode.BRIDGE,
+        config={},
+    )
+    item = ch.to_dynamodb_item()
+    assert "gsi2_pk" not in item
+
+
+def test_channel_roundtrip():
+    ch = Channel(
+        channel_id="chan_em_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=ChannelType.EMAIL,
+        mode=ChannelMode.PROVISION,
+        config={"address": "bot@agentcomms.dev"},
+        address_index_value="bot@agentcomms.dev",
+        status=ChannelStatus.ACTIVE,
+    )
+    restored = Channel.from_dynamodb_item(ch.to_dynamodb_item())
+    assert restored == ch

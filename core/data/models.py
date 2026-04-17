@@ -105,3 +105,81 @@ class Agent(BaseModel):
             created_at=datetime.fromisoformat(item["created_at"]),
             updated_at=datetime.fromisoformat(item["updated_at"]),
         )
+
+
+class ChannelType(str, Enum):
+    EMAIL = "email"
+    SMS = "sms"
+    PUSH = "push"
+    SLACK = "slack"
+    TELEGRAM = "telegram"
+    DISCORD = "discord"
+    WHATSAPP = "whatsapp"
+    POSTAL = "postal"
+    FAX = "fax"
+    VOICE = "voice"
+
+
+class ChannelMode(str, Enum):
+    PROVISION = "provision"
+    BRIDGE = "bridge"
+
+
+class ChannelStatus(str, Enum):
+    PROVISIONING = "provisioning"
+    PENDING_OAUTH = "pending_oauth"
+    PENDING_VERIFICATION = "pending_verification"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    FAILED = "failed"
+
+
+class Channel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_id: str
+    agent_id: str
+    org_id: str
+    channel: ChannelType
+    mode: ChannelMode
+    config: dict[str, Any] = Field(default_factory=dict)
+    status: ChannelStatus = ChannelStatus.PROVISIONING
+    address_index_value: str | None = None  # projects to GSI2 for inbound routing
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "PK": f"AGT#{self.agent_id}",
+            "SK": f"CHAN#{self.channel.value}#{self.channel_id}",
+            "entity": "channel",
+            "channel_id": self.channel_id,
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "channel": self.channel.value,
+            "mode": self.mode.value,
+            "config": self.config,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+        if self.address_index_value:
+            item["gsi2_pk"] = f"ADDR#{self.channel.value}#{self.address_index_value}"
+            item["gsi2_sk"] = f"CHAN#{self.channel_id}"
+            item["address_index_value"] = self.address_index_value
+        return item
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Channel:
+        return cls(
+            channel_id=item["channel_id"],
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            channel=ChannelType(item["channel"]),
+            mode=ChannelMode(item["mode"]),
+            config=item.get("config") or {},
+            status=ChannelStatus(item.get("status", "provisioning")),
+            address_index_value=item.get("address_index_value"),
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
