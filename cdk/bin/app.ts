@@ -10,6 +10,7 @@ import { CicdStack } from "../lib/stacks/cicd-stack";
 import { ConsoleStack } from "../lib/stacks/console-stack";
 import { MonitoringStack } from "../lib/stacks/monitoring-stack";
 import { LandingStack } from "../lib/stacks/landing-stack";
+import { AgentCommsDataStack } from "../lib/stacks/agentcomms-data-stack";
 
 const app = new cdk.App();
 
@@ -60,5 +61,10 @@ new CicdStack(app, `VictoryMail-CICD-${stage}`, { env, stage });
 new ConsoleStack(app, `VictoryMail-Console-${stage}`, { env, stage });
 new MonitoringStack(app, `VictoryMail-Monitoring-${stage}`, { env, stage });
 new LandingStack(app, `VictoryMail-Landing-${stage}`, { env, stage });
+
+new AgentCommsDataStack(app, 'AgentCommsData', {
+  env: { account: '732770059798', region: 'us-east-1' },
+  envName: 'prod',
+});
 
 app.synth();
