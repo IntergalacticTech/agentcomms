@@ -325,3 +325,197 @@ class UnifiedMessage(BaseModel):
             created_at=datetime.fromisoformat(item["created_at"]),
             updated_at=datetime.fromisoformat(item["updated_at"]),
         )
+
+
+class ApiKeyScope(str, Enum):
+    ORG = "org"
+    AGENT = "agent"
+    CHANNEL = "channel"
+
+
+class ApiKey(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key_id: str
+    key_hash: str  # sha256 hex; plaintext shown once at creation
+    org_id: str
+    scope: ApiKeyScope
+    name: str
+    agent_id: str | None = None
+    channel_id: str | None = None
+    created_at: datetime = Field(default_factory=_now_utc)
+    last_used_at: datetime | None = None
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "PK": f"ORG#{self.org_id}",
+            "SK": f"APIKEY#{self.key_hash}",
+            "entity": "api_key",
+            "key_id": self.key_id,
+            "key_hash": self.key_hash,
+            "org_id": self.org_id,
+            "scope": self.scope.value,
+            "name": self.name,
+            "agent_id": self.agent_id,
+            "channel_id": self.channel_id,
+            "created_at": self.created_at.isoformat(),
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "gsi1_pk": f"APIKEY#{self.key_hash}",
+            "gsi1_sk": f"ORG#{self.org_id}",
+        }
+        return item
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> ApiKey:
+        return cls(
+            key_id=item["key_id"],
+            key_hash=item["key_hash"],
+            org_id=item["org_id"],
+            scope=ApiKeyScope(item["scope"]),
+            name=item["name"],
+            agent_id=item.get("agent_id"),
+            channel_id=item.get("channel_id"),
+            created_at=datetime.fromisoformat(item["created_at"]),
+            last_used_at=datetime.fromisoformat(item["last_used_at"]) if item.get("last_used_at") else None,
+        )
+
+
+class Thread(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thread_key: str
+    agent_id: str
+    org_id: str
+    channel: ChannelType
+    native_thread_id: str
+    subject: str | None = None
+    last_message_at: datetime | None = None
+    message_count: int = 0
+    participants: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        return {
+            "PK": f"AGT#{self.agent_id}",
+            "SK": f"THR#{self.channel.value}#{self.native_thread_id}",
+            "entity": "thread",
+            "thread_key": self.thread_key,
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "channel": self.channel.value,
+            "native_thread_id": self.native_thread_id,
+            "subject": self.subject,
+            "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
+            "message_count": self.message_count,
+            "participants": self.participants,
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Thread:
+        return cls(
+            thread_key=item["thread_key"],
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            channel=ChannelType(item["channel"]),
+            native_thread_id=item["native_thread_id"],
+            subject=item.get("subject"),
+            last_message_at=datetime.fromisoformat(item["last_message_at"]) if item.get("last_message_at") else None,
+            message_count=int(item.get("message_count") or 0),
+            participants=item.get("participants") or [],
+            created_at=datetime.fromisoformat(item["created_at"]),
+        )
+
+
+class Draft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    draft_id: str
+    agent_id: str
+    org_id: str
+    channel: ChannelType
+    to: list[Party] = Field(default_factory=list)
+    subject: str | None = None
+    body_text: str = ""
+    body_html: str | None = None
+    attachments: list[Attachment] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        return {
+            "PK": f"AGT#{self.agent_id}",
+            "SK": f"DRF#{self.channel.value}#{self.draft_id}",
+            "entity": "draft",
+            "draft_id": self.draft_id,
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "channel": self.channel.value,
+            "to": [p.model_dump(exclude_none=True) for p in self.to],
+            "subject": self.subject,
+            "body_text": self.body_text,
+            "body_html": self.body_html,
+            "attachments": [a.model_dump() for a in self.attachments],
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Draft:
+        return cls(
+            draft_id=item["draft_id"],
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            channel=ChannelType(item["channel"]),
+            to=[Party(**p) for p in item.get("to") or []],
+            subject=item.get("subject"),
+            body_text=item.get("body_text") or "",
+            body_html=item.get("body_html"),
+            attachments=[Attachment(**a) for a in item.get("attachments") or []],
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
+
+
+class Webhook(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    webhook_id: str
+    agent_id: str
+    org_id: str
+    url: str
+    events: list[str] = Field(default_factory=list)
+    channels: list[str] = Field(default_factory=lambda: ["*"])
+    secret: str
+    status: str = "active"
+    created_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        return {
+            "PK": f"AGT#{self.agent_id}",
+            "SK": f"WHK#{self.webhook_id}",
+            "entity": "webhook",
+            "webhook_id": self.webhook_id,
+            "agent_id": self.agent_id,
+            "org_id": self.org_id,
+            "url": self.url,
+            "events": self.events,
+            "channels": self.channels,
+            "secret": self.secret,
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Webhook:
+        return cls(
+            webhook_id=item["webhook_id"],
+            agent_id=item["agent_id"],
+            org_id=item["org_id"],
+            url=item["url"],
+            events=item.get("events") or [],
+            channels=item.get("channels") or ["*"],
+            secret=item["secret"],
+            status=item.get("status") or "active",
+            created_at=datetime.fromisoformat(item["created_at"]),
+        )

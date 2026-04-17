@@ -193,3 +193,71 @@ def test_unified_message_roundtrip():
     msg = _email_message()
     restored = UnifiedMessage.from_dynamodb_item(msg.to_dynamodb_item())
     assert restored == msg
+
+
+from core.data.models import ApiKey, ApiKeyScope, Thread, Draft, Webhook
+
+
+def test_api_key_projects_gsi1():
+    key = ApiKey(
+        key_id="key_01HABC",
+        key_hash="sha256:deadbeef",
+        org_id="org_01HDEF",
+        scope=ApiKeyScope.AGENT,
+        agent_id="agt_01HGHI",
+        name="bot key",
+    )
+    item = key.to_dynamodb_item()
+    assert item["PK"] == "ORG#org_01HDEF"
+    assert item["SK"] == "APIKEY#sha256:deadbeef"
+    assert item["gsi1_pk"] == "APIKEY#sha256:deadbeef"
+    assert item["gsi1_sk"] == "ORG#org_01HDEF"
+
+
+def test_api_key_roundtrip():
+    key = ApiKey(key_id="k", key_hash="h", org_id="o", scope=ApiKeyScope.ORG, name="n")
+    assert ApiKey.from_dynamodb_item(key.to_dynamodb_item()) == key
+
+
+def test_thread_keys():
+    t = Thread(
+        thread_key="thr_01H",
+        agent_id="agt_01H",
+        org_id="org_01H",
+        channel=ChannelType.EMAIL,
+        native_thread_id="<root@x>",
+        subject="Re: ping",
+    )
+    item = t.to_dynamodb_item()
+    assert item["PK"] == "AGT#agt_01H"
+    assert item["SK"] == "THR#email#<root@x>"
+
+
+def test_draft_keys():
+    d = Draft(
+        draft_id="drf_01H",
+        agent_id="agt_01H",
+        org_id="org_01H",
+        channel=ChannelType.EMAIL,
+        to=[Party(address="x@y.z")],
+        body_text="hi",
+    )
+    item = d.to_dynamodb_item()
+    assert item["PK"] == "AGT#agt_01H"
+    assert item["SK"] == "DRF#email#drf_01H"
+
+
+def test_webhook_keys_and_channel_filter():
+    w = Webhook(
+        webhook_id="whk_01H",
+        agent_id="agt_01H",
+        org_id="org_01H",
+        url="https://example.com/hook",
+        events=["message.received"],
+        channels=["email", "slack"],
+        secret="sek",
+    )
+    item = w.to_dynamodb_item()
+    assert item["PK"] == "AGT#agt_01H"
+    assert item["SK"] == "WHK#whk_01H"
+    assert item["channels"] == ["email", "slack"]
