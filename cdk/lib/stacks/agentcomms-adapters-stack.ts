@@ -21,6 +21,7 @@ import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
 import { EmailAdapterStack } from '../adapters/email-adapter-stack';
 import { SmsAdapterStack } from '../adapters/sms-adapter-stack';
+import { PushAdapterStack } from '../adapters/push-adapter-stack';
 
 export interface AgentCommsAdaptersStackProps extends StackProps {
   table: Table;
@@ -30,11 +31,14 @@ export interface AgentCommsAdaptersStackProps extends StackProps {
   attachmentsBucket: Bucket;
   /** Phase 2: enable SMS adapter stack (default false until Phase 2 deploy). */
   enableSms?: boolean;
+  /** Phase 2: enable Push adapter stack (default false until Phase 2 deploy). */
+  enablePush?: boolean;
 }
 
 export class AgentCommsAdaptersStack extends Stack {
   public readonly emailAdapterStack: EmailAdapterStack;
   public readonly smsAdapterStack?: SmsAdapterStack;
+  public readonly pushAdapterStack?: PushAdapterStack;
 
   constructor(scope: Construct, id: string, props: AgentCommsAdaptersStackProps) {
     super(scope, id, props);
@@ -59,8 +63,14 @@ export class AgentCommsAdaptersStack extends Stack {
       });
     }
 
-    // ── Phase 2 (future) — Push adapter ──
-    // new PushAdapterStack(scope, `${id}-Push`, { env: props.env, ...props });
+    // ── Phase 2: Push adapter (disabled by default; enable via enablePush: true) ──
+    if (props.enablePush) {
+      this.pushAdapterStack = new PushAdapterStack(scope, `${id}-Push`, {
+        env: props.env,
+        table: props.table,
+        eventStream: props.eventStream,
+      });
+    }
 
     // ── Phase 3 (future) — Slack adapter ──
     // new SlackAdapterStack(scope, `${id}-Slack`, { env: props.env, ...props });
