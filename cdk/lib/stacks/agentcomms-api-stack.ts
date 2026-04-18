@@ -148,6 +148,23 @@ export class AgentCommsApiStack extends Stack {
       if (grantKinesisWrite) {
         props.eventStream.grantWrite(fn);
       }
+      // All handlers may invoke EmailAdapter.send() / .provision() (router picks adapter
+      // based on 'to' format). Grant SES so the outbound path works without the separate
+      // email-adapter SQS worker stack being present.
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'ses:SendRawEmail',
+          'ses:SendEmail',
+          'ses:VerifyDomainDkim',
+          'ses:GetSendQuota',
+          'sesv2:SendEmail',
+          'sesv2:CreateEmailIdentity',
+          'sesv2:GetEmailIdentity',
+          'sesv2:DeleteEmailIdentity',
+        ],
+        resources: ['*'],
+      }));
       return fn;
     };
 
