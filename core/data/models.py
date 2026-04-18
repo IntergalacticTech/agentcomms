@@ -550,6 +550,132 @@ class VaultItem(BaseModel):
         )
 
 
+class Persona(BaseModel):
+    """Persistent identity profile an AI agent uses across sessions.
+
+    Stored at PK=ORG#{org_id} SK=PER#{persona_id}.
+    GSI1 projects on gsi1_pk=ORG#{org_id}#PERSONAS / gsi1_sk=PER#{persona_id}
+    for efficient org-wide listing.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    persona_id: str
+    org_id: str
+    name: str
+    address: str | None = None
+    dob: str | None = None          # YYYY-MM-DD
+    phone: str | None = None
+    email: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        return {
+            "PK": f"ORG#{self.org_id}",
+            "SK": f"PER#{self.persona_id}",
+            "entity": "persona",
+            "persona_id": self.persona_id,
+            "org_id": self.org_id,
+            "name": self.name,
+            "address": self.address,
+            "dob": self.dob,
+            "phone": self.phone,
+            "email": self.email,
+            "metadata": self.metadata,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            # GSI1: list personas per org
+            "gsi1_pk": f"ORG#{self.org_id}#PERSONAS",
+            "gsi1_sk": f"PER#{self.persona_id}",
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Persona:
+        return cls(
+            persona_id=item["persona_id"],
+            org_id=item["org_id"],
+            name=item["name"],
+            address=item.get("address"),
+            dob=item.get("dob"),
+            phone=item.get("phone"),
+            email=item.get("email"),
+            metadata=item.get("metadata") or {},
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
+
+
+class DomainStatus(str, Enum):
+    PENDING_DNS = "pending_dns"
+    PENDING_DKIM = "pending_dkim"
+    VERIFIED = "verified"
+    FAILED = "failed"
+
+
+class Domain(BaseModel):
+    """Email domain registered for SES identity lifecycle.
+
+    Stored at PK=ORG#{org_id} SK=DOM#{domain_id}.
+    GSI7 projects on gsi7_pk=DOMAIN#{domain_name} / gsi7_sk=ORG#{org_id}
+    for cross-org uniqueness enforcement.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    domain_id: str
+    org_id: str
+    domain_name: str
+    status: DomainStatus = DomainStatus.PENDING_DNS
+    dkim_tokens: list[str] = Field(default_factory=list)
+    spf_verified: bool = False
+    mx_verified: bool = False
+    dmarc_verified: bool = False
+    dns_records: dict[str, Any] = Field(default_factory=dict)
+    verified_at: datetime | None = None
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "PK": f"ORG#{self.org_id}",
+            "SK": f"DOM#{self.domain_id}",
+            "entity": "domain",
+            "domain_id": self.domain_id,
+            "org_id": self.org_id,
+            "domain_name": self.domain_name,
+            "status": self.status.value,
+            "dkim_tokens": self.dkim_tokens,
+            "spf_verified": self.spf_verified,
+            "mx_verified": self.mx_verified,
+            "dmarc_verified": self.dmarc_verified,
+            "dns_records": self.dns_records,
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            # GSI7: cross-org domain-name uniqueness
+            "gsi7_pk": f"DOMAIN#{self.domain_name}",
+            "gsi7_sk": f"ORG#{self.org_id}",
+        }
+        return item
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> Domain:
+        return cls(
+            domain_id=item["domain_id"],
+            org_id=item["org_id"],
+            domain_name=item["domain_name"],
+            status=DomainStatus(item.get("status", "pending_dns")),
+            dkim_tokens=item.get("dkim_tokens") or [],
+            spf_verified=bool(item.get("spf_verified", False)),
+            mx_verified=bool(item.get("mx_verified", False)),
+            dmarc_verified=bool(item.get("dmarc_verified", False)),
+            dns_records=item.get("dns_records") or {},
+            verified_at=datetime.fromisoformat(item["verified_at"]) if item.get("verified_at") else None,
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
+
+
 class Webhook(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

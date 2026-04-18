@@ -13,8 +13,8 @@ from typing import Any
 from boto3.dynamodb.conditions import Key
 
 from core.data.models import (
-    Agent, ApiKey, Channel, Draft, Organization, Thread, UnifiedMessage,
-    VaultItem, VaultType, Webhook,
+    Agent, ApiKey, Channel, Domain, DomainStatus, Draft, Organization,
+    Persona, Thread, UnifiedMessage, VaultItem, VaultType, Webhook,
 )
 
 
@@ -265,3 +265,66 @@ class Repo:
         self.table.delete_item(
             Key={"PK": f"ORG#{org_id}", "SK": f"VLT#{vault_id}"}
         )
+
+    # ─── Personas ────────────────────────────────────────────────────
+    def put_persona(self, persona: Persona) -> None:
+        self.table.put_item(Item=persona.to_dynamodb_item())
+
+    def get_persona(self, *, org_id: str, persona_id: str) -> Persona | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"PER#{persona_id}"}
+        )
+        raw = resp.get("Item")
+        return Persona.from_dynamodb_item(raw) if raw else None
+
+    def list_personas(self, *, org_id: str, limit: int = 100) -> list[Persona]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("PER#"),
+            Limit=limit,
+        )
+        return [Persona.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_persona(self, *, org_id: str, persona_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"PER#{persona_id}"}
+        )
+
+    # ─── Domains ─────────────────────────────────────────────────────
+    def put_domain(self, domain: Domain) -> None:
+        self.table.put_item(Item=domain.to_dynamodb_item())
+
+    def get_domain(self, *, org_id: str, domain_id: str) -> Domain | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"DOM#{domain_id}"}
+        )
+        raw = resp.get("Item")
+        return Domain.from_dynamodb_item(raw) if raw else None
+
+    def list_domains(self, *, org_id: str, limit: int = 100) -> list[Domain]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("DOM#"),
+            Limit=limit,
+        )
+        return [Domain.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_domain(self, *, org_id: str, domain_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"DOM#{domain_id}"}
+        )
+
+    def lookup_domain_ownership(self, domain_name: str) -> Domain | None:
+        """GSI7 lookup: find which org (if any) owns *domain_name*.
+
+        Returns the first matching Domain or None if unclaimed.
+        """
+        resp = self.table.query(
+            IndexName="GSI7",
+            KeyConditionExpression=Key("gsi7_pk").eq(f"DOMAIN#{domain_name}"),
+            Limit=1,
+        )
+        items = resp.get("Items", [])
+        if not items:
+            return None
+        return Domain.from_dynamodb_item(items[0])
