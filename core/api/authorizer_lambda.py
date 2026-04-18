@@ -18,6 +18,11 @@ def lambda_handler(event, context):
         )
     except DeniedError:
         raise Exception("Unauthorized")
+    # Resource wildcard: allow the caller (via this cached policy) to call any
+    # method on any path under this API. method_arn format:
+    #   arn:aws:execute-api:REGION:ACCOUNT:API-ID/STAGE/METHOD/PATH...
+    # We keep `arn:...:API-ID/` and append `*` which matches any STAGE/METHOD/PATH.
+    api_prefix = method_arn.split("/", 1)[0]  # arn:...:API-ID
     return {
         "principalId": ctx.api_key_id or "anon",
         "policyDocument": {
@@ -25,7 +30,7 @@ def lambda_handler(event, context):
             "Statement": [{
                 "Action": "execute-api:Invoke",
                 "Effect": "Allow",
-                "Resource": method_arn.rsplit("/", 2)[0] + "/*/*",
+                "Resource": f"{api_prefix}/*",
             }],
         },
         "context": {
