@@ -37,8 +37,9 @@ API_STAGE = "prod"
 REGION = "us-east-1"
 ACCOUNT = "732770059798"
 
-LANDING_DISTRIBUTION_TAG_HINT = "VictoryMail-Landing"      # existing CloudFront distribution to extend
-CONSOLE_DISTRIBUTION_TAG_HINT = "VictoryMail-Console"
+LANDING_DISTRIBUTION_ID = "E9787GLOP9GSN"   # VictoryMail-Landing-dev CloudFront
+CONSOLE_DISTRIBUTION_ID = "E1PG2DM90218AR"  # VictoryMail-Console-dev CloudFront
+COMBINED_CERT_ARN = "arn:aws:acm:us-east-1:732770059798:certificate/3bd1b3a6-a843-4804-9e0e-069550fd6aec"
 
 _acm = boto3.client("acm", region_name=REGION)
 _apigw = boto3.client("apigateway", region_name=REGION)
@@ -46,17 +47,17 @@ _route53 = boto3.client("route53")
 _cloudfront = boto3.client("cloudfront")
 
 
-def emit(phase: str, status: str, **fields: Any) -> None:
-    print(json.dumps({"phase": phase, "status": status, **fields}), flush=True)
+def emit(phase: str, _status: str, **fields: Any) -> None:
+    print(json.dumps({"phase": phase, "status": _status, **fields}), flush=True)
 
 
 def step_1_verify_cert() -> None:
     resp = _acm.describe_certificate(CertificateArn=CERT_ARN)
-    status = resp["Certificate"]["Status"]
-    if status != "ISSUED":
-        emit("cert", "fail", status=status, msg="Run this script only after ACM cert is ISSUED.")
+    cert_status = resp["Certificate"]["Status"]
+    if cert_status != "ISSUED":
+        emit("cert", "fail", cert_status=cert_status, msg="Run this script only after ACM cert is ISSUED.")
         raise SystemExit(3)
-    emit("cert", "ok", status=status)
+    emit("cert", "ok", cert_status=cert_status)
 
 
 def step_2_api_gw_custom_domain() -> dict[str, str]:
@@ -117,52 +118,37 @@ def step_4_api_route53() -> None:
     emit("route53_api", "ok")
 
 
-def _find_distribution_by_comment(hint: str) -> dict[str, Any] | None:
-    paginator = _cloudfront.get_paginator("list_distributions")
-    for page in paginator.paginate():
-        for item in page.get("DistributionList", {}).get("Items", []) or []:
-            if hint in (item.get("Comment", "") or ""):
-                return item
-    return None
-
-
-def step_5_cloudfront_alternate(subdomain: str, hint: str) -> None:
-    """Update a CloudFront distribution to add `subdomain.agentcomms.dev` as an alternate + attach wildcard cert."""
+def step_5_cloudfront_alternate(subdomain: str, dist_id: str) -> None:
+    """Update a CloudFront distribution to add `subdomain.agentcomms.dev` as an
+    alternate domain name, attach the combined cert (covers both agentcomms.dev
+    and victorymail.dev SANs), and write a Route 53 alias A record."""
     fqdn = f"{subdomain}.{ZONE_DOMAIN}" if subdomain else ZONE_DOMAIN
-    dist = _find_distribution_by_comment(hint)
-    if dist is None:
-        emit("cloudfront_" + hint, "warn", msg=f"no CloudFront distribution matched hint '{hint}' — skipping")
-        return
-    dist_id = dist["Id"]
+    label = fqdn.replace(".", "_")
     cfg_resp = _cloudfront.get_distribution_config(Id=dist_id)
     etag = cfg_resp["ETag"]
     cfg = cfg_resp["DistributionConfig"]
 
+    # Merge the new alternate domain name into the existing Aliases set
     aliases = cfg.get("Aliases") or {"Quantity": 0, "Items": []}
     current = set(aliases.get("Items") or [])
     if fqdn not in current:
         current.add(fqdn)
-        aliases = {"Quantity": len(current), "Items": sorted(current)}
-        cfg["Aliases"] = aliases
+    cfg["Aliases"] = {"Quantity": len(current), "Items": sorted(current)}
 
-    # Ensure wildcard cert is attached
+    # Ensure combined cert is attached (covers both agentcomms.dev + victorymail.dev)
     cfg["ViewerCertificate"] = {
-        "ACMCertificateArn": CERT_ARN,
+        "ACMCertificateArn": COMBINED_CERT_ARN,
         "SSLSupportMethod": "sni-only",
         "MinimumProtocolVersion": "TLSv1.2_2021",
-        "Certificate": CERT_ARN,
         "CertificateSource": "acm",
     }
 
-    try:
-        _cloudfront.update_distribution(Id=dist_id, IfMatch=etag, DistributionConfig=cfg)
-        emit("cloudfront_" + hint, "ok", distribution_id=dist_id, fqdn=fqdn)
-    except Exception as e:
-        emit("cloudfront_" + hint, "fail", distribution_id=dist_id, error=str(e))
-        raise
+    _cloudfront.update_distribution(Id=dist_id, IfMatch=etag, DistributionConfig=cfg)
+    emit(f"cloudfront_{label}", "ok", distribution_id=dist_id, aliases=sorted(current))
 
-    # Route 53 alias
-    dist_domain = dist["DomainName"]
+    # Route 53 alias → CloudFront distribution
+    dist_info = _cloudfront.get_distribution(Id=dist_id)
+    dist_domain = dist_info["Distribution"]["DomainName"]
     _route53.change_resource_record_sets(
         HostedZoneId=ZONE_ID,
         ChangeBatch={
@@ -172,7 +158,7 @@ def step_5_cloudfront_alternate(subdomain: str, hint: str) -> None:
                     "Name": f"{fqdn}.",
                     "Type": "A",
                     "AliasTarget": {
-                        "HostedZoneId": "Z2FDTNDATAQYW2",  # CloudFront's fixed Route 53 hosted zone ID
+                        "HostedZoneId": "Z2FDTNDATAQYW2",  # CloudFront's fixed zone ID
                         "DNSName": dist_domain,
                         "EvaluateTargetHealth": False,
                     },
@@ -180,7 +166,7 @@ def step_5_cloudfront_alternate(subdomain: str, hint: str) -> None:
             }]
         },
     )
-    emit("route53_" + hint, "ok", fqdn=fqdn, target=dist_domain)
+    emit(f"route53_{label}", "ok", fqdn=fqdn, target=dist_domain)
 
 
 def step_8_smoke_test() -> None:
@@ -203,8 +189,8 @@ def main() -> int:
     step_2_api_gw_custom_domain()
     step_3_base_path_mapping()
     step_4_api_route53()
-    step_5_cloudfront_alternate("", LANDING_DISTRIBUTION_TAG_HINT)
-    step_5_cloudfront_alternate("console", CONSOLE_DISTRIBUTION_TAG_HINT)
+    step_5_cloudfront_alternate("", LANDING_DISTRIBUTION_ID)
+    step_5_cloudfront_alternate("console", CONSOLE_DISTRIBUTION_ID)
 
     emit("wait_for_cloudfront", "waiting", msg="CloudFront distribution updates take ~5-10 min to propagate")
     time.sleep(30)  # minimal wait; full rollout takes longer but DNS records are already valid
