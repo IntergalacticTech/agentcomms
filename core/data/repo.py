@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 
 from core.data.models import (
     Agent, ApiKey, Channel, Domain, DomainStatus, Draft, Organization,
@@ -97,6 +97,38 @@ class Repo:
         )
         item = resp.get("Item")
         return UnifiedMessage.from_dynamodb_item(item) if item else None
+
+    def find_message_by_id(self, *, agent_id: str, message_id: str) -> UnifiedMessage | None:
+        """Scan-like query to find a message by message_id without knowing its timestamp.
+
+        Queries PK=AGT#{agent_id} with SK begins_with "MSG#" and a FilterExpression
+        on message_id. Suitable for low-frequency AI/admin operations.
+        """
+        resp = self.table.query(
+            KeyConditionExpression=(
+                Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("MSG#")
+            ),
+            FilterExpression=Attr("message_id").eq(message_id),
+            Limit=100,
+        )
+        items = resp.get("Items", [])
+        if not items:
+            return None
+        return UnifiedMessage.from_dynamodb_item(items[0])
+
+    def update_message_labels(
+        self, *, agent_id: str, received_at_ms: int, message_id: str, labels: list[str],
+    ) -> None:
+        """Add *labels* to a message item in-place (atomic list append replacement)."""
+        self.table.update_item(
+            Key={
+                "PK": f"AGT#{agent_id}",
+                "SK": f"MSG#{received_at_ms}#{message_id}",
+            },
+            UpdateExpression="SET labels = :l",
+            ExpressionAttributeValues={":l": labels},
+        )
 
     def list_unified_inbox(
         self, *, agent_id: str, since=None, until=None,

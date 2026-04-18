@@ -43,14 +43,17 @@ def _persona_response(p: Persona) -> dict:
 def _generate_persona_fields(hint: str | None) -> dict:
     """Call Bedrock (Haiku) to generate a plausible synthetic persona.
 
-    Raises ImportError if core.ai.bedrock_client is not yet available
-    (Task 6 will create it), which the caller converts to a 501.
+    Raises ImportError (→ 501) if generation is unavailable — either because
+    the bedrock_client module is missing or because the Bedrock service cannot
+    be reached (no credentials, throttle, etc.).
     """
     try:
-        from core.ai import bedrock_client  # noqa: F401 — Task 6 creates this
+        from core.ai import bedrock_client
         return bedrock_client.generate_persona(hint=hint)
     except ImportError:
         raise ImportError("generation not enabled — enable AI features")
+    except Exception as exc:
+        raise ImportError(f"generation not enabled — {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

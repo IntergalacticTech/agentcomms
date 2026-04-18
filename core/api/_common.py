@@ -72,3 +72,17 @@ def require_org_scope(caller: Caller) -> dict | None:
     if caller.scope != "org":
         return err("This resource requires an org-scoped API key.", status=403)
     return None
+
+
+def require_org_or_agent_scope(caller: Caller) -> dict | None:
+    """Return a 403 error response if *caller* has channel scope.
+
+    Both ``org`` and ``agent`` scoped keys are allowed; channel-scoped keys
+    are not. Returns ``None`` when the check passes so callers can do::
+
+        if denied := require_org_or_agent_scope(caller):
+            return denied
+    """
+    if caller.scope not in ("org", "agent"):
+        return err("channel-scoped keys cannot access this endpoint", status=403)
+    return None
