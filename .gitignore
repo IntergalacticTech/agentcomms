@@ -48,3 +48,4 @@ lambdas/bin/
 lambdas/*.so
 lambdas/*.dist-info/
 .exterminator/state.json
+.claude/

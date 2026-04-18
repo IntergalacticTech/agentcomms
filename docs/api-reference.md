@@ -540,23 +540,39 @@ curl https://api.victorymail.dev/v1/inboxes \
 
 ### POST /inboxes
 
-Create a new inbox. If no email address is specified, a random `@victorymail.dev` address is generated.
+Create a new inbox. If no `email` is supplied, a random address is generated on the platform domain you choose via the `domain` field (defaulting to `victorymail.dev`).
 
 **Request Body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `email` | string | No | Desired email address. Must be on a verified domain. |
+| `domain` | string | No | Platform domain to generate the address on. One of `victorymail.dev`, `karmascale.net`, `karmascale.org`. Defaults to `victorymail.dev`. Ignored when `email` is provided. |
+| `email` | string | No | Desired email address. Must be on a platform domain or on a custom domain you have verified. |
 | `display_name` | string | No | Display name for the inbox |
 | `pod_id` | string | No | Pod to associate with (defaults to `default`) |
 | `settings` | object | No | Inbox settings |
 | `forwarding` | object | No | Forwarding configuration |
 
+Email addresses are unique **per domain** — `agent@victorymail.dev` and `agent@karmascale.net` are separate inboxes and may belong to different accounts.
+
 ```bash
+# Random address on victorymail.dev (default)
 curl -X POST https://api.victorymail.dev/v1/inboxes \
   -H "x-api-key: am_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "Signup Bot", "pod_id": "01HXYZ..."}'
+  -d '{"display_name": "Signup Bot"}'
+
+# Random address on a specific platform domain
+curl -X POST https://api.victorymail.dev/v1/inboxes \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"display_name": "Signup Bot", "domain": "karmascale.net"}'
+
+# Specific address on a specific domain
+curl -X POST https://api.victorymail.dev/v1/inboxes \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "support@karmascale.org", "display_name": "Support Bot"}'
 ```
 
 **Response (201):** Returns the inbox object.
@@ -625,8 +641,8 @@ curl https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages \
       "thread_id": "01HXYZ...",
       "inbox_id": "01HXYZ...",
       "direction": "inbound",
-      "from_addr": "sender@example.com",
-      "to": ["agent@victorymail.dev"],
+      "from_addr": {"name": "Alice Example", "address": "alice@example.com"},
+      "to": [{"name": "", "address": "agent@victorymail.dev"}],
       "cc": [],
       "subject": "Re: Hello!",
       "snippet": "Thanks for reaching out...",
@@ -638,14 +654,16 @@ curl https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages \
       "category": "inbox",
       "has_attachments": false,
       "attachment_count": 0,
-      "received_at": "2025-01-15T11:00:00Z",
-      "created_at": "2025-01-15T11:00:00Z"
+      "received_at": "2026-04-13T11:00:00Z",
+      "created_at": "2026-04-13T11:00:00Z"
     }
   ],
   "next_page_token": null,
   "has_more": false
 }
 ```
+
+> **Note on recipient shape:** `from_addr`, `to`, `cc`, `bcc`, and `reply_to` are all **Recipient objects** with `{"name": string, "address": string}`. Both inbound and outbound messages use this canonical shape. When sending a message you may pass a bare email string for `to`/`cc`/`bcc` and the platform will promote it to a Recipient.
 
 ### GET /inboxes/{id}/messages/{mid}
 
@@ -1434,22 +1452,31 @@ curl https://api.victorymail.dev/v1/billing/status \
 
 ### POST /billing/checkout
 
-Create a Stripe Checkout session to upgrade to the Pro tier.
+Create a Stripe Checkout session to upgrade to a paid tier.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tier` | string | No | Target tier: `starter` or `pro`. Defaults to `pro`. |
 
 ```bash
 curl -X POST https://api.victorymail.dev/v1/billing/checkout \
-  -H "x-api-key: am_live_YOUR_KEY"
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tier": "starter"}'
 ```
 
 **Response (200):**
 
 ```json
 {
-  "checkout_url": "https://checkout.stripe.com/c/pay/..."
+  "checkout_url": "https://checkout.stripe.com/c/pay/...",
+  "tier": "starter"
 }
 ```
 
-Redirect the user to `checkout_url` to complete payment.
+Redirect the user to `checkout_url` to complete payment. On success the org's tier and quotas are updated via a Stripe webhook.
 
 ### POST /billing/portal
 
@@ -1467,3 +1494,436 @@ curl -X POST https://api.victorymail.dev/v1/billing/portal \
   "portal_url": "https://billing.stripe.com/p/session/..."
 }
 ```
+
+### POST /billing/webhook
+
+Stripe webhook endpoint. **No authentication header required** — instead the handler verifies the `Stripe-Signature` header against a shared secret. You do not call this endpoint directly; it is registered with Stripe at `https://api.victorymail.dev/v1/billing/webhook` and receives `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed` events.
+
+---
+
+## Search
+
+### POST /search
+
+Text search across messages in your organization. Matches case-insensitively against subject and snippet. Optionally filter by inbox, date range, or result count.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | No | Text to match against subject + snippet (case-insensitive substring) |
+| `inbox_id` | string | No | Limit results to this inbox |
+| `limit` | integer | No | Maximum results (1–100, default 25) |
+| `after` | string | No | Only return messages with `created_at >= after` (ISO 8601) |
+| `before` | string | No | Only return messages with `created_at <= before` (ISO 8601) |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/search \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "verification", "limit": 10}'
+```
+
+**Response (200):**
+
+```json
+{
+  "data": [
+    {
+      "id": "01HXYZ...",
+      "inbox_id": "01HXYZ...",
+      "thread_id": "01HXYZ...",
+      "direction": "inbound",
+      "from_addr": {"name": "", "address": "noreply@service.com"},
+      "to": [{"name": "", "address": "agent@victorymail.dev"}],
+      "subject": "Your verification code",
+      "snippet": "Your code is 482917...",
+      "is_read": false,
+      "category": "inbox",
+      "received_at": "2026-04-13T11:00:00Z",
+      "created_at": "2026-04-13T11:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+## AI Features
+
+All AI endpoints require **Starter tier or above** (`starter`, `pro`, or `enterprise`). Free-tier calls return `403 FORBIDDEN`.
+
+Powered by Amazon Bedrock Claude Haiku. Each call counts against your monthly AI quota.
+
+### POST /ai/categorize
+
+Classify a message into one of a set of categories.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inbox_id` | string | Yes | Inbox containing the message |
+| `message_id` | string | Yes | Message to categorize |
+| `categories` | array[string] | Yes | Category labels to choose from |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/ai/categorize \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inbox_id": "01HXYZ...",
+    "message_id": "01HXYZ...",
+    "categories": ["transactional", "marketing", "support", "spam"]
+  }'
+```
+
+**Response (200):**
+
+```json
+{"message_id": "01HXYZ...", "category": "transactional"}
+```
+
+The chosen category is also written back to the message record as its `category` field.
+
+### POST /ai/extract
+
+Extract structured fields from a message body using a JSON schema.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inbox_id` | string | Yes | Inbox containing the message |
+| `message_id` | string | Yes | Message to extract from |
+| `schema` | object | Yes | JSON schema describing the fields to extract |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/ai/extract \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inbox_id": "01HXYZ...",
+    "message_id": "01HXYZ...",
+    "schema": {
+      "order_id": "string",
+      "total_amount": "number",
+      "delivery_date": "date"
+    }
+  }'
+```
+
+**Response (200):**
+
+```json
+{
+  "message_id": "01HXYZ...",
+  "extracted": {
+    "order_id": "ORD-4782",
+    "total_amount": 49.99,
+    "delivery_date": "2026-04-18"
+  }
+}
+```
+
+If the model returns invalid JSON, the raw text is included under the key `_raw` so the caller can fall back to regex parsing.
+
+### POST /ai/summarize
+
+Produce a 2–3 sentence summary of a message.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inbox_id` | string | Yes | Inbox containing the message |
+| `message_id` | string | Yes | Message to summarize |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/ai/summarize \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"inbox_id": "01HXYZ...", "message_id": "01HXYZ..."}'
+```
+
+**Response (200):**
+
+```json
+{
+  "message_id": "01HXYZ...",
+  "summary": "The customer is requesting a refund for order ORD-4782 shipped on April 2. They report the product arrived damaged and include photo attachments."
+}
+```
+
+---
+
+## Metrics
+
+### POST /metrics/query
+
+Query aggregate counters for your organization over a time range.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `metric` | string | Yes | One of `messages_sent`, `messages_received`, `inboxes_created`, `api_calls` |
+| `period` | string | No | Bucket size: `hour`, `day`, `week`, `month`. Default `day`. |
+| `start` | string | No | ISO 8601 start of range |
+| `end` | string | No | ISO 8601 end of range |
+| `group_by` | string | No | Optional field to group results by (e.g. `inbox_id`, `category`) |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/metrics/query \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metric": "messages_received",
+    "period": "day",
+    "start": "2026-04-01T00:00:00Z",
+    "end": "2026-04-14T00:00:00Z"
+  }'
+```
+
+**Response (200):**
+
+```json
+{
+  "metric": "messages_received",
+  "period": "day",
+  "start": "2026-04-01T00:00:00Z",
+  "end": "2026-04-14T00:00:00Z",
+  "group_by": null,
+  "data": [
+    {"bucket": "2026-04-12", "count": 142},
+    {"bucket": "2026-04-13", "count": 178}
+  ]
+}
+```
+
+### GET /metrics/usage
+
+Current usage counters for the caller's organization against its quota.
+
+```bash
+curl https://api.victorymail.dev/v1/metrics/usage \
+  -H "x-api-key: am_live_YOUR_KEY"
+```
+
+**Response (200):**
+
+```json
+{
+  "inboxes": 3,
+  "messages_today": 47,
+  "api_keys": 2,
+  "pods": 1,
+  "domains": 0,
+  "webhooks": 1,
+  "tier": "free",
+  "quotas": {
+    "max_inboxes": 1,
+    "max_messages_per_day": 50,
+    "max_api_keys": 1,
+    "max_pods": 1,
+    "max_domains": 0,
+    "max_webhooks": 1,
+    "max_storage_mb": 100,
+    "retention_days": 7,
+    "ai_calls_per_month": 0
+  }
+}
+```
+
+---
+
+## Secret Vault
+
+KMS-encrypted secret storage tied to your organization. Each secret is encrypted with a per-org KMS CMK that is created automatically on first write. Ciphertext lives in a dedicated S3 bucket; metadata lives in DynamoDB. Requires **Starter tier or above** on the hosted platform (Free tier has `max_storage_mb: 100` and the handler will gate vault access by tier in a future release).
+
+### POST /vault
+
+Create a new secret.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `label` | string | Yes | Human-readable label (e.g. `"github-pat"`) |
+| `value` | string | Yes | Secret value to encrypt |
+| `is_totp` | boolean | No | True if `value` is a base32 TOTP seed (RFC 6238). Enables `GET /vault/{id}/totp`. |
+| `description` | string | No | Free-form description |
+| `metadata` | object | No | Arbitrary JSON metadata |
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/vault \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label": "github-pat", "value": "ghp_..."}'
+```
+
+**Response (201):** Returns the secret metadata — never the value itself.
+
+### GET /vault
+
+List secrets in your org. Returns metadata only; to retrieve a value use `GET /vault/{id}?reveal=true`.
+
+### GET /vault/{id}
+
+Get secret metadata. Pass `?reveal=true` to additionally return the decrypted value in the `value` field. Every access updates the `last_accessed_at` timestamp.
+
+```bash
+curl "https://api.victorymail.dev/v1/vault/01HXYZ.../?reveal=true" \
+  -H "x-api-key: am_live_YOUR_KEY"
+```
+
+### GET /vault/{id}/totp
+
+Compute the current 6-digit TOTP code from a stored base32 seed. The seed itself never leaves the vault.
+
+```bash
+curl https://api.victorymail.dev/v1/vault/01HXYZ.../totp \
+  -H "x-api-key: am_live_YOUR_KEY"
+```
+
+**Response (200):**
+
+```json
+{"id": "01HXYZ...", "code": "482917", "period_seconds": 30}
+```
+
+Returns `400 BAD_REQUEST` if the secret is not flagged `is_totp=true`.
+
+### DELETE /vault/{id}
+
+Delete a secret. Removes the DynamoDB record and the ciphertext blob from S3. Returns **204**.
+
+---
+
+## Personas
+
+Persistent identity profiles for AI agents. Each persona stores a consistent set of first/last name, DOB, address, phone, email, and free-form metadata so multi-turn interactions with external services present as the same synthetic user every time.
+
+### POST /personas
+
+Create a new persona. Either pass field values directly, or pass `"generate": true` to have Bedrock Claude Haiku produce a plausible synthetic identity.
+
+**Request Body (manual):**
+
+| Field | Type | Description |
+|---|---|---|
+| `label` | string | Display label |
+| `first_name` | string | |
+| `last_name` | string | |
+| `date_of_birth` | string | `YYYY-MM-DD` |
+| `address_line_1`, `address_line_2`, `city`, `state`, `postal_code`, `country` | string | Full address |
+| `phone` | string | `+1XXXXXXXXXX` |
+| `email` | string | |
+| `occupation` | string | |
+| `bio` | string | |
+| `metadata` | object | Free-form |
+| `inbox_id` | string | Optional link to an inbox |
+
+**Request Body (generated):**
+
+```json
+{"generate": true, "hint": "Software engineer in her 30s based in Austin"}
+```
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/personas \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"generate": true, "hint": "Freelance designer in Portland"}'
+```
+
+**Response (201):** Full persona object.
+
+### GET /personas
+
+List personas in your org. Paginated.
+
+### GET /personas/{id}
+
+Get a single persona.
+
+### PATCH /personas/{id}
+
+Update any field.
+
+### DELETE /personas/{id}
+
+Delete. Returns **204**.
+
+---
+
+## Push Notifications
+
+Mobile push delivery via Amazon SNS Mobile Push. Before push can be used you must register device tokens captured from your mobile app, then publish to the inbox's registered devices.
+
+> **Note:** Push requires platform application ARNs (APNs for iOS, FCM for Android) to be configured on the backend. Until ops wires those up, `POST /inboxes/{id}/devices` returns `503 NOT_CONFIGURED`.
+
+### POST /inboxes/{id}/devices
+
+Register a device token.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `platform` | string | Yes | `"apns"` or `"fcm"` |
+| `token` | string | Yes | Device token from APNs / FCM registration |
+
+**Response (201):** Returns a device record with the SNS endpoint ARN.
+
+### GET /inboxes/{id}/devices
+
+List registered devices for the inbox.
+
+### DELETE /inboxes/{id}/devices/{did}
+
+Unregister a device and delete its SNS endpoint.
+
+### POST /inboxes/{id}/push
+
+Send a push notification to every registered device on the inbox.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | One of title/message | Notification title |
+| `message` | string | One of title/message | Notification body |
+| `data` | object | No | Custom key/value data (strings) |
+
+**Response (200):**
+
+```json
+{"sent": 2, "failed": 0}
+```
+
+---
+
+## SMS
+
+Inbound SMS capture (via AWS End User Messaging) and outbound SMS send. Mirrors the email model so an agent polling `/inboxes/{id}/wait?channel=sms` can capture OTP codes delivered by text.
+
+> **Note:** SMS requires a registered 10DLC or toll-free phone number. Until ops completes 10DLC brand + campaign registration, `POST /inboxes/{id}/sms` returns `503 NOT_CONFIGURED`.
+
+### POST /inboxes/{id}/sms
+
+Send an outbound SMS from this inbox.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `to` | string | Yes | E.164 phone number (e.g. `+14155551234`) |
+| `body` | string | Yes | Message body (max 1600 chars for long messages) |
+
+**Response (201):** Returns the message record with `channel: "sms"` and `direction: "outbound"`.
+
+### Inbound SMS
+
+Inbound SMS is delivered automatically to inboxes that have a phone number attached. Messages are stored with `channel: "sms"` and appear in the same `/inboxes/{id}/messages` listing as email (filter by `channel=sms` if supported by your client). The `wait_for_message` and `extract_otp` endpoints work across both email and SMS.

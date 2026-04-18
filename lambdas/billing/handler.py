@@ -11,28 +11,24 @@ from shared.models import now_iso, org_keys
 from shared.response import bad_request, error, success
 from shared.validation import parse_body
 
+from shared.tiers import (
+    FREE_QUOTAS,
+    STARTER_QUOTAS,
+    PRO_QUOTAS,
+    TIER_QUOTAS,
+    get_quotas,
+)
+
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")
+
+# Stripe price IDs per tier. The old STRIPE_PRICE_ID env var maps to Pro
+# for backward compatibility.
+STRIPE_PRICE_IDS = {
+    "starter": os.environ.get("STRIPE_PRICE_ID_STARTER", ""),
+    "pro": os.environ.get("STRIPE_PRICE_ID_PRO") or os.environ.get("STRIPE_PRICE_ID", ""),
+}
 CONSOLE_URL = os.environ.get("CONSOLE_URL", "https://console.victorymail.dev")
-
-FREE_QUOTAS = {
-    "max_inboxes": 5,
-    "max_messages_per_day": 1000,
-    "max_api_keys": 5,
-    "max_pods": 3,
-    "max_domains": 1,
-    "max_webhooks": 5,
-}
-
-PRO_QUOTAS = {
-    "max_inboxes": 1000,
-    "max_messages_per_day": 50000,
-    "max_api_keys": 50,
-    "max_pods": 50,
-    "max_domains": 10,
-    "max_webhooks": 50,
-}
 
 
 def handler(event, context):
@@ -52,7 +48,11 @@ def handler(event, context):
 
 
 def handle_checkout(event):
-    """Create a Stripe Checkout session for upgrading to Pro."""
+    """Create a Stripe Checkout session for upgrading to a paid tier.
+
+    Accepts an optional ``tier`` field in the JSON body, one of
+    ``starter`` or ``pro``. Defaults to ``pro`` for backward compatibility.
+    """
     org_id = get_org_id(event)
     if not org_id:
         return error("UNAUTHORIZED", "Authentication required", 401)
@@ -62,20 +62,34 @@ def handle_checkout(event):
     if not org:
         return error("NOT_FOUND", "Organization not found", 404)
 
+    body = parse_body(event) or {}
+    target_tier = (body.get("tier") or "pro").lower()
+    if target_tier not in STRIPE_PRICE_IDS:
+        return bad_request(
+            f"Unknown tier '{target_tier}'. Choose one of: {', '.join(STRIPE_PRICE_IDS.keys())}."
+        )
+    price_id = STRIPE_PRICE_IDS[target_tier]
+    if not price_id:
+        return error(
+            "NOT_CONFIGURED",
+            f"Stripe price not configured for tier '{target_tier}'. Contact support.",
+            503,
+        )
+
     customer_email = org.get("email", "")
     if not customer_email:
         return bad_request("Organization has no email address")
 
     session = stripe.checkout.Session.create(
         mode="subscription",
-        line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+        line_items=[{"price": price_id, "quantity": 1}],
         customer_email=customer_email,
-        metadata={"org_id": org_id},
+        metadata={"org_id": org_id, "target_tier": target_tier},
         success_url=f"{CONSOLE_URL}/billing?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{CONSOLE_URL}/billing?canceled=true",
     )
 
-    return success({"checkout_url": session.url})
+    return success({"checkout_url": session.url, "tier": target_tier})
 
 
 def handle_portal(event):
@@ -150,19 +164,24 @@ def handle_webhook(event):
 
 
 def _handle_checkout_completed(session):
-    """Upgrade org to Pro after successful checkout."""
-    org_id = session.get("metadata", {}).get("org_id")
+    """Upgrade org to the purchased tier after successful checkout."""
+    metadata = session.get("metadata", {}) or {}
+    org_id = metadata.get("org_id")
     if not org_id:
         return
+
+    target_tier = (metadata.get("target_tier") or "pro").lower()
+    if target_tier not in TIER_QUOTAS:
+        target_tier = "pro"
 
     customer_id = session.get("customer")
     keys = org_keys(org_id)
     update_item(keys["PK"], keys["SK"], {
-        "tier": "pro",
+        "tier": target_tier,
         "billing_status": "active",
         "stripe_customer_id": customer_id,
         "billing_channel": "stripe",
-        "quotas": PRO_QUOTAS,
+        "quotas": get_quotas(target_tier),
         "updated_at": now_iso(),
     })
 
@@ -183,11 +202,9 @@ def _handle_subscription_updated(subscription):
         "updated_at": now_iso(),
     }
 
-    # If subscription becomes active again, ensure pro tier
-    if status == "active":
-        updates["tier"] = "pro"
-        updates["quotas"] = PRO_QUOTAS
-
+    # If subscription becomes active again, leave the tier and quotas as
+    # whatever the checkout event set them to -- we don't know from the
+    # subscription.updated event alone which tier was purchased.
     update_item(keys["PK"], keys["SK"], updates)
 
 

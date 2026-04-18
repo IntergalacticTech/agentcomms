@@ -133,6 +133,45 @@ def attachment_keys(message_id: str, attachment_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Vault (encrypted secrets)
+# ---------------------------------------------------------------------------
+
+def vault_keys(org_id: str, secret_id: str) -> dict:
+    return {"PK": f"ORG#{org_id}", "SK": f"VAULT#{secret_id}"}
+
+
+def vault_gsi1(org_id: str, label: str, secret_id: str) -> dict:
+    return {
+        "GSI1PK": f"ORG#{org_id}#VAULT",
+        "GSI1SK": f"LABEL#{label.lower()}#{secret_id}",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Persona
+# ---------------------------------------------------------------------------
+
+def persona_keys(org_id: str, persona_id: str) -> dict:
+    return {"PK": f"ORG#{org_id}", "SK": f"PERSONA#{persona_id}"}
+
+
+def persona_gsi1(org_id: str, persona_id: str) -> dict:
+    return {"GSI1PK": f"ORG#{org_id}#PERSONAS", "GSI1SK": f"PERSONA#{persona_id}"}
+
+
+# ---------------------------------------------------------------------------
+# Push device
+# ---------------------------------------------------------------------------
+
+def device_keys(inbox_id: str, device_id: str) -> dict:
+    return {"PK": f"INBOX#{inbox_id}", "SK": f"DEVICE#{device_id}"}
+
+
+def device_gsi1(inbox_id: str, device_id: str) -> dict:
+    return {"GSI1PK": f"INBOX#{inbox_id}#DEVICES", "GSI1SK": f"DEVICE#{device_id}"}
+
+
+# ---------------------------------------------------------------------------
 # Mailing List
 # ---------------------------------------------------------------------------
 

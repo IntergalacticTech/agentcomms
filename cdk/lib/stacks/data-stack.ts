@@ -12,6 +12,7 @@ export class DataStack extends cdk.Stack {
   public readonly rawEmailBucket: s3.Bucket;
   public readonly bodiesBucket: s3.Bucket;
   public readonly attachmentsBucket: s3.Bucket;
+  public readonly vaultBucket: s3.Bucket;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -155,6 +156,19 @@ export class DataStack extends cdk.Stack {
       ],
     });
 
+    // Vault bucket stores KMS-wrapped ciphertext blobs for the secret vault
+    // feature. Each secret is one S3 object encrypted with a per-org KMS CMK;
+    // S3-level SSE is belt-and-suspenders. Retain on stack delete so secrets
+    // cannot be accidentally destroyed.
+    this.vaultBucket = new s3.Bucket(this, "VaultBucket", {
+      bucketName: `victorymail-vault-${account}`,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      versioned: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     // ── Outputs ────────────────────────────────────────────────────────
 
     new cdk.CfnOutput(this, "TableName", { value: this.table.tableName });
@@ -167,6 +181,9 @@ export class DataStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "AttachmentsBucketName", {
       value: this.attachmentsBucket.bucketName,
+    });
+    new cdk.CfnOutput(this, "VaultBucketName", {
+      value: this.vaultBucket.bucketName,
     });
   }
 }

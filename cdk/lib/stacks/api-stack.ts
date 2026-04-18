@@ -19,6 +19,7 @@ export interface ApiStackProps extends cdk.StackProps {
   rawEmailBucket: s3.Bucket;
   bodiesBucket: s3.Bucket;
   attachmentsBucket: s3.Bucket;
+  vaultBucket: s3.Bucket;
   sendQueue: sqs.Queue;
   webhookQueue: sqs.Queue;
   bounceTopic: sns.Topic;
@@ -41,10 +42,15 @@ export class ApiStack extends cdk.Stack {
       EMAIL_BUCKET: props.rawEmailBucket.bucketName,
       ATTACHMENT_BUCKET: props.attachmentsBucket.bucketName,
       BODY_BUCKET: props.bodiesBucket.bucketName,
+      VAULT_BUCKET: props.vaultBucket.bucketName,
       SEND_QUEUE_URL: props.sendQueue.queueUrl,
       SES_CONFIG_SET: "victorymail-default",
       USER_POOL_ID: props.userPoolId,
       WEBHOOK_QUEUE_URL: props.webhookQueue.queueUrl,
+      // Optional — set once 10DLC registration + platform-app setup completes
+      SMS_ORIGINATION_NUMBER: this.node.tryGetContext("smsOriginationNumber") ?? "",
+      APNS_PLATFORM_APP_ARN: this.node.tryGetContext("apnsPlatformAppArn") ?? "",
+      FCM_PLATFORM_APP_ARN: this.node.tryGetContext("fcmPlatformAppArn") ?? "",
     };
 
     // Helper to create a Lambda function with common config
@@ -88,10 +94,12 @@ export class ApiStack extends cdk.Stack {
     domainsFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
-          "ses:VerifyDomainIdentity",
-          "ses:VerifyDomainDkim",
-          "ses:DeleteIdentity",
-          "ses:GetIdentityVerificationAttributes",
+          // SES v2 identity management (ses: namespace covers v2 in IAM)
+          "ses:CreateEmailIdentity",
+          "ses:GetEmailIdentity",
+          "ses:DeleteEmailIdentity",
+          "ses:ListEmailIdentities",
+          "ses:PutEmailIdentityDkimSigningAttributes",
         ],
         resources: ["*"],
       })
@@ -99,6 +107,30 @@ export class ApiStack extends cdk.Stack {
 
     const webhooksFn = createFn("WebhooksFn", "webhooks.handler");
     const billingFn = createFn("BillingFn", "billing.handler");
+    // Stripe secrets/price IDs are set via CDK context (and later should
+    // move to Secrets Manager). Missing values are OK -- the handler
+    // returns NOT_CONFIGURED for tiers with no price wired up, so you can
+    // create the Starter and Pro prices in Stripe one at a time.
+    billingFn.addEnvironment(
+      "STRIPE_SECRET_KEY",
+      this.node.tryGetContext("stripeSecretKey") ?? ""
+    );
+    billingFn.addEnvironment(
+      "STRIPE_WEBHOOK_SECRET",
+      this.node.tryGetContext("stripeWebhookSecret") ?? ""
+    );
+    billingFn.addEnvironment(
+      "STRIPE_PRICE_ID_STARTER",
+      this.node.tryGetContext("stripePriceIdStarter") ?? ""
+    );
+    billingFn.addEnvironment(
+      "STRIPE_PRICE_ID_PRO",
+      this.node.tryGetContext("stripePriceIdPro") ?? ""
+    );
+    billingFn.addEnvironment(
+      "CONSOLE_URL",
+      this.node.tryGetContext("consoleUrl") ?? "https://console.victorymail.dev"
+    );
     const waitFn = createFn("WaitFn", "wait.handler", {
       timeout: 30,
       memory: 256,
@@ -114,6 +146,83 @@ export class ApiStack extends cdk.Stack {
       })
     );
     const metricsFn = createFn("MetricsFn", "metrics.handler");
+
+    // Vault (encrypted secrets) — needs KMS + S3 vault bucket
+    const vaultFn = createFn("VaultFn", "vault.handler", {
+      timeout: 30,
+      memory: 256,
+    });
+    props.vaultBucket.grantReadWrite(vaultFn);
+    vaultFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "kms:CreateKey",
+          "kms:CreateAlias",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:TagResource",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // Persona API (uses Bedrock for optional generation)
+    const personasFn = createFn("PersonasFn", "personas.handler", {
+      timeout: 60,
+      memory: 512,
+    });
+    personasFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      })
+    );
+
+    // Mobile push notifications (SNS Mobile Push)
+    const pushFn = createFn("PushFn", "push.handler", {
+      timeout: 15,
+      memory: 256,
+    });
+    pushFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "sns:CreatePlatformEndpoint",
+          "sns:DeleteEndpoint",
+          "sns:GetEndpointAttributes",
+          "sns:SetEndpointAttributes",
+          "sns:Publish",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // SMS send (End User Messaging v2)
+    const smsFn = createFn("SmsFn", "sms.handler", {
+      timeout: 30,
+      memory: 256,
+    });
+    smsFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "sms-voice:SendTextMessage",
+          "sms-voice:DescribePhoneNumbers",
+          "sms-voice:DescribeSenderIds",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // SMS inbound processor — SNS-triggered from End User Messaging inbound
+    const smsProcessorFn = createFn(
+      "SmsProcessorFn",
+      "sms_processor.handler",
+      { timeout: 30, memory: 512 }
+    );
+    // NOTE: SNS subscription to inbound SMS topic is wired in a separate
+    // stack once the 10DLC phone number is provisioned and linked to an
+    // SNS topic via AWS End User Messaging configuration.
 
     // Webhook delivery worker (SQS consumer)
     const webhookWorkerFn = createFn(
@@ -212,9 +321,16 @@ export class ApiStack extends cdk.Stack {
       receiptRuleSetName: "victorymail-inbound",
     });
 
-    // Catch-all rule for victorymail.dev
+    // Catch-all for every platform domain. Recipients must match the
+    // PLATFORM_DOMAINS constant in lambdas/shared/domains.py.
+    // Rule logical ID kept as VictorymailCatchAll for zero-downtime upgrade
+    // (renaming would drop+recreate and briefly bounce inbound mail).
     ruleSet.addRule("VictorymailCatchAll", {
-      recipients: ["victorymail.dev"],
+      recipients: [
+        "victorymail.dev",
+        "karmascale.net",
+        "karmascale.org",
+      ],
       scanEnabled: true,
       actions: [
         new ses_actions.S3({
@@ -281,9 +397,12 @@ export class ApiStack extends cdk.Stack {
     // ── Routes: Organizations ──────────────────────────────────────────
 
     const orgs = this.api.root.addResource("organizations");
-    orgs
-      .addResource("me")
+    const me = orgs.addResource("me");
+    me.addMethod("GET", lambdaIntegration(orgFn), authOpts);
+    me.addResource("abuse")
       .addMethod("GET", lambdaIntegration(orgFn), authOpts);
+    me.addResource("unsuspend")
+      .addMethod("POST", lambdaIntegration(orgFn), authOpts);
 
     // ── Routes: API Keys ───────────────────────────────────────────────
 
@@ -486,10 +605,51 @@ export class ApiStack extends cdk.Stack {
       .addResource("usage")
       .addMethod("GET", lambdaIntegration(metricsFn), authOpts);
 
+    // ── Routes: Vault ──────────────────────────────────────────────────
+
+    const vault = this.api.root.addResource("vault");
+    vault.addMethod("GET", lambdaIntegration(vaultFn), authOpts);
+    vault.addMethod("POST", lambdaIntegration(vaultFn), authOpts);
+    const vaultById = vault.addResource("{id}");
+    vaultById.addMethod("GET", lambdaIntegration(vaultFn), authOpts);
+    vaultById.addMethod("DELETE", lambdaIntegration(vaultFn), authOpts);
+    vaultById
+      .addResource("totp")
+      .addMethod("GET", lambdaIntegration(vaultFn), authOpts);
+
+    // ── Routes: Personas ───────────────────────────────────────────────
+
+    const personas = this.api.root.addResource("personas");
+    personas.addMethod("GET", lambdaIntegration(personasFn), authOpts);
+    personas.addMethod("POST", lambdaIntegration(personasFn), authOpts);
+    const personaById = personas.addResource("{id}");
+    personaById.addMethod("GET", lambdaIntegration(personasFn), authOpts);
+    personaById.addMethod("PATCH", lambdaIntegration(personasFn), authOpts);
+    personaById.addMethod("DELETE", lambdaIntegration(personasFn), authOpts);
+
+    // ── Routes: Push notifications (per inbox) ─────────────────────────
+
+    const devices = inboxById.addResource("devices");
+    devices.addMethod("POST", lambdaIntegration(pushFn), authOpts);
+    devices.addMethod("GET", lambdaIntegration(pushFn), authOpts);
+    devices
+      .addResource("{did}")
+      .addMethod("DELETE", lambdaIntegration(pushFn), authOpts);
+    inboxById
+      .addResource("push")
+      .addMethod("POST", lambdaIntegration(pushFn), authOpts);
+
+    // ── Routes: SMS (per inbox) ────────────────────────────────────────
+
+    inboxById
+      .addResource("sms")
+      .addMethod("POST", lambdaIntegration(smsFn), authOpts);
+
     // ── SQS Send Permissions for Webhook Publishing ────────────────
 
     props.webhookQueue.grantSendMessages(messagesFn);
     props.webhookQueue.grantSendMessages(inboundFn);
+    props.webhookQueue.grantSendMessages(smsProcessorFn);
     props.webhookQueue.grantSendMessages(inboxesFn);
 
     // ── Outputs ────────────────────────────────────────────────────────

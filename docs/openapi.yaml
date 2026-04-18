@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
   title: FreeMail API
-  description: Email-as-a-service API for AI agents. Provides programmatic inbox management, message sending/receiving, domain configuration, and real-time email waiting.
-  version: 1.0.0
+  description: Identity and communications API for AI agents. Provides programmatic inbox management, message sending/receiving, OTP capture, domain configuration, and real-time email waiting.
+  version: 1.1.0
   contact:
-    name: VictoryMail
+    name: FreeMail
     url: https://victorymail.dev
 
 servers:
@@ -42,6 +42,14 @@ tags:
     description: Mailing list management
   - name: Wait
     description: Long-poll for incoming messages and OTP extraction
+  - name: Search
+    description: Full-text search across messages in your organization
+  - name: AI
+    description: Categorize, extract, and summarize messages using Bedrock Claude (Starter tier and above)
+  - name: Metrics
+    description: Usage counters and aggregate queries
+  - name: Billing
+    description: Subscription, checkout, and Stripe webhooks
 
 paths:
   # ── Agent (no auth) ──────────────────────────────────────────────
@@ -362,7 +370,15 @@ paths:
                 email:
                   type: string
                   format: email
-                  description: Desired email address. If omitted, a random address is generated.
+                  description: Desired email address. If omitted, a random address is generated on the platform domain chosen via `domain`. Must be on a platform domain or a custom domain you have verified.
+                domain:
+                  type: string
+                  description: Which platform domain to generate the random address on. Ignored when `email` is set.
+                  enum:
+                    - victorymail.dev
+                    - karmascale.net
+                    - karmascale.org
+                  default: victorymail.dev
                 display_name:
                   type: string
                 pod_id:
@@ -1413,6 +1429,488 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /search:
+    post:
+      tags: [Search]
+      summary: Text search across org messages
+      operationId: searchMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Case-insensitive substring matched against subject + snippet
+                inbox_id:
+                  $ref: '#/components/schemas/Ulid'
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 25
+                after:
+                  type: string
+                  format: date-time
+                before:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessageSummary'
+                  total:
+                    type: integer
+
+  /ai/categorize:
+    post:
+      tags: [AI]
+      summary: Categorize a message (Starter tier and above)
+      operationId: aiCategorize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inbox_id, message_id, categories]
+              properties:
+                inbox_id:
+                  $ref: '#/components/schemas/Ulid'
+                message_id:
+                  $ref: '#/components/schemas/Ulid'
+                categories:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+      responses:
+        '200':
+          description: Category assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    $ref: '#/components/schemas/Ulid'
+                  category:
+                    type: string
+        '403':
+          description: AI features require a Starter subscription or higher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /ai/extract:
+    post:
+      tags: [AI]
+      summary: Extract structured data from a message (Starter tier and above)
+      operationId: aiExtract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inbox_id, message_id, schema]
+              properties:
+                inbox_id:
+                  $ref: '#/components/schemas/Ulid'
+                message_id:
+                  $ref: '#/components/schemas/Ulid'
+                schema:
+                  type: object
+                  description: JSON schema describing fields to extract
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Extracted fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    $ref: '#/components/schemas/Ulid'
+                  extracted:
+                    type: object
+                    additionalProperties: true
+        '403':
+          description: AI features require a Starter subscription or higher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/summarize:
+    post:
+      tags: [AI]
+      summary: Summarize a message (Starter tier and above)
+      operationId: aiSummarize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inbox_id, message_id]
+              properties:
+                inbox_id:
+                  $ref: '#/components/schemas/Ulid'
+                message_id:
+                  $ref: '#/components/schemas/Ulid'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    $ref: '#/components/schemas/Ulid'
+                  summary:
+                    type: string
+        '403':
+          description: AI features require a Starter subscription or higher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /metrics/query:
+    post:
+      tags: [Metrics]
+      summary: Query aggregate metrics over a time range
+      operationId: metricsQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metric]
+              properties:
+                metric:
+                  type: string
+                  enum: [messages_sent, messages_received, inboxes_created, api_calls]
+                period:
+                  type: string
+                  enum: [hour, day, week, month]
+                  default: day
+                start:
+                  type: string
+                  format: date-time
+                end:
+                  type: string
+                  format: date-time
+                group_by:
+                  type: string
+      responses:
+        '200':
+          description: Aggregated data points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metric:
+                    type: string
+                  period:
+                    type: string
+                  start:
+                    type: string
+                  end:
+                    type: string
+                  group_by:
+                    type: string
+                    nullable: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  /metrics/usage:
+    get:
+      tags: [Metrics]
+      summary: Current usage counters and quotas for the caller's org
+      operationId: metricsUsage
+      responses:
+        '200':
+          description: Usage and quotas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inboxes:
+                    type: integer
+                  messages_today:
+                    type: integer
+                  api_keys:
+                    type: integer
+                  pods:
+                    type: integer
+                  domains:
+                    type: integer
+                  webhooks:
+                    type: integer
+                  tier:
+                    type: string
+                    enum: [free, starter, pro, enterprise]
+                  quotas:
+                    type: object
+                    additionalProperties:
+                      type: integer
+
+  /billing/status:
+    get:
+      tags: [Billing]
+      summary: Get current billing status
+      operationId: billingStatus
+      responses:
+        '200':
+          description: Current tier and Stripe status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  org_id:
+                    $ref: '#/components/schemas/Ulid'
+                  tier:
+                    type: string
+                    enum: [free, starter, pro, enterprise]
+                  billing_status:
+                    type: string
+                    enum: [none, trialing, active, past_due, canceled]
+                  stripe_customer_id:
+                    type: string
+                    nullable: true
+
+  /billing/checkout:
+    post:
+      tags: [Billing]
+      summary: Create a Stripe Checkout session for a paid tier
+      operationId: billingCheckout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tier:
+                  type: string
+                  enum: [starter, pro]
+                  default: pro
+                  description: Target tier for the subscription
+      responses:
+        '200':
+          description: Checkout session URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout_url:
+                    type: string
+                    format: uri
+                  tier:
+                    type: string
+
+  /billing/portal:
+    post:
+      tags: [Billing]
+      summary: Create a Stripe Billing Portal session
+      operationId: billingPortal
+      responses:
+        '200':
+          description: Portal URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  portal_url:
+                    type: string
+                    format: uri
+
+  /console/signup:
+    post:
+      tags: [Agent]
+      summary: Console signup with email + password (no auth required)
+      description: |
+        Creates a new organization and returns an API key immediately. Unlike
+        `/agent/signup` this does not require OTP verification — the password
+        serves as the account credential.
+      operationId: consoleSignup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Organization and API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organization:
+                    $ref: '#/components/schemas/Organization'
+                  api_key:
+                    type: string
+                    description: Full API key string (shown only at creation)
+
+  /console/login:
+    post:
+      tags: [Agent]
+      summary: Console login with email + password (no auth required)
+      operationId: consoleLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Session tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  id_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  expires_in:
+                    type: integer
+
+  /console/refresh:
+    post:
+      tags: [Agent]
+      summary: Refresh a console session (no auth required)
+      operationId: consoleRefresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: New access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+
+  /console/me:
+    get:
+      tags: [Agent]
+      summary: Get the current console user (JWT auth)
+      operationId: consoleMe
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                  name:
+                    type: string
+                  org_id:
+                    $ref: '#/components/schemas/Ulid'
+                  tier:
+                    type: string
+
+  /billing/webhook:
+    post:
+      tags: [Billing]
+      summary: Stripe webhook receiver (no API key auth)
+      description: |
+        Stripe posts subscription lifecycle events here. The handler verifies
+        the `Stripe-Signature` header against a shared secret, not an API key.
+        Do not call this endpoint from your application code.
+      operationId: billingWebhook
+      security: []
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Event received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+
 components:
   securitySchemes:
     ApiKeyHeader:
@@ -1540,7 +2038,7 @@ components:
           format: email
         tier:
           type: string
-          enum: [free, pro, enterprise]
+          enum: [free, starter, pro, enterprise]
         status:
           type: string
           enum: [active, suspended]
@@ -1705,16 +2203,16 @@ components:
           type: string
           enum: [inbound, outbound]
         from_addr:
-          type: string
-          description: Sender email address
+          $ref: '#/components/schemas/Recipient'
+          description: Sender as {name, address}.
         to:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/Recipient'
         cc:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/Recipient'
         subject:
           type: string
         snippet:
@@ -1755,9 +2253,11 @@ components:
             bcc:
               type: array
               items:
-                type: string
+                $ref: '#/components/schemas/Recipient'
             reply_to:
-              type: string
+              type: array
+              items:
+                $ref: '#/components/schemas/Recipient'
             body_text:
               type: string
             body_html:

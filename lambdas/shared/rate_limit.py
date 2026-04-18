@@ -5,13 +5,9 @@ import time
 import boto3
 from boto3.dynamodb.conditions import Attr
 
-TABLE_NAME = os.environ.get("TABLE_NAME", "victorymail")
+from shared.tiers import RATE_LIMITS, UNLIMITED
 
-# Rate limits by tier
-RATE_LIMITS = {
-    "free": {"requests_per_minute": 60, "requests_per_day": 10000},
-    "pro": {"requests_per_minute": 600, "requests_per_day": 500000},
-}
+TABLE_NAME = os.environ.get("TABLE_NAME", "victorymail")
 
 DEFAULT_LIMIT = RATE_LIMITS["free"]
 
@@ -23,6 +19,11 @@ def check_rate_limit(org_id: str, tier: str = "free") -> dict | None:
     Uses DynamoDB atomic increment with TTL for automatic cleanup.
     """
     limits = RATE_LIMITS.get(tier, DEFAULT_LIMIT)
+
+    # Enterprise tier: unlimited on both dimensions -> skip entirely
+    if limits.get("requests_per_minute", 0) == UNLIMITED and limits.get("requests_per_day", 0) == UNLIMITED:
+        return None
+
     now = int(time.time())
     current_minute = now // 60
     current_day = now // 86400

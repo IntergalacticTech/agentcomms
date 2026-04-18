@@ -53,12 +53,15 @@ curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp \
 |------|-------------|
 | [Quickstart Guide](quickstart.md) | Step-by-step getting started tutorial with Python and Node.js examples |
 | [API Reference](api-reference.md) | Complete endpoint documentation with request/response schemas and curl examples |
+| [Agent Instructions](agent-instructions.md) | Condensed API cheat sheet optimized for AI agents |
 | [Webhooks](webhooks.md) | Setting up webhooks, available events, signature verification, retry behavior |
-| [Custom Domains](custom-domains.md) | Adding and verifying custom domains, DNS configuration |
+| [Custom Domains](custom-domains.md) | Bringing your own domain, DNS configuration (paid tiers) |
 | [SDKs](sdks.md) | Python and Node.js SDK installation, usage, and full API reference |
 | [MCP Server](mcp-server.md) | Using FreeMail with AI agents via Model Context Protocol |
 | [Architecture](architecture.md) | System design, AWS services, data flow, and security model |
-| [Billing & Plans](billing.md) | Free and Pro tier limits, upgrading, managing subscriptions |
+| [Billing & Plans](billing.md) | Free / Starter / Pro / Enterprise limits, upgrading, BYOC tier |
+| [BYOC Deployment](byoc.md) | Run FreeMail in your own AWS account via AWS Marketplace |
+| [Roadmap](roadmap.md) | What's shipped and what's coming (SMS OTP, vault, persona, push, WhatsApp, BYOC) |
 
 ## Additional Resources
 

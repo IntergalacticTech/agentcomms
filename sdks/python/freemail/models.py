@@ -21,14 +21,30 @@ class Inbox:
 
 
 @dataclass
+class Recipient:
+    address: str
+    name: Optional[str] = None
+
+
+@dataclass
 class Message:
     id: str
     inbox_id: str
+    thread_id: Optional[str] = None
+    direction: Optional[str] = None
     subject: Optional[str] = None
+    snippet: Optional[str] = None
     body_text: Optional[str] = None
     body_html: Optional[str] = None
-    from_address: Optional[str] = None
+    from_addr: Optional[dict] = None  # {name, address}
     to: List[dict] = field(default_factory=list)
+    cc: List[dict] = field(default_factory=list)
+    bcc: List[dict] = field(default_factory=list)
+    is_read: bool = False
+    is_starred: bool = False
+    has_attachments: bool = False
+    attachment_count: int = 0
+    received_at: Optional[str] = None
     created_at: Optional[str] = None
 
 

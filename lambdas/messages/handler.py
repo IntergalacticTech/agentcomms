@@ -3,11 +3,13 @@
 import json
 import os
 
+from shared.abuse import check_send_rate, increment_send_counter, suspended_response
 from shared.auth import get_org_id
+from shared.domains import DEFAULT_PLATFORM_DOMAIN, split_address
 from shared.dynamo import get_item, put_item, update_item, query, query_gsi
 from shared.models import (
     message_keys, message_gsi1, message_gsi3, now_iso,
-    inbox_keys, thread_keys, thread_gsi1,
+    inbox_keys, thread_keys, thread_gsi1, org_keys,
 )
 from shared.pagination import get_pagination_params, decode_page_token, paginated_response
 from shared.rate_limit import check_rate_limit
@@ -37,6 +39,25 @@ MESSAGE_DETAIL_FIELDS = MESSAGE_LIST_FIELDS + [
 def _filter_message(item: dict, detail: bool = False) -> dict:
     fields = MESSAGE_DETAIL_FIELDS if detail else MESSAGE_LIST_FIELDS
     return {k: item[k] for k in fields if k in item}
+
+
+def _coerce_recipients(value) -> list:
+    """Normalize caller-supplied to/cc/bcc/reply_to into a list of
+    {name, address} dicts. Accepts string, list of strings, list of dicts,
+    or a single dict. Empty or missing returns []."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [{"name": "", "address": value}]
+    if isinstance(value, dict):
+        return [{"name": value.get("name", ""), "address": value.get("address", "")}]
+    result = []
+    for item in value:
+        if isinstance(item, dict):
+            result.append({"name": item.get("name", ""), "address": item.get("address", "")})
+        else:
+            result.append({"name": "", "address": str(item)})
+    return result
 
 
 def _enqueue_send(message_id: str, inbox_id: str):
@@ -70,8 +91,22 @@ def _get_inbox(org_id: str, inbox_id: str) -> dict | None:
 
 def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None = None) -> dict:
     """Create and store a new outbound message."""
-    # Rate limit check
-    rate_check = check_rate_limit(org_id)
+    # Look up the org once -- we need its tier for the send-rate limit AND
+    # we need to refuse sends from suspended accounts.
+    org_keys_ = org_keys(org_id)
+    org = get_item(org_keys_["PK"], org_keys_["SK"])
+    if org and org.get("status") == "suspended":
+        return suspended_response()
+    tier = (org or {}).get("tier", "free")
+
+    # Per-tier sliding-hour send cap (10/hr free → 100/hr starter → 1k/hr pro)
+    rate_err = check_send_rate(org_id, tier)
+    if rate_err:
+        return rate_err
+
+    # Per-org per-minute / per-day API rate limit (general-purpose, separate
+    # from the send-specific cap above)
+    rate_check = check_rate_limit(org_id, tier=tier)
     if rate_check and rate_check.get("limited"):
         return {
             "statusCode": 429,
@@ -101,19 +136,16 @@ def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None 
     if body_text:
         snippet = body_text[:200]
 
-    to_addrs = body.get("to", [])
-    if isinstance(to_addrs, str):
-        to_addrs = [to_addrs]
+    to_addrs = _coerce_recipients(body.get("to", []))
+    cc = _coerce_recipients(body.get("cc", []))
+    bcc = _coerce_recipients(body.get("bcc", []))
+    reply_to = _coerce_recipients(body.get("reply_to", []))
 
-    cc = body.get("cc", [])
-    if isinstance(cc, str):
-        cc = [cc]
-
-    bcc = body.get("bcc", [])
-    if isinstance(bcc, str):
-        bcc = [bcc]
-
-    from_addr = inbox.get("email", inbox.get("address", ""))
+    from_address = inbox.get("email", inbox.get("address", ""))
+    from_addr = {
+        "name": inbox.get("display_name", ""),
+        "address": from_address,
+    }
 
     msg_item = {
         **message_keys(inbox_id, msg_id),
@@ -128,7 +160,7 @@ def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None 
         "to": to_addrs,
         "cc": cc,
         "bcc": bcc,
-        "reply_to": body.get("reply_to", ""),
+        "reply_to": reply_to,
         "subject": body.get("subject", ""),
         "snippet": snippet,
         "body_s3_key": body_s3_key,
@@ -169,14 +201,15 @@ def _send_message(org_id: str, inbox_id: str, body: dict, thread_id: str | None 
     put_item(thread_item)
 
     _enqueue_send(msg_id, inbox_id)
+    increment_send_counter(org_id)
 
     # Publish webhook event
     try:
         publish_event("message.sent", org_id, {
             "message_id": msg_id,
             "inbox_id": inbox_id,
-            "from": from_addr,
-            "to": to_addrs,
+            "from": from_address,
+            "to": [r.get("address", "") for r in to_addrs],
             "subject": body.get("subject", ""),
             "sent_at": now,
         })
@@ -237,6 +270,15 @@ def _update_message(inbox_id: str, message_id: str, body: dict) -> dict:
     return success(_filter_message(updated, detail=True))
 
 
+def _recipient_address(recipient) -> str:
+    """Pull the string address out of a Recipient object, string, or None."""
+    if isinstance(recipient, dict):
+        return recipient.get("address", "")
+    if isinstance(recipient, str):
+        return recipient
+    return ""
+
+
 def _reply(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
     """Reply to a message."""
     keys = message_keys(inbox_id, message_id)
@@ -248,9 +290,10 @@ def _reply(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
     if not subject.startswith("Re:"):
         subject = f"Re: {subject}"
 
+    default_to = [_recipient_address(original.get("from_addr"))]
     reply_body = {
         **body,
-        "to": body.get("to", [original.get("from_addr", "")]),
+        "to": body.get("to", default_to),
         "subject": subject,
         "headers": _build_reply_headers(original, body.get("headers", {})),
     }
@@ -275,9 +318,18 @@ def _build_reply_headers(original: dict, extra_headers: dict) -> dict:
     orig_headers = original.get("headers", {})
 
     if original.get("direction") == "outbound" and original.get("id"):
-        # We sent the original; outbound worker sets Message-ID to
-        # <{id}@victorymail.dev>
-        original_msg_id = f"<{original['id']}@victorymail.dev>"
+        # We sent the original; the outbound worker stamps Message-ID as
+        # <{id}@{sender_domain}> — reconstruct using whichever platform
+        # domain the original inbox lived on.
+        raw_from = original.get("from_addr")
+        if isinstance(raw_from, dict):
+            sender_addr = raw_from.get("address", "")
+        else:
+            sender_addr = str(raw_from or "")
+        _, sender_domain = split_address(sender_addr)
+        if not sender_domain:
+            sender_domain = DEFAULT_PLATFORM_DOMAIN
+        original_msg_id = f"<{original['id']}@{sender_domain}>"
     elif isinstance(orig_headers, dict) and orig_headers.get("message_id"):
         # Inbound message that captured a Message-ID header
         original_msg_id = orig_headers["message_id"]
@@ -309,12 +361,13 @@ def _reply_all(org_id: str, inbox_id: str, message_id: str, body: dict) -> dict:
     inbox = _get_inbox(org_id, inbox_id)
     our_email = inbox.get("email", "") if inbox else ""
     all_recipients = set()
-    all_recipients.add(original.get("from_addr", ""))
-    for addr in original.get("to", []):
-        all_recipients.add(addr)
-    for addr in original.get("cc", []):
-        all_recipients.add(addr)
+    all_recipients.add(_recipient_address(original.get("from_addr")))
+    for r in original.get("to", []):
+        all_recipients.add(_recipient_address(r))
+    for r in original.get("cc", []):
+        all_recipients.add(_recipient_address(r))
     all_recipients.discard(our_email)
+    all_recipients.discard("")
 
     reply_body = {
         **body,

@@ -51,6 +51,7 @@ const apiStack = new ApiStack(app, `VictoryMail-Api-${stage}`, {
   rawEmailBucket: dataStack.rawEmailBucket,
   bodiesBucket: dataStack.bodiesBucket,
   attachmentsBucket: dataStack.attachmentsBucket,
+  vaultBucket: dataStack.vaultBucket,
   sendQueue: queueStack.sendQueue,
   webhookQueue: queueStack.webhookQueue,
   bounceTopic: emailStack.bounceTopic,

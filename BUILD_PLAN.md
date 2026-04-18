@@ -21,12 +21,21 @@
 - Treat `freemail.dev` as the customer-facing brand/domain target.
 - Legacy references to `AgentMail` in older docs are design inheritance, not the final product identity.
 
-### What Already Exists
+### What Already Exists (as of 2026-04-13)
 
-- Route53 hosted zone for `victorymail.dev`
-- SES production access in the AWS account
-- Prior SES identity history for another domain
-- No infrastructure deployed yet for this project
+- **Platform is live in production** on AWS account `732770059798`
+- **Public endpoints:**
+  - `api.victorymail.dev` — REST API (API Gateway + Lambda)
+  - `console.victorymail.dev` — developer console (CloudFront + S3)
+  - `victorymail.dev` — marketing site (CloudFront + S3)
+- SES production access, 50K/day send, 14/sec rate
+- SES domain identities verified for `victorymail.dev`, `karmascale.net`, `karmascale.org` (domain pool)
+- Route53 hosted zones for `karmascale.net` (Z071121127YBF0QF7XIJG) and `karmascale.org` (Z0712406NGP913O4A6EG)
+  - NOTE: `victorymail.dev` Route53 zone lives in a separate AWS account; flagged for consolidation
+- Cognito User Pool for console authentication
+- Stripe billing integration for Free/Starter/Pro tiers (Starter $5 tier in progress)
+- GitHub Actions OIDC for CI/CD
+- BYOC (Bring Your Own Cloud) tier via AWS Marketplace: design complete, implementation in progress
 
 ---
 

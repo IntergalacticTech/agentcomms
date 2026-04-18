@@ -1,13 +1,29 @@
 """Domains Lambda handler."""
 
+import logging
+
+import boto3
+
 from shared.auth import get_org_id
 from shared.dynamo import get_item, put_item, update_item, delete_item, query
 from shared.models import domain_keys, domain_gsi1, now_iso
 from shared.quotas import check_quota, decrement_usage, increment_usage
 from shared.pagination import get_pagination_params, decode_page_token, paginated_response
-from shared.response import success, created, bad_request, not_found, no_content
+from shared.response import success, created, bad_request, not_found, no_content, error
 from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+_sesv2 = None
+
+
+def _get_sesv2():
+    global _sesv2
+    if _sesv2 is None:
+        _sesv2 = boto3.client("sesv2")
+    return _sesv2
 
 
 DOMAIN_FIELDS = [
@@ -21,14 +37,31 @@ def _filter_domain(item: dict) -> dict:
     return {k: item[k] for k in DOMAIN_FIELDS if k in item}
 
 
-def _generate_dns_records(domain: str) -> dict:
-    """Generate DNS records required for email setup."""
+def _create_ses_identity(domain: str) -> list[str]:
+    """Create a SES email identity for ``domain`` and return the DKIM tokens.
+
+    If the identity already exists (user re-registers) we fetch the existing
+    tokens instead. Raises on any other SES error so the caller can surface it.
+    """
+    sesv2 = _get_sesv2()
+    try:
+        resp = sesv2.create_email_identity(EmailIdentity=domain)
+        return list(resp.get("DkimAttributes", {}).get("Tokens", []))
+    except sesv2.exceptions.AlreadyExistsException:
+        resp = sesv2.get_email_identity(EmailIdentity=domain)
+        return list(resp.get("DkimAttributes", {}).get("Tokens", []))
+
+
+def _generate_dns_records(domain: str, dkim_tokens: list[str]) -> dict:
+    """Build the DNS record templates the user must publish. ``dkim_tokens``
+    comes straight from SES and produces the real ``<token>.dkim.amazonses.com``
+    CNAMEs SES will look for during verification."""
     return {
         "mx": {
             "type": "MX",
             "name": domain,
             "value": "10 inbound-smtp.us-east-1.amazonaws.com",
-            "ttl": 3600,
+            "ttl": 1800,
         },
         "spf": {
             "type": "TXT",
@@ -39,16 +72,16 @@ def _generate_dns_records(domain: str) -> dict:
         "dkim": [
             {
                 "type": "CNAME",
-                "name": f"s{i}._domainkey.{domain}",
-                "value": f"s{i}.dkim.victorymail.dev",
-                "ttl": 3600,
+                "name": f"{token}._domainkey.{domain}",
+                "value": f"{token}.dkim.amazonses.com",
+                "ttl": 1800,
             }
-            for i in range(1, 4)
+            for token in dkim_tokens
         ],
         "dmarc": {
             "type": "TXT",
             "name": f"_dmarc.{domain}",
-            "value": "v=DMARC1; p=quarantine; rua=mailto:dmarc@victorymail.dev",
+            "value": f"v=DMARC1; p=quarantine; rua=mailto:dmarc@{domain}",
             "ttl": 3600,
         },
     }
@@ -108,7 +141,7 @@ def _get_domain(org_id: str, domain_id: str) -> dict:
 
 
 def _create_domain(org_id: str, body: dict) -> dict:
-    """Create a new domain."""
+    """Create a new domain, register it with SES, and return real DKIM tokens."""
     quota_error = check_quota(org_id, "domains")
     if quota_error:
         return quota_error
@@ -117,10 +150,30 @@ def _create_domain(org_id: str, body: dict) -> dict:
     if err:
         return bad_request(err)
 
-    domain_name = body["domain"]
+    domain_name = body["domain"].strip().lower()
+    if not domain_name or "." not in domain_name:
+        return bad_request("domain must be a fully-qualified domain name")
+
+    try:
+        dkim_tokens = _create_ses_identity(domain_name)
+    except Exception as e:
+        logger.exception("SES create_email_identity failed for %s", domain_name)
+        return error(
+            "SES_ERROR",
+            f"Could not register {domain_name} with SES: {e}",
+            502,
+        )
+
+    if not dkim_tokens:
+        return error(
+            "SES_ERROR",
+            "SES did not return DKIM tokens. Please retry or contact support.",
+            502,
+        )
+
     domain_id = generate_ulid()
     now = now_iso()
-    dns_records = _generate_dns_records(domain_name)
+    dns_records = _generate_dns_records(domain_name, dkim_tokens)
 
     item = {
         **domain_keys(org_id, domain_id),
@@ -130,6 +183,7 @@ def _create_domain(org_id: str, body: dict) -> dict:
         "domain": domain_name,
         "status": "pending",
         "dns_records": dns_records,
+        "dkim_tokens": dkim_tokens,
         "catch_all_inbox_id": "",
         "created_at": now,
         "updated_at": now,
@@ -157,11 +211,21 @@ def _update_domain(org_id: str, domain_id: str, body: dict) -> dict:
 
 
 def _delete_domain(org_id: str, domain_id: str) -> dict:
-    """Hard delete a domain."""
+    """Hard delete a domain and remove the SES identity."""
     keys = domain_keys(org_id, domain_id)
     existing = get_item(keys["PK"], keys["SK"])
     if not existing:
         return not_found("Domain")
+
+    domain_name = existing.get("domain", "")
+    if domain_name:
+        try:
+            _get_sesv2().delete_email_identity(EmailIdentity=domain_name)
+        except Exception:
+            # Log but don't block deletion -- the SES identity may already be
+            # gone or may need manual cleanup. The DynamoDB record is the
+            # source of truth for whether the domain is "registered".
+            logger.exception("SES delete_email_identity failed for %s", domain_name)
 
     delete_item(keys["PK"], keys["SK"])
     decrement_usage(org_id, "domains")
@@ -169,13 +233,46 @@ def _delete_domain(org_id: str, domain_id: str) -> dict:
 
 
 def _verify_domain(org_id: str, domain_id: str) -> dict:
-    """Start domain verification (sets status to verifying)."""
+    """Check SES for the current verification state of the domain.
+
+    SES performs DKIM verification asynchronously once DNS records propagate.
+    This endpoint polls SES and updates the stored status accordingly.
+    """
     keys = domain_keys(org_id, domain_id)
     existing = get_item(keys["PK"], keys["SK"])
     if not existing:
         return not_found("Domain")
 
-    updates = {"status": "verifying", "updated_at": now_iso()}
+    domain_name = existing["domain"]
+    try:
+        resp = _get_sesv2().get_email_identity(EmailIdentity=domain_name)
+    except Exception as e:
+        logger.exception("SES get_email_identity failed for %s", domain_name)
+        return error(
+            "SES_ERROR",
+            f"Could not query SES for {domain_name}: {e}",
+            502,
+        )
+
+    verified_for_sending = bool(resp.get("VerifiedForSendingStatus", False))
+    dkim_status = resp.get("DkimAttributes", {}).get("Status", "NOT_STARTED")
+
+    now = now_iso()
+    updates: dict = {"updated_at": now}
+    if verified_for_sending and dkim_status == "SUCCESS":
+        updates["status"] = "verified"
+        updates["dkim_verified"] = True
+        updates["spf_verified"] = True
+        updates["mx_verified"] = True
+        if not existing.get("verified_at"):
+            updates["verified_at"] = now
+    elif dkim_status in ("PENDING", "NOT_STARTED"):
+        updates["status"] = "verifying"
+        updates["dkim_verified"] = False
+    else:  # FAILED, TEMPORARY_FAILURE, etc.
+        updates["status"] = "failed"
+        updates["dkim_verified"] = False
+
     updated = update_item(keys["PK"], keys["SK"], updates)
     return success(_filter_domain(updated))
 

@@ -151,6 +151,16 @@ def _validate_api_key(token: str) -> dict:
     if key_item.get("status") != "active":
         raise Exception("Unauthorized")
 
+    # Hard-block suspended orgs at the front door so we don't have to scatter
+    # status checks across every handler. Authorizer denies → API Gateway
+    # returns 403 before any handler runs.
+    org_id = key_item.get("org_id", "")
+    if org_id:
+        from shared.dynamo import get_item
+        org = get_item(f"ORG#{org_id}", f"ORG#{org_id}")
+        if org and org.get("status") == "suspended":
+            raise Exception("Unauthorized")
+
     return key_item
 
 

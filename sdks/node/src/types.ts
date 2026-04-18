@@ -31,19 +31,26 @@ export interface Message {
   id: string;
   inbox_id: string;
   thread_id?: string;
-  from: Recipient;
+  from_addr: Recipient;
   to: Recipient[];
   cc?: Recipient[];
   bcc?: Recipient[];
+  reply_to?: Recipient[];
   subject: string;
+  snippet?: string;
   body_text?: string;
   body_html?: string;
   is_read: boolean;
   is_starred: boolean;
+  is_spam?: boolean;
+  is_trash?: boolean;
   labels?: string[];
   direction: "inbound" | "outbound";
+  has_attachments?: boolean;
+  attachment_count?: number;
+  received_at?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface Thread {
@@ -119,10 +126,24 @@ export interface ApiKey {
 
 // Option types
 
+/**
+ * FreeMail platform-owned domains that any inbox can be created on.
+ * Custom domains brought by the caller live in the `domains` resource.
+ */
+export const PLATFORM_DOMAINS = [
+  "victorymail.dev",
+  "karmascale.net",
+  "karmascale.org",
+] as const;
+
+export type PlatformDomain = (typeof PLATFORM_DOMAINS)[number];
+
 export interface CreateInboxOptions {
   display_name?: string;
   email?: string;
   pod_id?: string;
+  /** Which platform domain to generate the random address on. Defaults to victorymail.dev. */
+  domain?: PlatformDomain | string;
 }
 
 export interface ListInboxesOptions {

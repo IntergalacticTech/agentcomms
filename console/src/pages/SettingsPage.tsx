@@ -2,23 +2,44 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import Header from "../components/Header";
 
+type Tier = "free" | "starter" | "pro" | "enterprise";
+
+interface Quotas {
+  max_inboxes?: number;
+  max_messages_per_day?: number;
+  max_api_keys?: number;
+  max_pods?: number;
+  max_domains?: number;
+  max_webhooks?: number;
+  max_storage_mb?: number;
+  retention_days?: number;
+  ai_calls_per_month?: number;
+}
+
+interface Usage {
+  inboxes?: number;
+  pods?: number;
+  api_keys?: number;
+  domains?: number;
+  webhooks?: number;
+}
+
 interface OrgInfo {
   id: string;
   name: string;
   email: string;
-  tier: string;
+  tier: Tier;
   status: string;
-  quotas?: {
-    inboxes: number;
-    messages_per_day: number;
-    api_keys: number;
-  };
-  usage?: {
-    inboxes: number;
-    pods: number;
-    api_keys: number;
-  };
+  quotas?: Quotas;
+  usage?: Usage;
 }
+
+const TIER_LABELS: Record<Tier, { label: string; price: string; color: string }> = {
+  free: { label: "Free", price: "$0/mo", color: "bg-gray-100 text-gray-700" },
+  starter: { label: "Starter", price: "$5/mo", color: "bg-indigo-100 text-indigo-700" },
+  pro: { label: "Pro", price: "$25/mo", color: "bg-purple-100 text-purple-700" },
+  enterprise: { label: "Enterprise", price: "Custom", color: "bg-amber-100 text-amber-800" },
+};
 
 function QuotaBar({
   label,
@@ -29,15 +50,29 @@ function QuotaBar({
   used: number;
   total: number;
 }) {
-  const pct = total > 0 ? Math.min((used / total) * 100, 100) : 0;
-  const color = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-yellow-500" : "bg-indigo-600";
+  // -1 sentinel means unlimited; render as ∞ with a flat green bar.
+  const unlimited = total < 0;
+  const pct = unlimited
+    ? 100
+    : total > 0
+    ? Math.min((used / total) * 100, 100)
+    : 100;
+  const color = unlimited
+    ? "bg-emerald-500"
+    : total === 0
+    ? "bg-gray-300"
+    : pct > 90
+    ? "bg-red-500"
+    : pct > 70
+    ? "bg-yellow-500"
+    : "bg-indigo-600";
 
   return (
     <div>
       <div className="flex justify-between text-sm mb-1">
         <span className="text-gray-700">{label}</span>
         <span className="text-gray-500">
-          {used} / {total}
+          {used} / {unlimited ? "∞" : total}
         </span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
@@ -104,35 +139,65 @@ export default function SettingsPage() {
                 </span>
                 <span className="text-gray-500">Tier</span>
                 <span>
-                  <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-700">
-                    {org.tier || "free"}
-                  </span>
+                  {(() => {
+                    const t = TIER_LABELS[org.tier] ?? TIER_LABELS.free;
+                    return (
+                      <span
+                        className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${t.color}`}
+                      >
+                        {t.label} — {t.price}
+                      </span>
+                    );
+                  })()}
                 </span>
               </div>
+              {org.tier !== "pro" && org.tier !== "enterprise" && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <a
+                    href="/billing"
+                    className="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700"
+                  >
+                    {org.tier === "free" ? "Upgrade to Starter — $5/mo" : "Upgrade to Pro — $25/mo"}
+                  </a>
+                </div>
+              )}
             </div>
 
             {org.quotas && org.usage && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                  Usage & Quotas
+                  Usage &amp; Quotas
                 </h2>
                 <div className="space-y-4">
                   <QuotaBar
                     label="Inboxes"
-                    used={org.usage.inboxes}
-                    total={org.quotas.inboxes}
+                    used={org.usage.inboxes ?? 0}
+                    total={org.quotas.max_inboxes ?? 0}
                   />
                   <QuotaBar
                     label="Pods"
-                    used={org.usage.pods}
-                    total={org.quotas.messages_per_day}
+                    used={org.usage.pods ?? 0}
+                    total={org.quotas.max_pods ?? 0}
                   />
                   <QuotaBar
                     label="API Keys"
-                    used={org.usage.api_keys}
-                    total={org.quotas.api_keys}
+                    used={org.usage.api_keys ?? 0}
+                    total={org.quotas.max_api_keys ?? 0}
+                  />
+                  <QuotaBar
+                    label="Custom Domains"
+                    used={org.usage.domains ?? 0}
+                    total={org.quotas.max_domains ?? 0}
+                  />
+                  <QuotaBar
+                    label="Webhooks"
+                    used={org.usage.webhooks ?? 0}
+                    total={org.quotas.max_webhooks ?? 0}
                   />
                 </div>
+                <p className="mt-4 text-xs text-gray-500">
+                  Messages/day: <span className="font-medium">{org.quotas.max_messages_per_day ?? 0}</span> · AI calls/mo: <span className="font-medium">{org.quotas.ai_calls_per_month ?? 0}</span> · Retention: <span className="font-medium">{org.quotas.retention_days ?? 0} days</span>
+                </p>
               </div>
             )}
           </div>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreeMail - Email for AI Agents</title>
-  <meta name="description" content="Create inboxes, send and receive email, wait for messages, and extract verification codes -- all via API. Purpose-built for autonomous systems.">
+  <title>FreeMail - Identity & Communications Layer for AI Agents</title>
+  <meta name="description" content="API-first email, OTP capture, custom domains, and webhooks for AI agents. Pick from a pool of platform domains or bring your own. Starts at $0 -- $5 Starter plan is the cheapest real agent-email tier on the market. BYOC available via AWS Marketplace.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -205,10 +205,11 @@
 
     /* -- Pricing -- */
     .pricing { background: var(--bg); }
-    .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; max-width: 760px; margin: 0 auto; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; max-width: 1200px; margin: 0 auto; }
+    @media (max-width: 1080px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 760px; } }
     .pricing-card {
       background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-      padding: 2.5rem; position: relative;
+      padding: 2rem 1.5rem; position: relative;
     }
     .pricing-card.featured { border-color: var(--primary); box-shadow: 0 4px 24px rgba(79,70,229,0.12); }
     .pricing-badge {
@@ -324,8 +325,8 @@
 <!-- Hero -->
 <section class="hero" id="hero">
   <div class="container">
-    <h1>Email for AI Agents</h1>
-    <p class="subtitle">Create inboxes, send and receive email, wait for messages, and extract verification codes &mdash; all via API. Purpose-built for autonomous systems.</p>
+    <h1>The Identity &amp; Communications Layer for AI Agents</h1>
+    <p class="subtitle">Email, OTP capture, custom domains, and webhook delivery &mdash; all via API. Pick from a pool of platform domains or bring your own. Built for autonomous systems.</p>
     <div class="hero-buttons">
       <a href="https://console.victorymail.dev" class="btn btn-primary">Get Started Free</a>
       <a href="https://github.com/IntergalacticTech/freemail/blob/main/docs/agent-instructions.md" class="btn btn-secondary">Agent Instructions</a>
@@ -336,21 +337,23 @@
       </div>
       <pre><code><span class="kw">import</span> <span class="fn">requests</span>
 
-<span class="cm"># 1. Sign up (one API call, no verification needed)</span>
-<span class="var">r</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/console/signup"</span>,
-    <span class="var">json</span><span class="op">=</span>{<span class="str">"email"</span>: <span class="str">"agent@example.com"</span>, <span class="str">"password"</span>: <span class="str">"SecurePass1!"</span>, <span class="str">"name"</span>: <span class="str">"My Agent"</span>})
-<span class="var">api_key</span> <span class="op">=</span> <span class="var">r</span>.<span class="fn">json</span>()[<span class="str">"api_key"</span>]
+<span class="cm"># 1. Sign up (one API call, no email verification)</span>
+<span class="var">r</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/agent/signup"</span>,
+    <span class="var">json</span><span class="op">=</span>{<span class="str">"email"</span>: <span class="str">"agent@example.com"</span>, <span class="str">"name"</span>: <span class="str">"My Agent"</span>}).<span class="fn">json</span>()
+<span class="var">api_key</span> <span class="op">=</span> <span class="var">r</span>[<span class="str">"api_key"</span>]
+<span class="var">headers</span> <span class="op">=</span> {<span class="str">"x-api-key"</span>: <span class="var">api_key</span>}
 
-<span class="cm"># 2. Create an inbox</span>
+<span class="cm"># 2. Create an inbox -- pick any platform domain</span>
 <span class="var">inbox</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/inboxes"</span>,
-    <span class="var">headers</span><span class="op">=</span>{<span class="str">"x-api-key"</span>: <span class="var">api_key</span>},
-    <span class="var">json</span><span class="op">=</span>{<span class="str">"display_name"</span>: <span class="str">"Signup Bot"</span>}).<span class="fn">json</span>()
+    <span class="var">headers</span><span class="op">=</span><span class="var">headers</span>,
+    <span class="var">json</span><span class="op">=</span>{<span class="str">"display_name"</span>: <span class="str">"Signup Bot"</span>, <span class="str">"domain"</span>: <span class="str">"karmascale.net"</span>}).<span class="fn">json</span>()
+<span class="kw">print</span>(<span class="var">inbox</span>[<span class="str">"email"</span>])  <span class="cm"># "zk8m2q0rwv3b@karmascale.net"</span>
 
-<span class="cm"># 3. Sign up for a service, then extract the OTP</span>
-<span class="var">otp</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">f"https://api.victorymail.dev/v1/inboxes/<span class="op">{</span>inbox['id']<span class="op">}</span>/extract-otp"</span>,
-    <span class="var">headers</span><span class="op">=</span>{<span class="str">"x-api-key"</span>: <span class="var">api_key</span>},
+<span class="cm"># 3. Register for a service, then capture the OTP</span>
+<span class="var">otp</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">f"https://api.victorymail.dev/v1/inboxes/</span><span class="op">{</span><span class="var">inbox</span>[<span class="str">'id'</span>]<span class="op">}</span><span class="str">/extract-otp"</span>,
+    <span class="var">headers</span><span class="op">=</span><span class="var">headers</span>,
     <span class="var">json</span><span class="op">=</span>{<span class="str">"timeout"</span>: <span class="str">25</span>, <span class="str">"sender"</span>: <span class="str">"noreply@service.com"</span>}).<span class="fn">json</span>()
-<span class="kw">print</span>(<span class="str">f"Code: <span class="op">{</span>otp['code']<span class="op">}</span>"</span>)  <span class="cm"># "482917"</span></code></pre>
+<span class="kw">print</span>(<span class="str">f"Code: </span><span class="op">{</span><span class="var">otp</span>[<span class="str">'code'</span>]<span class="op">}</span><span class="str">"</span>)</code></pre>
     </div>
   </div>
 </section>
@@ -395,8 +398,8 @@
         <div class="feature-icon">
           <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
         </div>
-        <h3>Custom Domains</h3>
-        <p>Bring your own domain. DNS records generated, verification automated.</p>
+        <h3>Domain Pool &amp; Custom Domains</h3>
+        <p>Pick any address on <code>victorymail.dev</code>, <code>karmascale.net</code>, or <code>karmascale.org</code> &mdash; or bring your own domain on paid plans with automated DNS verification.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
@@ -468,7 +471,7 @@
       <div class="step">
         <div class="step-number">2</div>
         <h3>Create an inbox</h3>
-        <p>Get an email address like <code>abc123@victorymail.dev</code> in one call.</p>
+        <p>Get an address on any platform domain &mdash; <code>abc@victorymail.dev</code>, <code>abc@karmascale.net</code>, or <code>abc@karmascale.org</code>.</p>
       </div>
       <div class="step">
         <div class="step-number">3</div>
@@ -494,88 +497,94 @@
       </div>
       <div class="code-block active" id="python"><pre><code><span class="kw">from</span> <span class="fn">freemail</span> <span class="kw">import</span> <span class="fn">FreeMail</span>
 
-<span class="var">client</span> <span class="op">=</span> <span class="fn">FreeMail</span>(<span class="str">"am_live_your_key"</span>)
+<span class="var">client</span> <span class="op">=</span> <span class="fn">FreeMail</span>(<span class="var">api_key</span><span class="op">=</span><span class="str">"am_live_your_key"</span>)
 
-<span class="cm"># Create an inbox</span>
-<span class="var">inbox</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>(<span class="var">display_name</span><span class="op">=</span><span class="str">"Signup Bot"</span>)
-<span class="kw">print</span>(<span class="str">f"Inbox: <span class="op">{</span>inbox['email']<span class="op">}</span>"</span>)
+<span class="cm"># Create an inbox on any platform domain</span>
+<span class="var">inbox</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>(
+    <span class="var">display_name</span><span class="op">=</span><span class="str">"Signup Bot"</span>,
+    <span class="var">domain</span><span class="op">=</span><span class="str">"karmascale.net"</span>,
+)
+<span class="kw">print</span>(<span class="var">inbox</span>[<span class="str">"email"</span>])  <span class="cm"># "zk8m2q0rwv3b@karmascale.net"</span>
 
 <span class="cm"># Send an email</span>
 <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">send</span>(
-    <span class="var">from_inbox</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
-    <span class="var">to</span><span class="op">=</span><span class="str">"user@example.com"</span>,
+    <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
+    <span class="var">to</span><span class="op">=</span>[{<span class="str">"address"</span>: <span class="str">"user@example.com"</span>}],
     <span class="var">subject</span><span class="op">=</span><span class="str">"Hello from my agent"</span>,
-    <span class="var">body</span><span class="op">=</span><span class="str">"This email was sent by an AI agent."</span>
+    <span class="var">body_text</span><span class="op">=</span><span class="str">"This email was sent by an AI agent."</span>,
 )
 
-<span class="cm"># Wait for a reply (long-poll, up to 60s)</span>
-<span class="var">reply</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">wait</span>(
+<span class="cm"># Wait for a reply (long-poll, up to 25s)</span>
+<span class="var">reply</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">wait_for_message</span>(
     <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
     <span class="var">sender</span><span class="op">=</span><span class="str">"user@example.com"</span>,
-    <span class="var">timeout</span><span class="op">=</span><span class="str">60</span>
+    <span class="var">timeout</span><span class="op">=</span><span class="str">25</span>,
 )
 
-<span class="cm"># Extract an OTP from the reply</span>
+<span class="cm"># Extract an OTP</span>
 <span class="var">otp</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extract_otp</span>(
-    <span class="var">inbox</span>[<span class="str">"id"</span>],
-    <span class="var">sender</span><span class="op">=</span><span class="str">"noreply@service.com"</span>
+    <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
+    <span class="var">sender</span><span class="op">=</span><span class="str">"noreply@service.com"</span>,
+    <span class="var">timeout</span><span class="op">=</span><span class="str">25</span>,
 )
-<span class="kw">print</span>(<span class="str">f"Verification code: <span class="op">{</span>otp['code']<span class="op">}</span>"</span>)</code></pre></div>
+<span class="kw">print</span>(<span class="str">f"Verification code: </span><span class="op">{</span><span class="var">otp</span>[<span class="str">'code'</span>]<span class="op">}</span><span class="str">"</span>)</code></pre></div>
 
-      <div class="code-block" id="node"><pre><code><span class="kw">import</span> <span class="fn">FreeMail</span> <span class="kw">from</span> <span class="str">'freemail'</span>;
+      <div class="code-block" id="node"><pre><code><span class="kw">import</span> { <span class="fn">FreeMail</span> } <span class="kw">from</span> <span class="str">'freemail'</span>;
 
-<span class="kw">const</span> <span class="var">client</span> <span class="op">=</span> <span class="kw">new</span> <span class="fn">FreeMail</span>(<span class="str">'am_live_your_key'</span>);
+<span class="kw">const</span> <span class="var">client</span> <span class="op">=</span> <span class="kw">new</span> <span class="fn">FreeMail</span>({ <span class="var">apiKey</span>: <span class="str">'am_live_your_key'</span> });
 
-<span class="cm">// Create an inbox</span>
+<span class="cm">// Create an inbox on any platform domain</span>
 <span class="kw">const</span> <span class="var">inbox</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>({
-  <span class="var">displayName</span>: <span class="str">'Signup Bot'</span>
+  <span class="var">display_name</span>: <span class="str">'Signup Bot'</span>,
+  <span class="var">domain</span>: <span class="str">'karmascale.net'</span>,
 });
-<span class="var">console</span>.<span class="fn">log</span>(<span class="str">`Inbox: <span class="op">${</span>inbox.email<span class="op">}</span>`</span>);
+<span class="var">console</span>.<span class="fn">log</span>(<span class="var">inbox</span>.<span class="var">email</span>);
 
 <span class="cm">// Send an email</span>
-<span class="kw">await</span> <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">send</span>({
-  <span class="var">fromInbox</span>: <span class="var">inbox</span>.<span class="var">id</span>,
-  <span class="var">to</span>: <span class="str">'user@example.com'</span>,
+<span class="kw">await</span> <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">send</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
+  <span class="var">to</span>: [{ <span class="var">address</span>: <span class="str">'user@example.com'</span> }],
   <span class="var">subject</span>: <span class="str">'Hello from my agent'</span>,
-  <span class="var">body</span>: <span class="str">'This email was sent by an AI agent.'</span>
+  <span class="var">body_text</span>: <span class="str">'This email was sent by an AI agent.'</span>,
 });
 
-<span class="cm">// Wait for a reply (long-poll, up to 60s)</span>
-<span class="kw">const</span> <span class="var">reply</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">wait</span>({
-  <span class="var">inboxId</span>: <span class="var">inbox</span>.<span class="var">id</span>,
+<span class="cm">// Wait for a reply (long-poll, up to 25s)</span>
+<span class="kw">const</span> <span class="var">reply</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">waitForMessage</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
   <span class="var">sender</span>: <span class="str">'user@example.com'</span>,
-  <span class="var">timeout</span>: <span class="str">60</span>
+  <span class="var">timeout</span>: <span class="str">25</span>,
 });
 
 <span class="cm">// Extract an OTP</span>
-<span class="kw">const</span> <span class="var">otp</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extractOtp</span>({
-  <span class="var">inboxId</span>: <span class="var">inbox</span>.<span class="var">id</span>,
-  <span class="var">sender</span>: <span class="str">'noreply@service.com'</span>
+<span class="kw">const</span> <span class="var">otp</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extractOtp</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
+  <span class="var">sender</span>: <span class="str">'noreply@service.com'</span>,
+  <span class="var">timeout</span>: <span class="str">25</span>,
 });
-<span class="var">console</span>.<span class="fn">log</span>(<span class="str">`Verification code: <span class="op">${</span>otp.code<span class="op">}</span>`</span>);</code></pre></div>
+<span class="var">console</span>.<span class="fn">log</span>(<span class="str">`Code: </span><span class="op">${</span><span class="var">otp</span>.<span class="var">code</span><span class="op">}</span><span class="str">`</span>);</code></pre></div>
 
-      <div class="code-block" id="curl"><pre><code><span class="cm"># Create an inbox</span>
+      <div class="code-block" id="curl"><pre><code><span class="cm"># Create an inbox on karmascale.net</span>
 <span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes</span> \
-  <span class="op">-H</span> <span class="str">"Authorization: Bearer am_live_your_key"</span> \
-  <span class="op">-d</span> <span class="str">'{"display_name": "Signup Bot"}'</span>
+  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="op">-d</span> <span class="str">'{"display_name": "Signup Bot", "domain": "karmascale.net"}'</span>
 
-<span class="cm"># Send an email</span>
-<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/messages</span> \
-  <span class="op">-H</span> <span class="str">"Authorization: Bearer am_live_your_key"</span> \
+<span class="cm"># Send an email (from an existing inbox)</span>
+<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages</span> \
+  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="op">-d</span> <span class="str">'{
-    "from_inbox": "inbox_abc123",
-    "to": "user@example.com",
+    "to": [{"address": "user@example.com"}],
     "subject": "Hello from my agent",
-    "body": "This email was sent by an AI agent."
+    "body_text": "This email was sent by an AI agent."
   }'</span>
 
-<span class="cm"># Wait for a reply (long-poll)</span>
-<span class="fn">curl</span> <span class="str">"https://api.victorymail.dev/v1/inboxes/inbox_abc123/messages/wait?sender=user@example.com&amp;timeout=60"</span> \
-  <span class="op">-H</span> <span class="str">"Authorization: Bearer am_live_your_key"</span>
+<span class="cm"># Wait for a matching reply (long-poll, max 25s)</span>
+<span class="fn">curl</span> <span class="str">"https://api.victorymail.dev/v1/inboxes/INBOX_ID/wait?sender=user@example.com&amp;timeout=25"</span> \
+  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span>
 
-<span class="cm"># Extract OTP</span>
-<span class="fn">curl</span> <span class="str">"https://api.victorymail.dev/v1/inboxes/inbox_abc123/otp?sender=noreply@service.com"</span> \
-  <span class="op">-H</span> <span class="str">"Authorization: Bearer am_live_your_key"</span></code></pre></div>
+<span class="cm"># Extract an OTP from an incoming verification email</span>
+<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp</span> \
+  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="op">-d</span> <span class="str">'{"sender": "noreply@service.com", "timeout": 25}'</span></code></pre></div>
     </div>
   </div>
 </section>
@@ -585,35 +594,80 @@
   <div class="container">
     <div class="section-header">
       <h2>Simple, transparent pricing</h2>
-      <p>Start free. Scale when you're ready.</p>
+      <p>The cheapest real agent-email plan on the market. Start free. Upgrade when you need a custom domain.</p>
     </div>
     <div class="pricing-grid">
       <div class="pricing-card">
         <h3>Free</h3>
         <div class="pricing-price">$0<span>/month</span></div>
-        <p class="pricing-desc">For prototyping and small projects.</p>
+        <p class="pricing-desc">Try the platform end-to-end.</p>
         <ul class="pricing-features">
-          <li>5 inboxes</li>
-          <li>1,000 messages/day</li>
-          <li>1 custom domain</li>
-          <li>API + SDK + MCP access</li>
-          <li>Community support</li>
+          <li>1 inbox</li>
+          <li>50 messages/day</li>
+          <li>Platform domains (pick from 3)</li>
+          <li>7-day message retention</li>
+          <li>14-day Pro trial on signup</li>
         </ul>
-        <a href="https://console.victorymail.dev" class="btn btn-secondary">Get Started Free</a>
+        <a href="https://console.victorymail.dev" class="btn btn-secondary">Start Free</a>
       </div>
       <div class="pricing-card featured">
         <div class="pricing-badge">Most Popular</div>
-        <h3>Pro</h3>
-        <div class="pricing-price">$29<span>/month</span></div>
-        <p class="pricing-desc">For production workloads and teams.</p>
+        <h3>Starter</h3>
+        <div class="pricing-price">$5<span>/month</span></div>
+        <p class="pricing-desc">Build real agent apps on your own domain.</p>
         <ul class="pricing-features">
-          <li>1,000 inboxes</li>
-          <li>50,000 messages/day</li>
-          <li>10 custom domains</li>
-          <li>AI categorization &amp; extraction</li>
-          <li>Priority support</li>
+          <li>5 inboxes</li>
+          <li>500 messages/day</li>
+          <li>1 custom domain</li>
+          <li>30-day retention</li>
+          <li>100 AI calls/mo (categorize, extract)</li>
+          <li>Email support</li>
         </ul>
-        <a href="https://console.victorymail.dev" class="btn btn-primary">Start Pro Trial</a>
+        <a href="https://console.victorymail.dev" class="btn btn-primary">Start 14-Day Trial</a>
+      </div>
+      <div class="pricing-card">
+        <h3>Pro</h3>
+        <div class="pricing-price">$25<span>/month</span></div>
+        <p class="pricing-desc">Production agent fleets.</p>
+        <ul class="pricing-features">
+          <li>100 inboxes</li>
+          <li>5,000 messages/day</li>
+          <li>10 custom domains</li>
+          <li>1-year retention</li>
+          <li>2,000 AI calls/mo + overage</li>
+          <li>Priority support (24h SLA)</li>
+        </ul>
+        <a href="https://console.victorymail.dev" class="btn btn-secondary">Upgrade to Pro</a>
+      </div>
+      <div class="pricing-card">
+        <h3>Enterprise</h3>
+        <div class="pricing-price">Custom</div>
+        <p class="pricing-desc">Scale, compliance, and control.</p>
+        <ul class="pricing-features">
+          <li>Unlimited everything</li>
+          <li>SSO / SAML, SOC 2</li>
+          <li>Dedicated IPs, EU region</li>
+          <li>Named CSM, SLA credits</li>
+          <li>Available on AWS Marketplace</li>
+        </ul>
+        <a href="mailto:sales@victorymail.dev" class="btn btn-secondary">Talk to Sales</a>
+      </div>
+    </div>
+
+    <!-- BYOC callout -->
+    <div class="byoc-callout" style="margin-top:3rem;padding:2rem;border-radius:12px;background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;">
+      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;align-items:center;justify-content:space-between;">
+        <div style="flex:1 1 320px;">
+          <div style="display:inline-block;padding:0.25rem 0.65rem;border-radius:999px;background:#4F46E5;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:0.75rem;">Available on AWS Marketplace</div>
+          <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">BYOC &mdash; Run FreeMail in your own AWS account</h3>
+          <p style="opacity:0.85;line-height:1.55;margin-bottom:0;">For compliance-heavy teams (healthcare, banking, defense) that can't let email data leave their account. Deploy via AWS Marketplace, pay a flat license fee, keep everything under your VPC. Source-protected container images, SHA-pinned versioning, zero-downtime updates.</p>
+        </div>
+        <div style="flex:0 0 280px;">
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="opacity:0.75;">BYOC Starter</span><span style="font-weight:600;">$99/mo</span></div>
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="opacity:0.75;">BYOC Pro</span><span style="font-weight:600;">$499/mo</span></div>
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;"><span style="opacity:0.75;">BYOC Enterprise</span><span style="font-weight:600;">Custom</span></div>
+          <a href="mailto:sales@victorymail.dev" class="btn btn-primary" style="margin-top:1rem;width:100%;text-align:center;display:block;">Request BYOC Access</a>
+        </div>
       </div>
     </div>
   </div>

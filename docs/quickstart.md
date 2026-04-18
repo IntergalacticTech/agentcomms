@@ -96,11 +96,32 @@ Response:
   "pod_id": "default",
   "message_count": 0,
   "unread_count": 0,
-  "created_at": "2025-01-15T10:30:00Z"
+  "created_at": "2026-04-13T10:30:00Z"
 }
 ```
 
-The inbox gets a random `@victorymail.dev` email address. You can also specify your own address if you have a custom domain configured.
+The inbox defaults to a random `@victorymail.dev` address. You can pick a different platform domain with the optional `domain` parameter, or specify an exact address with `email`. Paid-tier users can also create inboxes on custom domains they have configured.
+
+### Pick a Different Platform Domain
+
+```bash
+curl -X POST https://api.victorymail.dev/v1/inboxes \
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"display_name": "Signup Bot", "domain": "karmascale.net"}'
+```
+
+Response includes `"email": "zk8m2q0rwv3b@karmascale.net"`.
+
+Available platform domains:
+
+| Domain | Notes |
+|---|---|
+| `victorymail.dev` | Default |
+| `karmascale.net` | Alternate |
+| `karmascale.org` | Alternate |
+
+Email addresses are unique **per domain**, so `agent@victorymail.dev` and `agent@karmascale.net` can both exist and belong to different accounts.
 
 ## Step 4: Send an Email
 

@@ -4,6 +4,12 @@ import random
 import string
 
 from shared.auth import get_org_id
+from shared.domains import (
+    DEFAULT_PLATFORM_DOMAIN,
+    PLATFORM_DOMAINS,
+    is_platform_domain,
+    split_address,
+)
 from shared.dynamo import get_item, put_item, query, query_gsi, update_item
 from shared.models import inbox_gsi1, inbox_gsi2, inbox_keys, now_iso
 from shared.quotas import check_quota, decrement_usage, increment_usage
@@ -17,8 +23,6 @@ from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
 from shared.webhook_publisher import publish_event
 
-DEFAULT_DOMAIN = "victorymail.dev"
-
 INBOX_FIELDS = [
     "id", "org_id", "pod_id", "email", "display_name",
     "status", "message_count", "unread_count", "settings", "forwarding",
@@ -26,11 +30,11 @@ INBOX_FIELDS = [
 ]
 
 
-def _generate_email() -> str:
-    """Generate a random email address."""
+def _generate_email(domain: str = DEFAULT_PLATFORM_DOMAIN) -> str:
+    """Generate a random email address on the requested platform domain."""
     chars = string.ascii_lowercase + string.digits
     local = "".join(random.choices(chars, k=12))
-    return f"{local}@{DEFAULT_DOMAIN}"
+    return f"{local}@{domain}"
 
 
 def _filter_inbox(item: dict) -> dict:
@@ -93,8 +97,27 @@ def _create_inbox(event):
     body = parse_body(event)
 
     pod_id = body.get("pod_id", "default")
-    email = body.get("email") or _generate_email()
     display_name = body.get("display_name", "")
+
+    requested_domain = (body.get("domain") or DEFAULT_PLATFORM_DOMAIN).lower()
+    if not is_platform_domain(requested_domain):
+        return bad_request(
+            f"Unknown platform domain '{requested_domain}'. "
+            f"Choose one of: {', '.join(PLATFORM_DOMAINS)}."
+        )
+
+    email = body.get("email")
+    if email:
+        local, addr_domain = split_address(email)
+        if not local or not addr_domain:
+            return bad_request("email must be a full address (local@domain)")
+        if not is_platform_domain(addr_domain):
+            return bad_request(
+                f"email domain '{addr_domain}' is not a platform domain. "
+                f"Choose one of: {', '.join(PLATFORM_DOMAINS)}."
+            )
+    else:
+        email = _generate_email(requested_domain)
 
     inbox_id = generate_ulid()
     now = now_iso()

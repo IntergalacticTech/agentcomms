@@ -13,7 +13,9 @@ from .resources import (
     DomainResource,
     InboxResource,
     MessageResource,
+    PersonaResource,
     PodResource,
+    VaultResource,
     WebhookResource,
 )
 
@@ -71,6 +73,8 @@ class FreeMail:
         self.domains = DomainResource(self._client)
         self.webhooks = WebhookResource(self._client)
         self.api_keys = ApiKeyResource(self._client)
+        self.vault = VaultResource(self._client)
+        self.personas = PersonaResource(self._client)
 
     def get_organization(self) -> dict:
         """Get the current organization."""

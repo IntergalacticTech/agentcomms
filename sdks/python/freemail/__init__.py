@@ -1,5 +1,16 @@
 from .client import FreeMail
-from .exceptions import FreemailError, FreemailAPIError
+from .exceptions import FreemailAPIError, FreemailError
 
-__version__ = "0.1.0"
-__all__ = ["FreeMail", "FreemailError", "FreemailAPIError"]
+PLATFORM_DOMAINS = (
+    "victorymail.dev",
+    "karmascale.net",
+    "karmascale.org",
+)
+
+__version__ = "0.2.0"
+__all__ = [
+    "FreeMail",
+    "FreemailError",
+    "FreemailAPIError",
+    "PLATFORM_DOMAINS",
+]

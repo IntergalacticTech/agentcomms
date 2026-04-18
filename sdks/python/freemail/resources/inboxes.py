@@ -38,7 +38,15 @@ class InboxResource:
         display_name: Optional[str] = None,
         email: Optional[str] = None,
         pod_id: Optional[str] = None,
+        domain: Optional[str] = None,
     ) -> dict:
+        """Create a new inbox.
+
+        Pass ``domain`` to pick which platform domain the random inbox
+        address is generated on (e.g. ``"karmascale.net"``). Defaults to
+        ``"victorymail.dev"``. Pass ``email`` to choose an exact address;
+        the domain must still be one of the platform domains.
+        """
         body: dict = {}
         if display_name is not None:
             body["display_name"] = display_name
@@ -46,6 +54,8 @@ class InboxResource:
             body["email"] = email
         if pod_id is not None:
             body["pod_id"] = pod_id
+        if domain is not None:
+            body["domain"] = domain
         return self._request("POST", "/inboxes", json=body)
 
     def update(self, inbox_id: str, **kwargs) -> dict:

@@ -160,16 +160,19 @@ All errors return:
 {"error": {"code": "ERROR_CODE", "message": "Human-readable message"}}
 ```
 
-Common codes: `INVALID_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403),
-`RESOURCE_NOT_FOUND` (404), `QUOTA_EXCEEDED` (403), `RATE_LIMITED` (429),
-`TIMEOUT` (408).
+Common codes: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403),
+`NOT_FOUND` (404), `VALIDATION_ERROR` (422), `QUOTA_EXCEEDED` (403),
+`RATE_LIMITED` (429), `TIMEOUT` (408).
 
 ## Free Tier Limits
 
-- 5 inboxes
-- 1,000 messages per day
-- 1 custom domain
-- 5 API keys
+- 1 inbox
+- 50 messages per day
+- 0 custom domains (use a platform domain instead)
+- 1 API key
+- Pick from `victorymail.dev`, `karmascale.net`, or `karmascale.org`
+
+New accounts also get a 14-day Pro trial at signup.
 
 ## Example: Sign up for a service and verify
 

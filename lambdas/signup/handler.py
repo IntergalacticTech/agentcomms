@@ -10,6 +10,7 @@ from shared.auth import get_org_id
 from shared.dynamo import put_item
 from shared.models import api_key_gsi1, api_key_keys, now_iso, org_keys
 from shared.response import bad_request, created, not_found, success
+from shared.tiers import FREE_QUOTAS
 from shared.ulid import generate_ulid
 from shared.validation import parse_body, require_fields
 
@@ -18,15 +19,6 @@ _otp_store: dict[str, str] = {}
 
 # Base62 alphabet
 _BASE62 = string.ascii_letters + string.digits
-
-FREE_TIER_QUOTAS = {
-    "max_inboxes": 5,
-    "max_messages_per_day": 1000,
-    "max_api_keys": 5,
-    "max_pods": 3,
-    "max_domains": 1,
-    "max_webhooks": 5,
-}
 
 
 def _generate_api_key() -> str:
@@ -92,7 +84,7 @@ def _handle_verify(event):
         "tier": "free",
         "status": "active",
         "settings": {},
-        "quotas": FREE_TIER_QUOTAS,
+        "quotas": FREE_QUOTAS,
         "usage": {},
         "created_at": now,
         "updated_at": now,

@@ -1,65 +1,135 @@
 # Billing & Plans
 
-FreeMail offers a free tier for getting started and a Pro tier for production workloads. Billing is managed through Stripe.
+FreeMail has four tiers (Free, Starter, Pro, Enterprise) plus a BYOC ("bring your own cloud") tier sold via AWS Marketplace. Billing for the hosted tiers is handled through Stripe. BYOC billing is handled through AWS Marketplace.
+
+New signups get a **14-day Pro trial** automatically, no credit card required. After 14 days, accounts that have not upgraded downgrade to the Free tier.
 
 ## Plans
 
-### Free Tier
+### Free
 
-The free tier is available to all accounts immediately after signup. No credit card required.
+The Free tier is available to all accounts immediately after signup and exists to let you try the platform end-to-end.
+
+| Resource | Limit |
+|----------|-------|
+| Inboxes | 1 |
+| Messages per day | 50 |
+| Custom domains | 0 (use platform domains instead) |
+| API keys | 1 |
+| Pods | 1 |
+| Webhooks | 1 |
+| Storage | 100 MB |
+| Retention | 7 days |
+| AI features | Disabled |
+
+Free-tier inboxes must be created on a **platform domain** from the pool below; bringing your own domain requires a paid plan.
+
+### Starter — $5/month
+
+The cheapest real agent-email plan on the market. Designed for building real applications on your own domain.
 
 | Resource | Limit |
 |----------|-------|
 | Inboxes | 5 |
-| Messages per day | 1,000 |
-| API keys | 5 |
-| Pods | 3 |
+| Messages per day | 500 |
 | Custom domains | 1 |
-| Webhooks | 5 |
+| API keys | 5 |
+| Pods | 2 |
+| Webhooks | 3 |
+| Storage | 1 GB |
+| Retention | 30 days |
+| AI calls/month | 100 included |
+| Support | Email (best effort) |
 
-The free tier uses shared SES sending infrastructure.
+### Pro — $25/month
 
-### Pro Tier
-
-The Pro tier is designed for production AI agent workloads.
+Production agent fleets.
 
 | Resource | Limit |
 |----------|-------|
-| Inboxes | 1,000 |
-| Messages per day | 50,000 |
-| API keys | 50 |
-| Pods | 50 |
+| Inboxes | 100 |
+| Messages per day | 5,000 |
 | Custom domains | 10 |
-| Webhooks | 50 |
+| API keys | 25 |
+| Pods | 10 |
+| Webhooks | 25 |
+| Storage | 25 GB |
+| Retention | 1 year |
+| AI calls/month | 2,000 included, $0.01/call overage |
+| Support | Email with 24h SLA |
+
+A soft cap of 100,000 messages per month applies; additional messages are billed at $0.30 per 1,000.
+
+### Enterprise — Custom
+
+For scale, compliance, and procurement motion. Contact `sales@victorymail.dev` or find us on AWS Marketplace Private Offers.
+
+- Unlimited everything
+- SSO / SAML authentication
+- SOC 2 report (on request)
+- Dedicated IPs
+- EU region availability
+- Named customer success manager
+- Contract-based SLA credits
+
+### BYOC — from $99/month
+
+Run the entire FreeMail stack inside **your own AWS account** for compliance, data residency, or sovereign-cloud use cases. Deployed via AWS Marketplace. Source code is not visible to the purchaser — you pull SHA-pinned Lambda container images from our public ECR and our CDK package wires them into your infrastructure.
+
+| Tier | Price | Scope |
+|---|---|---|
+| BYOC Trial | Free, 30 days | Full Starter features via CloudFormation Quick Launch |
+| BYOC Starter | $99/mo | 1M msgs/mo, unlimited inboxes, 1 domain, email support (48h) |
+| BYOC Pro | $499/mo | Unlimited msgs, unlimited domains, priority support (24h) |
+| BYOC Enterprise | From $2,500/mo | Dedicated Slack, quarterly reviews, named CSM, custom regions, EU sovereign |
+
+You continue to pay AWS directly for the infrastructure you provision. See [BYOC Deployment Guide](./byoc.md).
+
+## Platform Domains (Free Tier)
+
+Free-tier users can pick from these platform domains when creating an inbox:
+
+| Domain | Description |
+|---|---|
+| `victorymail.dev` | Default |
+| `karmascale.net` | Alternate |
+| `karmascale.org` | Alternate |
+
+Email addresses are unique **per domain**, so `agent@victorymail.dev` and `agent@karmascale.net` are separate inboxes that may belong to different accounts.
+
+Pass the `domain` parameter when creating an inbox:
+
+```json
+POST /v1/inboxes
+{"display_name": "signup bot", "domain": "karmascale.net"}
+```
 
 ## How to Upgrade
 
 ### Via API
 
-Create a Stripe Checkout session:
+Create a Stripe Checkout session for the tier you want:
 
 ```bash
 curl -X POST https://api.victorymail.dev/v1/billing/checkout \
-  -H "x-api-key: am_live_YOUR_KEY"
+  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tier": "starter"}'
 ```
 
-The response includes a `checkout_url`. Open this URL in a browser to complete payment:
+The response includes a `checkout_url`:
 
 ```json
-{
-  "checkout_url": "https://checkout.stripe.com/c/pay/..."
-}
+{"checkout_url": "https://checkout.stripe.com/c/pay/..."}
 ```
 
-After successful payment, your organization is immediately upgraded to Pro and quotas are increased.
+After successful payment, your organization is upgraded immediately and quotas are raised.
 
 ### Via Console
 
-Navigate to the Billing page in the developer console at `https://console.victorymail.dev/billing` and click "Upgrade to Pro".
+Navigate to the Billing page at `https://console.victorymail.dev/billing` and pick a plan.
 
 ## Checking Your Current Plan
-
-### Via API
 
 ```bash
 curl https://api.victorymail.dev/v1/billing/status \
@@ -71,33 +141,29 @@ Response:
 ```json
 {
   "org_id": "01HXYZ...",
-  "tier": "free",
-  "billing_status": "none",
-  "stripe_customer_id": null
+  "tier": "starter",
+  "billing_status": "active",
+  "stripe_customer_id": "cus_..."
 }
 ```
 
 ### Via Organization Endpoint
-
-The organization endpoint also shows your current tier and quotas:
 
 ```bash
 curl https://api.victorymail.dev/v1/organizations/me \
   -H "x-api-key: am_live_YOUR_KEY"
 ```
 
-Response includes:
-
 ```json
 {
   "tier": "pro",
   "quotas": {
-    "max_inboxes": 1000,
-    "max_messages_per_day": 50000,
-    "max_api_keys": 50,
-    "max_pods": 50,
+    "max_inboxes": 100,
+    "max_messages_per_day": 5000,
+    "max_api_keys": 25,
+    "max_pods": 10,
     "max_domains": 10,
-    "max_webhooks": 50
+    "max_webhooks": 25
   },
   "usage": {
     "inboxes": 42,
@@ -110,76 +176,63 @@ Response includes:
 
 ## Managing Your Subscription
 
-### Billing Portal
-
-Access the Stripe Billing Portal to update payment methods, view invoices, or cancel your subscription:
+Access the Stripe Billing Portal to update payment, view invoices, or cancel:
 
 ```bash
 curl -X POST https://api.victorymail.dev/v1/billing/portal \
   -H "x-api-key: am_live_YOUR_KEY"
 ```
 
-Response:
+When a subscription is canceled:
 
-```json
-{
-  "portal_url": "https://billing.stripe.com/p/session/..."
-}
-```
-
-Open the `portal_url` in a browser to manage your subscription.
-
-### Cancellation
-
-Cancel your subscription through the Stripe Billing Portal. When a subscription is canceled:
-
-- Your account is downgraded to the free tier at the end of the current billing period.
-- Quotas are reduced to free tier limits.
-- Existing resources above the free tier limits remain but you cannot create new ones until you are within limits.
+- Your account downgrades at the end of the current billing period.
+- Quotas are reduced to the new tier's limits.
+- Existing resources above the new limits remain but you cannot create new ones until you are within limits.
 
 ## Quota Enforcement
 
-When you attempt to create a resource that would exceed your quota, the API returns a 400 error:
+When you attempt to create a resource that would exceed your quota, the API returns **HTTP 403** with error code `QUOTA_EXCEEDED`:
 
 ```json
 {
   "error": {
     "code": "QUOTA_EXCEEDED",
-    "message": "Inbox quota exceeded. Current: 5, max: 5. Upgrade to Pro for higher limits."
+    "message": "Inbox quota exceeded. Current: 1, max: 1. Upgrade to Starter for higher limits."
   }
 }
 ```
 
 ### What Counts Toward Quotas
 
-- **Inboxes** -- active inboxes only (deleted inboxes do not count)
-- **Messages per day** -- rolling 24-hour window, both inbound and outbound
-- **API keys** -- active keys only (revoked keys do not count)
-- **Pods** -- all pods
-- **Custom domains** -- all registered domains
-- **Webhooks** -- all webhooks (active and paused)
+- **Inboxes** — active inboxes only (deleted inboxes do not count).
+- **API keys** — active keys only (revoked keys do not count).
+- **Pods** — all pods.
+- **Custom domains** — all registered domains you brought (platform domains don't count).
+- **Webhooks** — all webhooks (active and paused).
+- **Messages per day** — enforced by the outbound worker and inbound rate limiter.
 
 ## Billing Status Values
 
 | Status | Description |
 |--------|-------------|
-| `none` | No billing account (free tier) |
+| `none` | No billing account (Free tier) |
+| `trialing` | Pro trial, no card on file |
 | `active` | Active subscription, payments current |
 | `past_due` | Payment failed, subscription at risk |
-| `canceled` | Subscription canceled, downgraded to free |
+| `canceled` | Subscription canceled, downgraded |
 
 ## Webhook Notifications
 
-If you have a webhook subscribed to `subscription.updated`, you will receive notifications when your billing status changes:
+If you have a webhook subscribed to `subscription.updated`, you receive events when your billing status changes:
 
 ```json
 {
   "event": "subscription.updated",
   "data": {
     "org_id": "01HXYZ...",
-    "tier": "pro",
+    "tier": "starter",
     "billing_status": "active"
   },
-  "timestamp": "2025-01-15T10:30:00Z"
+  "timestamp": "2026-04-13T15:30:00Z"
 }
 ```

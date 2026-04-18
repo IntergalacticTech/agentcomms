@@ -12,12 +12,19 @@ interface Inbox {
   created_at: string;
 }
 
+const PLATFORM_DOMAINS = [
+  "victorymail.dev",
+  "karmascale.net",
+  "karmascale.org",
+] as const;
+
 export default function InboxesPage() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newPrefix, setNewPrefix] = useState("");
+  const [newLocalPart, setNewLocalPart] = useState("");
+  const [newDomain, setNewDomain] = useState<string>(PLATFORM_DOMAINS[0]);
   const [newDisplayName, setNewDisplayName] = useState("");
 
   function load() {
@@ -42,13 +49,18 @@ export default function InboxesPage() {
     setCreating(true);
     setError("");
     try {
-      await api.post("/inboxes", {
-        display_name: newDisplayName || newPrefix,
-        prefix: newPrefix,
-      });
+      const payload: Record<string, string> = {
+        display_name: newDisplayName || newLocalPart || "",
+        domain: newDomain,
+      };
+      if (newLocalPart.trim()) {
+        payload.email = `${newLocalPart.trim()}@${newDomain}`;
+      }
+      await api.post("/inboxes", payload);
       setShowCreate(false);
-      setNewPrefix("");
+      setNewLocalPart("");
       setNewDisplayName("");
+      setNewDomain(PLATFORM_DOMAINS[0]);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create inbox");
@@ -105,22 +117,54 @@ export default function InboxesPage() {
             <h3 className="text-sm font-semibold text-gray-900 mb-4">
               New Inbox
             </h3>
-            <form onSubmit={handleCreate} className="flex flex-wrap gap-4">
-              <input
-                type="text"
-                required
-                value={newPrefix}
-                onChange={(e) => setNewPrefix(e.target.value)}
-                placeholder="Email prefix (e.g. support)"
-                className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <input
-                type="text"
-                value={newDisplayName}
-                onChange={(e) => setNewDisplayName(e.target.value)}
-                placeholder="Display name (optional)"
-                className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Local part (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newLocalPart}
+                    onChange={(e) => setNewLocalPart(e.target.value)}
+                    placeholder="Leave blank for random"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Domain
+                  </label>
+                  <select
+                    value={newDomain}
+                    onChange={(e) => setNewDomain(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {PLATFORM_DOMAINS.map((d) => (
+                      <option key={d} value={d}>
+                        @{d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Display name (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="e.g. Signup Bot"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              {newLocalPart && (
+                <p className="text-xs text-gray-500">
+                  Will create: <span className="font-mono">{newLocalPart.trim()}@{newDomain}</span>
+                </p>
+              )}
               <div className="flex gap-2">
                 <button
                   type="submit"
