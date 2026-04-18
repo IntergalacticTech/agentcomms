@@ -1,73 +1,65 @@
-import type {
-  Message,
-  PaginatedResponse,
-  SendMessageOptions,
-  ReplyMessageOptions,
-  ForwardMessageOptions,
-  UpdateMessageOptions,
-  ListMessagesOptions,
-} from "../types.js";
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
+// with Apache 2.0 Future License. See LICENSE for details.
+import type { Client } from "../client.js";
+import type { Message, PaginatedMessages } from "../types.js";
 
-type RequestFn = <T>(method: string, path: string, body?: unknown) => Promise<T>;
+export interface ListMessagesParams {
+  since?: string;
+  channels?: string[];
+  limit?: number;
+  cursor?: string;
+}
 
-export class MessageResource {
-  constructor(private request: RequestFn) {}
+export interface SendMessageParams {
+  to: string | Record<string, unknown>;
+  body?: string;
+  body_text?: string;
+  body_html?: string;
+  subject?: string;
+  channel?: string;
+  thread_key?: string;
+}
 
-  async list(
-    inboxId: string,
-    options?: ListMessagesOptions
-  ): Promise<PaginatedResponse<Message>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set("limit", String(options.limit));
-    if (options?.page_token) params.set("page_token", options.page_token);
-    const qs = params.toString();
-    return this.request(
-      "GET",
-      `/inboxes/${inboxId}/messages${qs ? `?${qs}` : ""}`
-    );
+export class MessagesResource {
+  constructor(private client: Client, private agentId: string) {}
+
+  private path(suffix = ""): string {
+    return `/agents/${this.agentId}/messages${suffix}`;
   }
 
-  async get(inboxId: string, messageId: string): Promise<Message> {
-    return this.request("GET", `/inboxes/${inboxId}/messages/${messageId}`);
+  async list(params: ListMessagesParams = {}): Promise<Message[]> {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.since) qs.set("since", params.since);
+    if (params.channels?.length) qs.set("channels", params.channels.join(","));
+    if (params.cursor) qs.set("cursor", params.cursor);
+    const query = qs.toString() ? `?${qs}` : "";
+    const data = await this.client.request<PaginatedMessages>("GET", `${this.path()}${query}`);
+    return data.messages ?? [];
   }
 
-  async send(inboxId: string, options: SendMessageOptions): Promise<Message> {
-    return this.request("POST", `/inboxes/${inboxId}/messages`, options);
+  async get(messageId: string): Promise<Message> {
+    return this.client.request<Message>("GET", this.path(`/${messageId}`));
   }
 
-  async reply(
-    inboxId: string,
-    messageId: string,
-    options: ReplyMessageOptions
-  ): Promise<Message> {
-    return this.request(
-      "POST",
-      `/inboxes/${inboxId}/messages/${messageId}/reply`,
-      options
-    );
+  async send(params: SendMessageParams): Promise<{ message_id: string }> {
+    return this.client.request("POST", this.path(), params);
   }
 
-  async forward(
-    inboxId: string,
-    messageId: string,
-    options: ForwardMessageOptions
-  ): Promise<Message> {
-    return this.request(
-      "POST",
-      `/inboxes/${inboxId}/messages/${messageId}/forward`,
-      options
-    );
+  async reply(messageId: string, body: { body: string; body_html?: string }): Promise<{ message_id: string }> {
+    return this.client.request("POST", this.path(`/${messageId}/reply`), body);
   }
 
-  async update(
-    inboxId: string,
-    messageId: string,
-    updates: UpdateMessageOptions
-  ): Promise<Message> {
-    return this.request(
-      "PATCH",
-      `/inboxes/${inboxId}/messages/${messageId}`,
-      updates
-    );
+  async markRead(messageId: string): Promise<void> {
+    await this.client.request("POST", this.path(`/${messageId}/read`));
+  }
+
+  async wait(params: { timeout?: number; sender?: string; subject_contains?: string; channels?: string[] } = {}): Promise<Message> {
+    return this.client.request<Message>("POST", `/agents/${this.agentId}/wait`, params);
+  }
+
+  async extractOtp(params: { timeout?: number; sender?: string } = {}): Promise<{ code: string; message_id: string }> {
+    return this.client.request("POST", `/agents/${this.agentId}/extract-otp`, params);
   }
 }
