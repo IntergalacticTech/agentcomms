@@ -107,11 +107,14 @@ def handler(event: dict, context) -> dict:
             metadata=body.get("metadata") or {},
         )
         repo.put_agent(agent)
-        channels = _provision_channels(
-            agent=agent,
-            provision=body.get("provision") or {},
-            bridge=body.get("bridge") or {},
-        )
+        try:
+            channels = _provision_channels(
+                agent=agent,
+                provision=body.get("provision") or {},
+                bridge=body.get("bridge") or {},
+            )
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc), 400)
         return ok({
             "agent_id": agent.agent_id,
             "name": agent.name,

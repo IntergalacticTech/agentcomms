@@ -98,6 +98,7 @@ export class AgentCommsApiStack extends Stack {
     const commonEnv = {
       AGENTCOMMS_TABLE: props.table.tableName,
       AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
+      AGENTCOMMS_ENV: 'prod',
     };
 
     // ── Lambda Authorizer ──
@@ -149,6 +150,12 @@ export class AgentCommsApiStack extends Stack {
     // ── 13 Handler Lambdas ──
     // agents, channels, messages publish events → grant Kinesis write
     const agentsFn    = makeHandlerFn('AgentsFn',    'agents_handler',    true);
+    // AgentsFn needs SSM read for Slack OAuth URL construction (bridge_start reads client_id)
+    agentsFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['ssm:GetParameter'],
+      resources: ['arn:aws:ssm:*:*:parameter/agentcomms/*/adapters/slack/*'],
+    }));
     const channelsFn  = makeHandlerFn('ChannelsFn',  'channels_handler',  true);
     const messagesFn  = makeHandlerFn('MessagesFn',  'messages_handler',  true);
     const threadsFn   = makeHandlerFn('ThreadsFn',   'threads_handler',   false);

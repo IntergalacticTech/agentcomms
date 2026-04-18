@@ -122,6 +122,7 @@ export function addSlackAdapter(scope: Construct, props: AddSlackAdapterProps): 
   const commonEnv = {
     AGENTCOMMS_TABLE: props.table.tableName,
     AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
+    AGENTCOMMS_ENV: 'prod',
   };
 
   // Slack Events Lambda — receives inbound events from Slack Events API

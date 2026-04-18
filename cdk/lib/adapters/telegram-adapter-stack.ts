@@ -119,6 +119,7 @@ export function addTelegramAdapter(scope: Construct, props: AddTelegramAdapterPr
   const commonEnv = {
     AGENTCOMMS_TABLE: props.table.tableName,
     AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
+    AGENTCOMMS_ENV: 'prod',
   };
 
   // Telegram Ingest Lambda — receives webhook updates from Telegram Bot API
@@ -172,6 +173,7 @@ export class TelegramAdapterStack extends Stack {
     const commonEnv = {
       AGENTCOMMS_TABLE: props.table.tableName,
       AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
+      AGENTCOMMS_ENV: 'prod',
     };
 
     // ── Outbound SQS + Lambda ──

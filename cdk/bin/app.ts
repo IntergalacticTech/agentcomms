@@ -82,6 +82,8 @@ new AgentCommsApiStack(app, 'AgentCommsApi', {
   rawInboundBucket: agentCommsData.rawInboundBucket,
   bodiesBucket: agentCommsData.bodiesBucket,
   attachmentsBucket: agentCommsData.attachmentsBucket,
+  enableSlack: true,
+  enableTelegram: true,
 });
 
 new AgentCommsAdaptersStack(app, 'AgentCommsAdapters', {
@@ -93,6 +95,8 @@ new AgentCommsAdaptersStack(app, 'AgentCommsAdapters', {
   attachmentsBucket: agentCommsData.attachmentsBucket,
   enableSms: true,
   enablePush: true,
+  enableSlack: true,
+  enableTelegram: true,
 });
 
 app.synth();
