@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreeMail - Identity & Communications Layer for AI Agents</title>
-  <meta name="description" content="API-first email, OTP capture, custom domains, and webhooks for AI agents. Pick from a pool of platform domains or bring your own. Starts at $0 -- $5 Starter plan is the cheapest real agent-email tier on the market. BYOC available via AWS Marketplace.">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>AgentComms — the agent communications hub you deploy to your own AWS</title>
+  <meta name="description" content="Your coding agent deploys AgentComms into your AWS account in 20 minutes. Unified inbox for email, SMS, Slack, Telegram, and push — source-available under FSL.">
+  <meta property="og:title" content="AgentComms">
+  <meta property="og:description" content="One API call gets an AI agent an email address, phone number, Slack bot, and Telegram bot — all into one unified inbox, running in your AWS.">
+  <meta property="og:url" content="https://agentcomms.dev">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -13,751 +15,455 @@
       --primary: #4F46E5;
       --primary-dark: #4338CA;
       --primary-light: #6366F1;
+      --accent: #10B981;
       --text: #111827;
       --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
       --bg: #ffffff;
       --bg-alt: #F9FAFB;
+      --bg-dark: #0F172A;
       --border: #E5E7EB;
       --code-bg: #1E1E2E;
       --code-text: #CDD6F4;
+      --code-accent: #A6E3A1;
+      --code-muted: #6C7086;
       --radius: 8px;
-      --max-width: 1120px;
+      --max-width: 1180px;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
       color: var(--text);
       background: var(--bg);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
 
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+
     /* -- Nav -- */
     nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: saturate(180%) blur(12px);
       border-bottom: 1px solid var(--border);
     }
-    .nav-inner {
-      max-width: var(--max-width); margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.75rem 1.5rem;
+    nav .container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    nav .logo { font-weight: 700; font-size: 18px; color: var(--text); }
+    nav .logo span { color: var(--primary); }
+    nav .links { display: flex; align-items: center; gap: 24px; }
+    nav .links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+    nav .links a:hover { color: var(--text); text-decoration: none; }
+    nav .cta {
+      background: var(--primary); color: white; padding: 8px 16px; border-radius: var(--radius);
+      font-size: 14px; font-weight: 600; transition: background 0.15s;
     }
-    .nav-logo {
-      font-size: 1.25rem; font-weight: 700; color: var(--primary);
-      text-decoration: none; display: flex; align-items: center; gap: 0.5rem;
-    }
-    .nav-logo svg { width: 28px; height: 28px; }
-    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
-    .nav-links a {
-      color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500;
-      transition: color 0.15s;
-    }
-    .nav-links a:hover { color: var(--text); }
-    .nav-cta {
-      background: var(--primary) !important; color: #fff !important;
-      padding: 0.45rem 1rem; border-radius: var(--radius); font-weight: 600 !important;
-      transition: background 0.15s;
-    }
-    .nav-cta:hover { background: var(--primary-dark) !important; }
-    .mobile-toggle { display: none; background: none; border: none; cursor: pointer; padding: 0.25rem; }
-    .mobile-toggle svg { width: 24px; height: 24px; stroke: var(--text); }
-
-    /* -- Buttons -- */
-    .btn {
-      display: inline-block; padding: 0.75rem 1.5rem; border-radius: var(--radius);
-      font-weight: 600; font-size: 1rem; text-decoration: none; transition: all 0.15s;
-      cursor: pointer; border: none;
-    }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
-    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
-    .btn-secondary:hover { background: rgba(79,70,229,0.06); }
+    nav .cta:hover { background: var(--primary-dark); text-decoration: none; }
 
     /* -- Hero -- */
-    .hero {
-      padding: 8rem 1.5rem 5rem;
-      background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 50%, #F5F3FF 100%);
-      text-align: center;
+    .hero { padding: 80px 0 48px; text-align: center; }
+    .hero h1 {
+      font-size: 56px; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 24px; color: var(--text);
     }
-    .hero h1 { font-size: 3.25rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 1rem; line-height: 1.15; }
-    .hero .subtitle {
-      font-size: 1.2rem; color: var(--text-secondary); max-width: 640px;
-      margin: 0 auto 2rem; line-height: 1.7;
+    .hero h1 span { color: var(--primary); }
+    .hero .tagline {
+      font-size: 21px; color: var(--text-secondary); max-width: 780px; margin: 0 auto 40px;
+      line-height: 1.5;
     }
-    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
-    .hero-code {
-      max-width: 680px; margin: 0 auto; text-align: left;
-      background: var(--code-bg); border-radius: 12px; overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    .hero .code-block {
+      max-width: 720px; margin: 0 auto 24px;
+      background: var(--code-bg); color: var(--code-text);
+      padding: 24px 28px; border-radius: 12px; text-align: left;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 14px; line-height: 1.7;
+      box-shadow: 0 20px 40px -15px rgba(79, 70, 229, 0.3);
     }
-    .hero-code-header {
-      display: flex; align-items: center; gap: 6px; padding: 12px 16px;
-      background: rgba(255,255,255,0.06);
+    .code-block .comment { color: var(--code-muted); }
+    .code-block .prompt { color: var(--code-accent); }
+    .hero .badges {
+      display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-top: 24px;
+      font-size: 13px; color: var(--text-secondary);
     }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot-r { background: #FF5F57; }
-    .dot-y { background: #FEBC2E; }
-    .dot-g { background: #28C840; }
-    .hero-code pre {
-      padding: 1.25rem 1.5rem; overflow-x: auto; font-size: 0.8rem;
-      line-height: 1.7; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    .hero .badges span::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+
+    /* -- Section -- */
+    section { padding: 64px 0; }
+    section.alt { background: var(--bg-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    section h2 {
+      font-size: 36px; font-weight: 700; letter-spacing: -0.01em; color: var(--text);
+      text-align: center; margin-bottom: 16px;
+    }
+    section .section-intro {
+      font-size: 18px; color: var(--text-secondary); text-align: center;
+      max-width: 720px; margin: 0 auto 48px; line-height: 1.6;
     }
 
-    /* Syntax colors */
-    .kw { color: #CBA6F7; }
-    .fn { color: #89B4FA; }
-    .str { color: #A6E3A1; }
-    .cm { color: #6C7086; }
-    .var { color: #CDD6F4; }
-    .op { color: #89DCEB; }
+    /* -- Grid -- */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+    .card {
+      background: white; border: 1px solid var(--border); border-radius: 12px;
+      padding: 28px; transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .card:hover { box-shadow: 0 12px 28px -12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+    .card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .card p { color: var(--text-secondary); font-size: 15px; line-height: 1.6; }
+    .card .icon {
+      width: 44px; height: 44px; border-radius: 10px; background: var(--primary);
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 16px;
+    }
+    .card .icon.sms { background: #F59E0B; }
+    .card .icon.slack { background: #611F69; }
+    .card .icon.tg { background: #26A5E4; }
+    .card .icon.push { background: #EF4444; }
+    .card .icon.email { background: #10B981; }
+    .card .icon.discord { background: #5865F2; }
 
-    /* -- Section shared -- */
-    section { padding: 5rem 1.5rem; }
-    .section-header { text-align: center; margin-bottom: 3rem; }
-    .section-header h2 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.75rem; letter-spacing: -0.01em; }
-    .section-header p { color: var(--text-secondary); font-size: 1.1rem; max-width: 580px; margin: 0 auto; }
-    .container { max-width: var(--max-width); margin: 0 auto; }
+    /* -- Differentiator -- */
+    .differentiator { background: var(--bg-dark); color: white; }
+    .differentiator h2 { color: white; }
+    .differentiator .section-intro { color: #94A3B8; }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-top: 40px; }
+    .diff-text h3 { font-size: 24px; font-weight: 700; margin-bottom: 16px; color: white; }
+    .diff-text p { color: #CBD5E1; font-size: 16px; line-height: 1.7; margin-bottom: 12px; }
+    .diff-text ul { list-style: none; margin-top: 16px; }
+    .diff-text li { padding: 8px 0; color: #CBD5E1; font-size: 15px; }
+    .diff-text li::before { content: "→ "; color: var(--primary-light); font-weight: 700; }
+    .diff-code {
+      background: var(--code-bg); color: var(--code-text); padding: 24px;
+      border-radius: 10px; font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      font-size: 13px; line-height: 1.7; overflow-x: auto;
+    }
+    @media (max-width: 768px) { .diff-grid { grid-template-columns: 1fr; } }
 
-    /* -- Features -- */
-    .features { background: var(--bg); }
-    .features-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;
+    /* -- Code example -- */
+    .code-example {
+      max-width: 860px; margin: 0 auto;
+      background: var(--code-bg); color: var(--code-text); padding: 32px;
+      border-radius: 12px; font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      font-size: 14px; line-height: 1.7; overflow-x: auto;
     }
-    .feature-card {
-      padding: 2rem; border: 1px solid var(--border); border-radius: 12px;
-      transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .feature-card:hover { border-color: var(--primary-light); box-shadow: 0 4px 20px rgba(79,70,229,0.08); }
-    .feature-icon {
-      width: 44px; height: 44px; border-radius: 10px;
-      background: #EEF2FF; display: flex; align-items: center; justify-content: center;
-      margin-bottom: 1rem;
-    }
-    .feature-icon svg { width: 22px; height: 22px; stroke: var(--primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .feature-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .feature-card p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; }
+    .code-example .keyword { color: #F38BA8; }
+    .code-example .string { color: #A6E3A1; }
+    .code-example .comment { color: var(--code-muted); }
+    .code-example .fn { color: #89B4FA; }
 
-    /* -- Agent Setup -- */
-    .agent-setup { background: var(--bg-alt); }
-    .agent-cards {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;
-    }
-    .agent-card {
-      padding: 2rem; background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-      transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .agent-card:hover { border-color: var(--primary-light); box-shadow: 0 4px 20px rgba(79,70,229,0.08); }
-    .agent-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--primary); }
-    .agent-card p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1rem; }
-    .agent-card pre {
-      background: var(--code-bg); color: var(--code-text); padding: 1rem; border-radius: 8px;
-      font-size: 0.78rem; line-height: 1.6; overflow-x: auto; margin-bottom: 1rem;
-      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-    }
-    .agent-card .card-links { display: flex; flex-direction: column; gap: 0.4rem; }
-    .agent-card .card-links a {
-      color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;
-      transition: color 0.15s;
-    }
-    .agent-card .card-links a:hover { color: var(--primary-dark); text-decoration: underline; }
+    /* -- License -- */
+    .license-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 40px; }
+    .license-panel { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .license-panel h3 { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+    .license-panel ul { list-style: none; }
+    .license-panel li { padding: 6px 0; color: var(--text-secondary); font-size: 15px; }
+    .license-panel.yes li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+    .license-panel.no li::before { content: "✗ "; color: #EF4444; font-weight: 700; }
+    @media (max-width: 768px) { .license-grid { grid-template-columns: 1fr; } }
 
-    /* -- How It Works -- */
-    .how-it-works { background: var(--bg); }
-    .steps { display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap; }
-    .step {
-      flex: 1; min-width: 240px; max-width: 320px; text-align: center; padding: 2rem;
+    /* -- CTA -- */
+    .cta-section { text-align: center; padding: 80px 0; }
+    .cta-section h2 { margin-bottom: 16px; }
+    .cta-section p { color: var(--text-secondary); font-size: 18px; margin-bottom: 32px; }
+    .btn {
+      display: inline-block; padding: 14px 28px; border-radius: var(--radius);
+      font-size: 16px; font-weight: 600; transition: all 0.15s;
     }
-    .step-number {
-      width: 48px; height: 48px; border-radius: 50%;
-      background: var(--primary); color: #fff;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;
-    }
-    .step h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .step p { color: var(--text-secondary); font-size: 0.95rem; }
-
-    /* -- Code Examples -- */
-    .code-examples { background: var(--bg-alt); }
-    .tabs { display: flex; gap: 0; margin-bottom: 0; }
-    .tab {
-      padding: 0.6rem 1.25rem; background: #2A2A3E; color: #9399B2;
-      border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600;
-      font-family: inherit; transition: all 0.15s;
-    }
-    .tab:first-child { border-radius: 8px 0 0 0; }
-    .tab:last-child { border-radius: 0 8px 0 0; }
-    .tab.active { background: var(--code-bg); color: #CDD6F4; }
-    .tab:hover:not(.active) { color: #CDD6F4; }
-    .code-block {
-      background: var(--code-bg); border-radius: 0 8px 8px 8px; padding: 1.5rem;
-      overflow-x: auto; display: none;
-    }
-    .code-block.active { display: block; }
-    .code-block pre {
-      font-size: 0.85rem; line-height: 1.7;
-      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-      color: var(--code-text);
-    }
-
-    /* -- Pricing -- */
-    .pricing { background: var(--bg); }
-    .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; max-width: 1200px; margin: 0 auto; }
-    @media (max-width: 1080px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 760px; } }
-    .pricing-card {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-      padding: 2rem 1.5rem; position: relative;
-    }
-    .pricing-card.featured { border-color: var(--primary); box-shadow: 0 4px 24px rgba(79,70,229,0.12); }
-    .pricing-badge {
-      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
-      background: var(--primary); color: #fff; font-size: 0.75rem; font-weight: 600;
-      padding: 0.25rem 0.75rem; border-radius: 12px;
-    }
-    .pricing-card h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .pricing-price { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.25rem; }
-    .pricing-price span { font-size: 1rem; font-weight: 400; color: var(--text-secondary); }
-    .pricing-desc { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem; }
-    .pricing-features { list-style: none; margin-bottom: 2rem; }
-    .pricing-features li {
-      padding: 0.4rem 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;
-    }
-    .pricing-features li::before { content: "\2713"; color: var(--primary); font-weight: 700; }
-    .pricing-card .btn { width: 100%; text-align: center; }
-
-    /* -- Integrations -- */
-    .integrations { background: var(--bg-alt); }
-    .integration-logos {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 2rem; margin-bottom: 2rem;
-    }
-    .integration-item {
-      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-      padding: 1.25rem 1.75rem; border: 1px solid var(--border); border-radius: 12px;
-      min-width: 130px; transition: border-color 0.15s; text-decoration: none; color: inherit;
-      background: var(--bg);
-    }
-    .integration-item:hover { border-color: var(--primary-light); }
-    .integration-item span { font-size: 0.9rem; font-weight: 600; color: var(--text); }
-    .integration-item .int-icon { font-size: 1.75rem; }
-    .sdk-badges { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem; }
-    .sdk-badge {
-      padding: 0.5rem 1.25rem; background: #EEF2FF; border-radius: 20px;
-      font-size: 0.85rem; font-weight: 600; color: var(--primary);
-    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); text-decoration: none; transform: translateY(-1px); }
+    .btn-secondary { background: white; color: var(--text); border: 1px solid var(--border); margin-left: 12px; }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
 
     /* -- Footer -- */
     footer {
-      background: #111827; color: #9CA3AF; padding: 3rem 1.5rem 2rem;
+      background: var(--bg-alt); border-top: 1px solid var(--border);
+      padding: 48px 0 32px; color: var(--text-secondary); font-size: 14px;
     }
-    .footer-inner {
-      max-width: var(--max-width); margin: 0 auto;
-      display: flex; justify-content: space-between; align-items: flex-start;
-      flex-wrap: wrap; gap: 2rem;
-    }
-    .footer-brand { max-width: 260px; }
-    .footer-brand .nav-logo { color: #fff; margin-bottom: 0.75rem; }
-    .footer-brand p { font-size: 0.85rem; line-height: 1.6; }
-    .footer-links { display: flex; gap: 3rem; flex-wrap: wrap; }
-    .footer-col h4 { color: #fff; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
-    .footer-col a {
-      display: block; color: #9CA3AF; text-decoration: none; font-size: 0.9rem;
-      padding: 0.25rem 0; transition: color 0.15s;
-    }
-    .footer-col a:hover { color: #fff; }
-    .footer-bottom {
-      max-width: var(--max-width); margin: 2rem auto 0;
-      padding-top: 1.5rem; border-top: 1px solid #1F2937;
-      text-align: center; font-size: 0.8rem;
-    }
+    footer .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 32px; }
+    footer h4 { color: var(--text); font-size: 14px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    footer ul { list-style: none; }
+    footer li { padding: 4px 0; }
+    footer a { color: var(--text-secondary); }
+    footer a:hover { color: var(--primary); }
+    footer .bottom { border-top: 1px solid var(--border); padding-top: 24px; text-align: center; }
+    @media (max-width: 768px) { footer .footer-grid { grid-template-columns: 1fr 1fr; } }
 
-    /* -- Responsive -- */
+    /* -- Status table -- */
+    .status-table { max-width: 720px; margin: 32px auto 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .status-table table { width: 100%; border-collapse: collapse; }
+    .status-table td { padding: 14px 20px; border-top: 1px solid var(--border); font-size: 15px; }
+    .status-table tr:first-child td { border-top: none; }
+    .status-table .done { color: var(--accent); font-weight: 600; }
+    .status-table .wip { color: var(--primary); font-weight: 600; }
+    .status-table .next { color: var(--text-muted); }
+
     @media (max-width: 768px) {
-      .hero h1 { font-size: 2.25rem; }
-      .hero .subtitle { font-size: 1.05rem; }
-      .features-grid { grid-template-columns: 1fr; }
-      .agent-cards { grid-template-columns: 1fr; }
-      .pricing-grid { grid-template-columns: 1fr; }
-      .steps { flex-direction: column; align-items: center; }
-      .nav-links { display: none; }
-      .nav-links.open {
-        display: flex; flex-direction: column; position: absolute;
-        top: 100%; left: 0; right: 0; background: #fff;
-        padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
-        gap: 0.75rem;
-      }
-      .mobile-toggle { display: block; }
-      .footer-inner { flex-direction: column; }
-      .hero-code pre { font-size: 0.7rem; }
-    }
-    @media (min-width: 769px) and (max-width: 1024px) {
-      .features-grid { grid-template-columns: repeat(2, 1fr); }
-      .agent-cards { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 38px; }
+      .hero .tagline { font-size: 17px; }
+      section h2 { font-size: 28px; }
     }
   </style>
 </head>
 <body>
-
-<!-- Nav -->
-<nav>
-  <div class="nav-inner">
-    <a href="#" class="nav-logo">
-      <svg viewBox="0 0 32 32" fill="none"><rect x="2" y="6" width="28" height="20" rx="3" fill="#4F46E5"/><path d="M2 9l14 9 14-9" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      FreeMail
-    </a>
-    <button class="mobile-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Toggle menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#agent-setup">Agent Setup</a>
-      <a href="#examples">Examples</a>
-      <a href="#pricing">Pricing</a>
-      <a href="https://github.com/IntergalacticTech/freemail/tree/main/docs">Docs</a>
-      <a href="https://github.com/IntergalacticTech/freemail">GitHub</a>
-      <a href="https://console.victorymail.dev" class="nav-cta">Console</a>
-    </div>
-  </div>
-</nav>
-
-<!-- Hero -->
-<section class="hero" id="hero">
-  <div class="container">
-    <h1>The Identity &amp; Communications Layer for AI Agents</h1>
-    <p class="subtitle">Email, OTP capture, custom domains, and webhook delivery &mdash; all via API. Pick from a pool of platform domains or bring your own. Built for autonomous systems.</p>
-    <div class="hero-buttons">
-      <a href="https://console.victorymail.dev" class="btn btn-primary">Get Started Free</a>
-      <a href="https://github.com/IntergalacticTech/freemail/blob/main/docs/agent-instructions.md" class="btn btn-secondary">Agent Instructions</a>
-    </div>
-    <div class="hero-code">
-      <div class="hero-code-header">
-        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
-      </div>
-      <pre><code><span class="kw">import</span> <span class="fn">requests</span>
-
-<span class="cm"># 1. Sign up (one API call, no email verification)</span>
-<span class="var">r</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/agent/signup"</span>,
-    <span class="var">json</span><span class="op">=</span>{<span class="str">"email"</span>: <span class="str">"agent@example.com"</span>, <span class="str">"name"</span>: <span class="str">"My Agent"</span>}).<span class="fn">json</span>()
-<span class="var">api_key</span> <span class="op">=</span> <span class="var">r</span>[<span class="str">"api_key"</span>]
-<span class="var">headers</span> <span class="op">=</span> {<span class="str">"x-api-key"</span>: <span class="var">api_key</span>}
-
-<span class="cm"># 2. Create an inbox -- pick any platform domain</span>
-<span class="var">inbox</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">"https://api.victorymail.dev/v1/inboxes"</span>,
-    <span class="var">headers</span><span class="op">=</span><span class="var">headers</span>,
-    <span class="var">json</span><span class="op">=</span>{<span class="str">"display_name"</span>: <span class="str">"Signup Bot"</span>, <span class="str">"domain"</span>: <span class="str">"karmascale.net"</span>}).<span class="fn">json</span>()
-<span class="kw">print</span>(<span class="var">inbox</span>[<span class="str">"email"</span>])  <span class="cm"># "zk8m2q0rwv3b@karmascale.net"</span>
-
-<span class="cm"># 3. Register for a service, then capture the OTP</span>
-<span class="var">otp</span> <span class="op">=</span> <span class="fn">requests</span>.<span class="fn">post</span>(<span class="str">f"https://api.victorymail.dev/v1/inboxes/</span><span class="op">{</span><span class="var">inbox</span>[<span class="str">'id'</span>]<span class="op">}</span><span class="str">/extract-otp"</span>,
-    <span class="var">headers</span><span class="op">=</span><span class="var">headers</span>,
-    <span class="var">json</span><span class="op">=</span>{<span class="str">"timeout"</span>: <span class="str">25</span>, <span class="str">"sender"</span>: <span class="str">"noreply@service.com"</span>}).<span class="fn">json</span>()
-<span class="kw">print</span>(<span class="str">f"Code: </span><span class="op">{</span><span class="var">otp</span>[<span class="str">'code'</span>]<span class="op">}</span><span class="str">"</span>)</code></pre>
-    </div>
-  </div>
-</section>
-
-<!-- Features -->
-<section class="features" id="features">
-  <div class="container">
-    <div class="section-header">
-      <h2>Everything your agent needs</h2>
-      <p>A complete email toolkit designed from the ground up for programmatic access.</p>
-    </div>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
-        </div>
-        <h3>API-First Inboxes</h3>
-        <p>Create email addresses on demand via REST API. No provisioning, no OAuth. Just one API call.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
-        </div>
-        <h3>Send &amp; Receive</h3>
-        <p>Full SMTP delivery with DKIM/SPF/DMARC. Inbound email routed to your webhook.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        </div>
-        <h3>Wait for Email</h3>
-        <p>Long-poll for matching messages. Perfect for signup flows and verification.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-        </div>
-        <h3>OTP Extraction</h3>
-        <p>Automatically extract verification codes from emails. One API call.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        </div>
-        <h3>Domain Pool &amp; Custom Domains</h3>
-        <p>Pick any address on <code>victorymail.dev</code>, <code>karmascale.net</code>, or <code>karmascale.org</code> &mdash; or bring your own domain on paid plans with automated DNS verification.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-        </div>
-        <h3>Webhooks</h3>
-        <p>Real-time event delivery with HMAC-SHA256 signatures. Retry on failure.</p>
+  <nav>
+    <div class="container">
+      <div class="logo">Agent<span>Comms</span></div>
+      <div class="links">
+        <a href="#channels">Channels</a>
+        <a href="#deploy">Deploy</a>
+        <a href="#license">License</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai" target="_blank">GitHub</a>
+        <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" class="cta" target="_blank">Get started</a>
       </div>
     </div>
-  </div>
-</section>
+  </nav>
 
-<!-- Agent Setup -->
-<section class="agent-setup" id="agent-setup">
-  <div class="container">
-    <div class="section-header">
-      <h2>Connect your agent in minutes</h2>
-      <p>Three ways to give your AI agent email capabilities.</p>
-    </div>
-    <div class="agent-cards">
-      <div class="agent-card">
-        <h3>REST API</h3>
-        <p>Direct API access. Sign up, create inbox, send email &mdash; 3 API calls, no human needed.</p>
-        <div class="card-links">
-          <a href="https://github.com/IntergalacticTech/freemail/blob/main/docs/agent-instructions.md">Read agent instructions &rarr;</a>
-        </div>
-      </div>
-      <div class="agent-card">
-        <h3>MCP Server</h3>
-        <p>10 tools for AI agents via Model Context Protocol. Works with Claude, OpenClaw, and any MCP client.</p>
-        <pre><code>{
-  "mcpServers": {
-    "freemail": {
-      "command": "node",
-      "args": ["path/to/mcp-server/dist/index.js"],
-      "env": {"FREEMAIL_API_KEY": "am_live_..."}
-    }
-  }
-}</code></pre>
-        <div class="card-links">
-          <a href="https://github.com/IntergalacticTech/freemail/tree/main/mcp-server">MCP server on GitHub &rarr;</a>
-        </div>
-      </div>
-      <div class="agent-card">
-        <h3>OpenClaw Skill</h3>
-        <p>Install FreeMail as an OpenClaw skill. Your agent gets email capabilities with zero configuration.</p>
-        <div class="card-links">
-          <a href="https://clawhub.ai/skills/freemail">View on ClawHub &rarr;</a>
-          <a href="https://github.com/IntergalacticTech/freemail/tree/main/openclaw">SKILL.md on GitHub &rarr;</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- How It Works -->
-<section class="how-it-works" id="how-it-works">
-  <div class="container">
-    <div class="section-header">
-      <h2>Up and running in minutes</h2>
-      <p>Three steps to your first email.</p>
-    </div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-number">1</div>
-        <h3>Sign up via API</h3>
-        <p>One POST, get your API key instantly. No email verification needed.</p>
-      </div>
-      <div class="step">
-        <div class="step-number">2</div>
-        <h3>Create an inbox</h3>
-        <p>Get an address on any platform domain &mdash; <code>abc@victorymail.dev</code>, <code>abc@karmascale.net</code>, or <code>abc@karmascale.org</code>.</p>
-      </div>
-      <div class="step">
-        <div class="step-number">3</div>
-        <h3>Send, receive, or extract OTP</h3>
-        <p>Send email, long-poll for incoming, extract verification codes.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Code Examples -->
-<section class="code-examples" id="examples">
-  <div class="container">
-    <div class="section-header">
-      <h2>Code that speaks for itself</h2>
-      <p>A complete workflow: create inbox, send email, wait for reply, extract OTP.</p>
-    </div>
-    <div style="max-width:720px;margin:0 auto;">
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab(event, 'python')">Python</button>
-        <button class="tab" onclick="switchTab(event, 'node')">Node.js</button>
-        <button class="tab" onclick="switchTab(event, 'curl')">curl</button>
-      </div>
-      <div class="code-block active" id="python"><pre><code><span class="kw">from</span> <span class="fn">freemail</span> <span class="kw">import</span> <span class="fn">FreeMail</span>
-
-<span class="var">client</span> <span class="op">=</span> <span class="fn">FreeMail</span>(<span class="var">api_key</span><span class="op">=</span><span class="str">"am_live_your_key"</span>)
-
-<span class="cm"># Create an inbox on any platform domain</span>
-<span class="var">inbox</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>(
-    <span class="var">display_name</span><span class="op">=</span><span class="str">"Signup Bot"</span>,
-    <span class="var">domain</span><span class="op">=</span><span class="str">"karmascale.net"</span>,
-)
-<span class="kw">print</span>(<span class="var">inbox</span>[<span class="str">"email"</span>])  <span class="cm"># "zk8m2q0rwv3b@karmascale.net"</span>
-
-<span class="cm"># Send an email</span>
-<span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">send</span>(
-    <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
-    <span class="var">to</span><span class="op">=</span>[{<span class="str">"address"</span>: <span class="str">"user@example.com"</span>}],
-    <span class="var">subject</span><span class="op">=</span><span class="str">"Hello from my agent"</span>,
-    <span class="var">body_text</span><span class="op">=</span><span class="str">"This email was sent by an AI agent."</span>,
-)
-
-<span class="cm"># Wait for a reply (long-poll, up to 25s)</span>
-<span class="var">reply</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">wait_for_message</span>(
-    <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
-    <span class="var">sender</span><span class="op">=</span><span class="str">"user@example.com"</span>,
-    <span class="var">timeout</span><span class="op">=</span><span class="str">25</span>,
-)
-
-<span class="cm"># Extract an OTP</span>
-<span class="var">otp</span> <span class="op">=</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extract_otp</span>(
-    <span class="var">inbox_id</span><span class="op">=</span><span class="var">inbox</span>[<span class="str">"id"</span>],
-    <span class="var">sender</span><span class="op">=</span><span class="str">"noreply@service.com"</span>,
-    <span class="var">timeout</span><span class="op">=</span><span class="str">25</span>,
-)
-<span class="kw">print</span>(<span class="str">f"Verification code: </span><span class="op">{</span><span class="var">otp</span>[<span class="str">'code'</span>]<span class="op">}</span><span class="str">"</span>)</code></pre></div>
-
-      <div class="code-block" id="node"><pre><code><span class="kw">import</span> { <span class="fn">FreeMail</span> } <span class="kw">from</span> <span class="str">'freemail'</span>;
-
-<span class="kw">const</span> <span class="var">client</span> <span class="op">=</span> <span class="kw">new</span> <span class="fn">FreeMail</span>({ <span class="var">apiKey</span>: <span class="str">'am_live_your_key'</span> });
-
-<span class="cm">// Create an inbox on any platform domain</span>
-<span class="kw">const</span> <span class="var">inbox</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">create</span>({
-  <span class="var">display_name</span>: <span class="str">'Signup Bot'</span>,
-  <span class="var">domain</span>: <span class="str">'karmascale.net'</span>,
-});
-<span class="var">console</span>.<span class="fn">log</span>(<span class="var">inbox</span>.<span class="var">email</span>);
-
-<span class="cm">// Send an email</span>
-<span class="kw">await</span> <span class="var">client</span>.<span class="fn">messages</span>.<span class="fn">send</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
-  <span class="var">to</span>: [{ <span class="var">address</span>: <span class="str">'user@example.com'</span> }],
-  <span class="var">subject</span>: <span class="str">'Hello from my agent'</span>,
-  <span class="var">body_text</span>: <span class="str">'This email was sent by an AI agent.'</span>,
-});
-
-<span class="cm">// Wait for a reply (long-poll, up to 25s)</span>
-<span class="kw">const</span> <span class="var">reply</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">waitForMessage</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
-  <span class="var">sender</span>: <span class="str">'user@example.com'</span>,
-  <span class="var">timeout</span>: <span class="str">25</span>,
-});
-
-<span class="cm">// Extract an OTP</span>
-<span class="kw">const</span> <span class="var">otp</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">client</span>.<span class="fn">inboxes</span>.<span class="fn">extractOtp</span>(<span class="var">inbox</span>.<span class="var">id</span>, {
-  <span class="var">sender</span>: <span class="str">'noreply@service.com'</span>,
-  <span class="var">timeout</span>: <span class="str">25</span>,
-});
-<span class="var">console</span>.<span class="fn">log</span>(<span class="str">`Code: </span><span class="op">${</span><span class="var">otp</span>.<span class="var">code</span><span class="op">}</span><span class="str">`</span>);</code></pre></div>
-
-      <div class="code-block" id="curl"><pre><code><span class="cm"># Create an inbox on karmascale.net</span>
-<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes</span> \
-  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
-  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
-  <span class="op">-d</span> <span class="str">'{"display_name": "Signup Bot", "domain": "karmascale.net"}'</span>
-
-<span class="cm"># Send an email (from an existing inbox)</span>
-<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages</span> \
-  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
-  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
-  <span class="op">-d</span> <span class="str">'{
-    "to": [{"address": "user@example.com"}],
-    "subject": "Hello from my agent",
-    "body_text": "This email was sent by an AI agent."
-  }'</span>
-
-<span class="cm"># Wait for a matching reply (long-poll, max 25s)</span>
-<span class="fn">curl</span> <span class="str">"https://api.victorymail.dev/v1/inboxes/INBOX_ID/wait?sender=user@example.com&amp;timeout=25"</span> \
-  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span>
-
-<span class="cm"># Extract an OTP from an incoming verification email</span>
-<span class="fn">curl</span> <span class="str">https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp</span> \
-  <span class="op">-H</span> <span class="str">"x-api-key: am_live_your_key"</span> \
-  <span class="op">-H</span> <span class="str">"Content-Type: application/json"</span> \
-  <span class="op">-d</span> <span class="str">'{"sender": "noreply@service.com", "timeout": 25}'</span></code></pre></div>
-    </div>
-  </div>
-</section>
-
-<!-- Pricing -->
-<section class="pricing" id="pricing">
-  <div class="container">
-    <div class="section-header">
-      <h2>Simple, transparent pricing</h2>
-      <p>The cheapest real agent-email plan on the market. Start free. Upgrade when you need a custom domain.</p>
-    </div>
-    <div class="pricing-grid">
-      <div class="pricing-card">
-        <h3>Free</h3>
-        <div class="pricing-price">$0<span>/month</span></div>
-        <p class="pricing-desc">Try the platform end-to-end.</p>
-        <ul class="pricing-features">
-          <li>1 inbox</li>
-          <li>50 messages/day</li>
-          <li>Platform domains (pick from 3)</li>
-          <li>7-day message retention</li>
-          <li>14-day Pro trial on signup</li>
-        </ul>
-        <a href="https://console.victorymail.dev" class="btn btn-secondary">Start Free</a>
-      </div>
-      <div class="pricing-card featured">
-        <div class="pricing-badge">Most Popular</div>
-        <h3>Starter</h3>
-        <div class="pricing-price">$5<span>/month</span></div>
-        <p class="pricing-desc">Build real agent apps on your own domain.</p>
-        <ul class="pricing-features">
-          <li>5 inboxes</li>
-          <li>500 messages/day</li>
-          <li>1 custom domain</li>
-          <li>30-day retention</li>
-          <li>100 AI calls/mo (categorize, extract)</li>
-          <li>Email support</li>
-        </ul>
-        <a href="https://console.victorymail.dev" class="btn btn-primary">Start 14-Day Trial</a>
-      </div>
-      <div class="pricing-card">
-        <h3>Pro</h3>
-        <div class="pricing-price">$25<span>/month</span></div>
-        <p class="pricing-desc">Production agent fleets.</p>
-        <ul class="pricing-features">
-          <li>100 inboxes</li>
-          <li>5,000 messages/day</li>
-          <li>10 custom domains</li>
-          <li>1-year retention</li>
-          <li>2,000 AI calls/mo + overage</li>
-          <li>Priority support (24h SLA)</li>
-        </ul>
-        <a href="https://console.victorymail.dev" class="btn btn-secondary">Upgrade to Pro</a>
-      </div>
-      <div class="pricing-card">
-        <h3>Enterprise</h3>
-        <div class="pricing-price">Custom</div>
-        <p class="pricing-desc">Scale, compliance, and control.</p>
-        <ul class="pricing-features">
-          <li>Unlimited everything</li>
-          <li>SSO / SAML, SOC 2</li>
-          <li>Dedicated IPs, EU region</li>
-          <li>Named CSM, SLA credits</li>
-          <li>Available on AWS Marketplace</li>
-        </ul>
-        <a href="mailto:sales@victorymail.dev" class="btn btn-secondary">Talk to Sales</a>
-      </div>
-    </div>
-
-    <!-- BYOC callout -->
-    <div class="byoc-callout" style="margin-top:3rem;padding:2rem;border-radius:12px;background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;">
-      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;align-items:center;justify-content:space-between;">
-        <div style="flex:1 1 320px;">
-          <div style="display:inline-block;padding:0.25rem 0.65rem;border-radius:999px;background:#4F46E5;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:0.75rem;">Available on AWS Marketplace</div>
-          <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">BYOC &mdash; Run FreeMail in your own AWS account</h3>
-          <p style="opacity:0.85;line-height:1.55;margin-bottom:0;">For compliance-heavy teams (healthcare, banking, defense) that can't let email data leave their account. Deploy via AWS Marketplace, pay a flat license fee, keep everything under your VPC. Source-protected container images, SHA-pinned versioning, zero-downtime updates.</p>
-        </div>
-        <div style="flex:0 0 280px;">
-          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="opacity:0.75;">BYOC Starter</span><span style="font-weight:600;">$99/mo</span></div>
-          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="opacity:0.75;">BYOC Pro</span><span style="font-weight:600;">$499/mo</span></div>
-          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;"><span style="opacity:0.75;">BYOC Enterprise</span><span style="font-weight:600;">Custom</span></div>
-          <a href="mailto:sales@victorymail.dev" class="btn btn-primary" style="margin-top:1rem;width:100%;text-align:center;display:block;">Request BYOC Access</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Integrations -->
-<section class="integrations" id="integrations">
-  <div class="container">
-    <div class="section-header">
-      <h2>Works with every AI framework</h2>
-      <p>Plug into your existing stack. SDKs, REST, and MCP for direct agent integration.</p>
-    </div>
-    <div class="integration-logos">
-      <a href="https://github.com/IntergalacticTech/freemail/tree/main/openclaw" class="integration-item">
-        <div class="int-icon">&#129302;</div>
-        <span>OpenClaw</span>
-      </a>
-      <a href="https://github.com/IntergalacticTech/freemail/tree/main/mcp-server" class="integration-item">
-        <div class="int-icon">&#9672;</div>
-        <span>Claude / Claude Code</span>
-      </a>
-      <a href="https://github.com/IntergalacticTech/freemail/tree/main/docs" class="integration-item">
-        <div class="int-icon">&#128279;</div>
-        <span>REST API</span>
-      </a>
-      <a href="https://github.com/IntergalacticTech/freemail/tree/main/mcp-server" class="integration-item">
-        <div class="int-icon">&#9889;</div>
-        <span>MCP Protocol</span>
-      </a>
-    </div>
-    <div class="sdk-badges">
-      <div class="sdk-badge">Python SDK</div>
-      <div class="sdk-badge">Node.js SDK</div>
-      <div class="sdk-badge">REST API</div>
-      <div class="sdk-badge">MCP Server</div>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<section style="background:linear-gradient(135deg,#4F46E5,#6366F1);padding:4rem 1.5rem;text-align:center;color:#fff;">
-  <div class="container">
-    <h2 style="font-size:2rem;font-weight:700;margin-bottom:1rem;">Ready to give your agents email?</h2>
-    <p style="font-size:1.1rem;opacity:0.9;margin-bottom:2rem;max-width:500px;margin-left:auto;margin-right:auto;">
-      Sign up for free. No credit card required. First email in under two minutes.
+  <div class="hero container">
+    <h1>Your AI agent's <span>communications hub</span>,<br>deployed into your own AWS.</h1>
+    <p class="tagline">
+      One API call gets an agent an email address, phone number, Slack bot, and Telegram bot — all routing into one unified inbox. Your coding agent installs and deploys the whole thing into your own AWS account in about twenty minutes. Source-available under FSL.
     </p>
-    <a href="https://console.victorymail.dev" class="btn" style="background:#fff;color:#4F46E5;font-size:1.05rem;padding:0.85rem 2rem;">Get Started Free</a>
-  </div>
-</section>
 
-<!-- Footer -->
-<footer>
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <a href="#" class="nav-logo">
-        <svg viewBox="0 0 32 32" fill="none" width="24" height="24"><rect x="2" y="6" width="28" height="20" rx="3" fill="#4F46E5"/><path d="M2 9l14 9 14-9" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        FreeMail
-      </a>
-      <p>Email infrastructure purpose-built for AI agents and autonomous systems.</p>
+    <div class="code-block">
+<span class="comment"># one-time setup (by a human OR a coding agent)</span>
+<span class="prompt">$</span> npm i -g @agentcomms/cli
+<span class="prompt">$</span> agentcomms bootstrap \
+    --domain my-agent-domain.com \
+    --admin-email me@my-agent-domain.com \
+    --non-interactive --json
+
+<span class="comment"># ~20 minutes later, your hub is live in your AWS account.</span>
+<span class="comment"># The final NDJSON line contains your admin API key.</span>
     </div>
-    <div class="footer-links">
-      <div class="footer-col">
-        <h4>Product</h4>
-        <a href="https://github.com/IntergalacticTech/freemail/tree/main/docs">Docs</a>
-        <a href="https://github.com/IntergalacticTech/freemail/blob/main/docs/api-reference.md">API Reference</a>
-        <a href="https://github.com/IntergalacticTech/freemail/blob/main/docs/agent-instructions.md">Agent Instructions</a>
-        <a href="https://console.victorymail.dev">Console</a>
-        <a href="#pricing">Pricing</a>
-      </div>
-      <div class="footer-col">
-        <h4>Resources</h4>
-        <a href="https://github.com/IntergalacticTech/freemail">GitHub</a>
-        <a href="https://github.com/IntergalacticTech/freemail/tree/main/mcp-server">MCP Server</a>
-        <a href="https://github.com/IntergalacticTech/freemail/tree/main/openclaw">OpenClaw Skill</a>
-      </div>
+
+    <div class="badges">
+      <span>Self-hosted on YOUR AWS</span>
+      <span>Unified inbox across every channel</span>
+      <span>No vendor lock-in</span>
+      <span>FSL-1.1-Apache-2.0</span>
     </div>
   </div>
-  <div class="footer-bottom">
-    Built by IntergalacticTech
+
+  <section id="channels">
+    <div class="container">
+      <h2>Every channel an agent could need</h2>
+      <p class="section-intro">
+        Email, SMS, Slack, Telegram, and mobile push today. Discord, WhatsApp, postal mail, and fax on the roadmap. Each channel is a plugin in <code>adapters/</code> — add one by copying an existing adapter.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="icon email">✉</div>
+          <h3>Email</h3>
+          <p>AWS SES with DKIM, SPF, and DMARC. Custom domains in seconds. MIME parsing with quoted-reply stripping. Real threading via In-Reply-To and References headers.</p>
+        </div>
+        <div class="card">
+          <div class="icon sms">⚡</div>
+          <h3>SMS</h3>
+          <p>AWS End User Messaging v2 with 10DLC. Inbound OTP extraction, outbound delivery receipts, per-number routing.</p>
+        </div>
+        <div class="card">
+          <div class="icon slack">#</div>
+          <h3>Slack</h3>
+          <p>OAuth bridge into your workspace. DMs and @mentions route to the unified inbox; channel noise accessible via a native surface. Real signing verification.</p>
+        </div>
+        <div class="card">
+          <div class="icon tg">✈</div>
+          <h3>Telegram</h3>
+          <p>BotFather-provisioned bot in seconds. Webhook-based ingest with per-channel token validation. DM and group @mention detection.</p>
+        </div>
+        <div class="card">
+          <div class="icon push">◉</div>
+          <h3>Mobile Push</h3>
+          <p>SNS Mobile Push to APNs and FCM. Per-agent device registration. Delivery receipts update message status automatically.</p>
+        </div>
+        <div class="card">
+          <div class="icon discord">◆</div>
+          <h3>Discord <span style="color: var(--text-muted); font-weight: normal; font-size: 13px;">(scaffold)</span></h3>
+          <p>Adapter scaffold in the repo. Bounty open for the first working implementation. Follow the Telegram adapter as the template.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="differentiator" id="deploy">
+    <div class="container">
+      <h2>Your coding agent deploys it for you</h2>
+      <p class="section-intro">
+        Point Claude Code, Cursor, Aider, or any coding agent at this repo and your AWS credentials. Twenty minutes later the hub is live in YOUR cloud, under YOUR control. No data ever touches a third party.
+      </p>
+      <div class="diff-grid">
+        <div class="diff-text">
+          <h3>What other services can't do</h3>
+          <p>Alternative email-for-agents services run in their cloud. Your agent's messages sit in their database. That might be fine for a weekend project. It's not fine when you're running production agents for a regulated industry, a competitive startup, or a customer who asked where their data lives.</p>
+          <p>AgentComms runs in YOUR AWS account. Same code as what we run on agentcomms.dev; same CDK app; same operational defaults. The only things our hosted service has that you don't are our warmed SES reputation, our domain pool, and our 10DLC brand registration — all operational, not code.</p>
+          <ul>
+            <li>Your data stays in your account</li>
+            <li>You pay AWS directly at AWS rates</li>
+            <li>Your agents use your compliance posture</li>
+            <li>The code is readable, auditable, modifiable</li>
+          </ul>
+        </div>
+        <div class="diff-code">
+<span style="color: #6C7086;"># AGENT.md — written for coding agents</span>
+
+<span style="color: #F9E2AF;">1.</span> Install: <span style="color: #A6E3A1;">npm i -g @agentcomms/cli</span>
+<span style="color: #F9E2AF;">2.</span> Set: AWS creds, DOMAIN, ADMIN_EMAIL
+<span style="color: #F9E2AF;">3.</span> Run: <span style="color: #A6E3A1;">agentcomms bootstrap ...</span>
+<span style="color: #F9E2AF;">4.</span> Wait ≤ 25 min
+<span style="color: #F9E2AF;">5.</span> Parse final NDJSON line → api_key
+
+<span style="color: #6C7086;"># Exit code contract for agents:</span>
+<span style="color: #6C7086;">#   0  success — parse done event</span>
+<span style="color: #6C7086;">#   1  preflight fail — fix and retry</span>
+<span style="color: #6C7086;">#   2  AWS deploy fail — check CFN</span>
+<span style="color: #6C7086;">#   3  DKIM timeout — wait, resume</span>
+<span style="color: #6C7086;">#   4  smoke fail — needs human</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="container">
+      <h2>The unified inbox</h2>
+      <p class="section-intro">
+        Every direct message to your agent — email, SMS, Slack DM, Slack @mention, Telegram DM, push receipt — interleaved into one timeline, queryable with one API call. Channel-native surfaces (Slack workspace chatter, Telegram groups) stay accessible separately so your agent isn't drowning in noise.
+      </p>
+      <div class="code-example">
+<span class="keyword">from</span> agentcomms <span class="keyword">import</span> Client
+
+client = <span class="fn">Client</span>(api_key=<span class="string">"ak_live_..."</span>)
+
+<span class="comment"># one-shot provision: agent gets email + SMS + Telegram + Slack</span>
+result = client.agents.<span class="fn">create</span>(
+    name=<span class="string">"InvoiceBot"</span>,
+    provision={
+        <span class="string">"email"</span>: {<span class="string">"local_part"</span>: <span class="string">"invoice"</span>},
+        <span class="string">"sms"</span>: {<span class="string">"country"</span>: <span class="string">"US"</span>},
+        <span class="string">"telegram"</span>: {<span class="string">"bot_token"</span>: <span class="string">"..."</span>},
+    },
+    bridge={<span class="string">"slack"</span>: {<span class="string">"return_url"</span>: <span class="string">"https://..."</span>}},
+)
+agent = client.<span class="fn">agents</span>(result[<span class="string">"agent_id"</span>])
+
+<span class="comment"># read the unified inbox — every channel, interleaved by time</span>
+<span class="keyword">for</span> msg <span class="keyword">in</span> agent.messages.<span class="fn">list</span>():
+    <span class="fn">print</span>(<span class="string">f"[{msg.channel}] {msg.from_.address}: {msg.body_text}"</span>)
+
+<span class="comment"># reply via auto-detected channel (email → email, E.164 → SMS, slack: → Slack)</span>
+agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@example.com"</span>, body=<span class="string">"Got it — processing."</span>)
+      </div>
+    </div>
+  </section>
+
+  <section id="license">
+    <div class="container">
+      <h2>Source-available under FSL</h2>
+      <p class="section-intro">
+        Functional Source License 1.1, transitions to Apache 2.0 two years after each commit. You can self-host, modify, and build commercial products on top of your own deployment. You cannot re-sell AgentComms itself as a hosted service without a commercial license.
+      </p>
+      <div class="license-grid">
+        <div class="license-panel yes">
+          <h3>What you can do</h3>
+          <ul>
+            <li>Self-host on your own AWS account</li>
+            <li>Run for your own agents and users</li>
+            <li>Modify the source and run modifications</li>
+            <li>Redistribute modifications under FSL</li>
+            <li>Build commercial products that use your deployment</li>
+            <li>Use it internally at your company at any scale</li>
+            <li>Inspect every line of the codebase</li>
+          </ul>
+        </div>
+        <div class="license-panel no">
+          <h3>What you can't do (without a commercial license)</h3>
+          <ul>
+            <li>Offer AgentComms as a paid hosted service to third parties</li>
+            <li>Compete with the hosted service at agentcomms.dev</li>
+          </ul>
+          <h3 style="margin-top: 24px;">After two years</h3>
+          <ul style="list-style: none;">
+            <li style="padding-left: 0;">Each file automatically relicenses to Apache 2.0.</li>
+          </ul>
+          <p style="margin-top: 16px; color: var(--text-secondary); font-size: 14px;">
+            Need a commercial license? → <a href="mailto:commercial@agentcomms.dev">commercial@agentcomms.dev</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="container">
+      <h2>Status</h2>
+      <p class="section-intro">
+        Living project, shipped iteratively, tested in production before each phase tag.
+      </p>
+      <div class="status-table">
+        <table>
+          <tr><td>Phase 1 — Foundation (data model + adapter SDK + email)</td><td class="done">✓ Live</td></tr>
+          <tr><td>Phase 2 — SMS + Push + Vault + Personas + Domains + AI</td><td class="done">✓ Live</td></tr>
+          <tr><td>Phase 3 — Slack + Telegram</td><td class="done">✓ Live</td></tr>
+          <tr><td>Phase 4 — OSS packaging (CLI, SDKs, license, docs)</td><td class="wip">◐ Shipping</td></tr>
+          <tr><td>Phase 5 — Migration cutover + public GitHub launch</td><td class="next">Upcoming</td></tr>
+          <tr><td>Phase 6 — Public announcement + demo</td><td class="next">Upcoming</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <div class="container">
+      <h2>Start with the AGENT.md guide</h2>
+      <p>Fifteen-minute read for a human, five-minute read for a coding agent. Then twenty minutes to deploy.</p>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" class="btn btn-primary" target="_blank">Read AGENT.md</a>
+      <a href="https://github.com/IntergalacticTech/FreeMail.ai" class="btn btn-secondary" target="_blank">Browse the source</a>
+    </div>
   </div>
-</footer>
 
-<script>
-function switchTab(e, id) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.code-block').forEach(b => b.classList.remove('active'));
-  e.target.classList.add('active');
-  document.getElementById(id).classList.add('active');
-}
-</script>
-
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="logo" style="font-weight: 700; font-size: 18px; color: var(--text); margin-bottom: 12px;">Agent<span style="color: var(--primary);">Comms</span></div>
+          <p>Source-available agent communications hub. Deployed into your AWS. One unified inbox across every channel agents need.</p>
+        </div>
+        <div>
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" target="_blank">AGENT.md</a></li>
+            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/LICENSE" target="_blank">License</a></li>
+            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/docs/licensing.md" target="_blank">Licensing explainer</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Channels</h4>
+          <ul>
+            <li><a href="#channels">Email</a></li>
+            <li><a href="#channels">SMS</a></li>
+            <li><a href="#channels">Slack</a></li>
+            <li><a href="#channels">Telegram</a></li>
+            <li><a href="#channels">Push</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Contact</h4>
+          <ul>
+            <li><a href="mailto:hello@agentcomms.dev">hello@agentcomms.dev</a></li>
+            <li><a href="mailto:commercial@agentcomms.dev">Commercial licenses</a></li>
+            <li><a href="mailto:security@agentcomms.dev">Security disclosures</a></li>
+            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/issues" target="_blank">Open an issue</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="bottom">
+        © 2026 Victory (Intergalactic Tech). Source available under FSL-1.1-Apache-2.0.
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
