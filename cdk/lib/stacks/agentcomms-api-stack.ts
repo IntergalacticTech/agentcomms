@@ -23,6 +23,7 @@ import {
 } from 'aws-cdk-lib/aws-apigateway';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
+import { addSlackAdapter } from '../adapters/slack-adapter-stack';
 
 export interface AgentCommsApiStackProps extends StackProps {
   table: Table;
@@ -30,6 +31,8 @@ export interface AgentCommsApiStackProps extends StackProps {
   rawInboundBucket: Bucket;
   bodiesBucket: Bucket;
   attachmentsBucket: Bucket;
+  /** Phase 3: enable Slack webhook routes (default false). */
+  enableSlack?: boolean;
 }
 
 export class AgentCommsApiStack extends Stack {
@@ -375,5 +378,62 @@ export class AgentCommsApiStack extends Stack {
 
     const pushSend = push.addResource('send');
     pushSend.addMethod('POST', new LambdaIntegration(pushNativeFn), authMethodOptions);
+
+    // ── Phase 3: Slack native routes ──
+
+    const slackNativeFn = new LambdaFn(this, 'SlackNativeFn', {
+      runtime: Runtime.PYTHON_3_12,
+      handler: 'core.api.slack_native_handler.handler',
+      code: lambdaCode(),
+      timeout: Duration.seconds(30),
+      memorySize: 512,
+      environment: commonEnv,
+    });
+    props.table.grantReadWriteData(slackNativeFn);
+    props.eventStream.grantWrite(slackNativeFn);
+    slackNativeFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['ssm:GetParameter'],
+      resources: ['arn:aws:ssm:*:*:parameter/agentcomms/*/adapters/slack/*'],
+    }));
+
+    // /v1/agents/{agent_id}/slack
+    const slack = agent.addResource('slack');
+
+    // /v1/agents/{agent_id}/slack/workspaces
+    const slackWorkspaces = slack.addResource('workspaces');
+    slackWorkspaces.addMethod('GET', new LambdaIntegration(slackNativeFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}
+    const slackWorkspace = slackWorkspaces.addResource('{team_id}');
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}/channels
+    const slackChannels = slackWorkspace.addResource('channels');
+    slackChannels.addMethod('GET', new LambdaIntegration(slackNativeFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}/channels/{channel_id}
+    const slackChannel = slackChannels.addResource('{channel_id}');
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}/channels/{channel_id}/messages
+    const slackChannelMessages = slackChannel.addResource('messages');
+    slackChannelMessages.addMethod('GET',  new LambdaIntegration(slackNativeFn), authMethodOptions);
+    slackChannelMessages.addMethod('POST', new LambdaIntegration(slackNativeFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}/users/{user_id}
+    const slackUsers = slackWorkspace.addResource('users');
+    const slackUser = slackUsers.addResource('{user_id}');
+
+    // /v1/agents/{agent_id}/slack/workspaces/{team_id}/users/{user_id}/messages
+    const slackDmMessages = slackUser.addResource('messages');
+    slackDmMessages.addMethod('POST', new LambdaIntegration(slackNativeFn), authMethodOptions);
+
+    // ── Phase 3: Slack webhook routes (inbound from Slack) ──
+    if (props.enableSlack) {
+      addSlackAdapter(this, {
+        table: props.table,
+        eventStream: props.eventStream,
+        api: this.api,
+      });
+    }
   }
 }

@@ -22,6 +22,7 @@ import { Stream } from 'aws-cdk-lib/aws-kinesis';
 import { EmailAdapterStack } from '../adapters/email-adapter-stack';
 import { SmsAdapterStack } from '../adapters/sms-adapter-stack';
 import { PushAdapterStack } from '../adapters/push-adapter-stack';
+import { SlackAdapterStack } from '../adapters/slack-adapter-stack';
 
 export interface AgentCommsAdaptersStackProps extends StackProps {
   table: Table;
@@ -33,12 +34,15 @@ export interface AgentCommsAdaptersStackProps extends StackProps {
   enableSms?: boolean;
   /** Phase 2: enable Push adapter stack (default false until Phase 2 deploy). */
   enablePush?: boolean;
+  /** Phase 3: enable Slack adapter stack (default false until Phase 3 deploy). */
+  enableSlack?: boolean;
 }
 
 export class AgentCommsAdaptersStack extends Stack {
   public readonly emailAdapterStack: EmailAdapterStack;
   public readonly smsAdapterStack?: SmsAdapterStack;
   public readonly pushAdapterStack?: PushAdapterStack;
+  public readonly slackAdapterStack?: SlackAdapterStack;
 
   constructor(scope: Construct, id: string, props: AgentCommsAdaptersStackProps) {
     super(scope, id, props);
@@ -72,8 +76,14 @@ export class AgentCommsAdaptersStack extends Stack {
       });
     }
 
-    // ── Phase 3 (future) — Slack adapter ──
-    // new SlackAdapterStack(scope, `${id}-Slack`, { env: props.env, ...props });
+    // ── Phase 3: Slack adapter (disabled by default; enable via enableSlack: true) ──
+    if (props.enableSlack) {
+      this.slackAdapterStack = new SlackAdapterStack(scope, `${id}-Slack`, {
+        env: props.env,
+        table: props.table,
+        eventStream: props.eventStream,
+      });
+    }
 
     // ── Phase 3 (future) — Telegram adapter ──
     // new TelegramAdapterStack(scope, `${id}-Telegram`, { env: props.env, ...props });
