@@ -1,0 +1,15 @@
+[adapter]
+channel = "slack"
+class = "adapters.slack.adapter:SlackAdapter"
+modes = ["bridge"]
+cdk_stack = "adapters.slack.stack:SlackAdapterStack"
+min_hub_version = "0.1"
+
+[webhook_routes]
+slack_events = { path = "/webhooks/slack/events", method = "POST" }
+slack_oauth_callback = { path = "/webhooks/slack/oauth/callback", method = "GET" }
+
+[ssm_secrets]
+signing_secret = "SECURE"
+client_id = "PLAIN"
+client_secret = "SECURE"
