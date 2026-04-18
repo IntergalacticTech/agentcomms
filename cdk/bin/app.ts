@@ -11,6 +11,9 @@ import { ConsoleStack } from "../lib/stacks/console-stack";
 import { MonitoringStack } from "../lib/stacks/monitoring-stack";
 import { LandingStack } from "../lib/stacks/landing-stack";
 import { AgentCommsDataStack } from "../lib/stacks/agentcomms-data-stack";
+import { AgentCommsEventsStack } from "../lib/stacks/agentcomms-events-stack";
+import { AgentCommsApiStack } from "../lib/stacks/agentcomms-api-stack";
+import { AgentCommsAdaptersStack } from "../lib/stacks/agentcomms-adapters-stack";
 
 const app = new cdk.App();
 
@@ -62,9 +65,31 @@ new ConsoleStack(app, `VictoryMail-Console-${stage}`, { env, stage });
 new MonitoringStack(app, `VictoryMail-Monitoring-${stage}`, { env, stage });
 new LandingStack(app, `VictoryMail-Landing-${stage}`, { env, stage });
 
-new AgentCommsDataStack(app, 'AgentCommsData', {
+const agentCommsData = new AgentCommsDataStack(app, 'AgentCommsData', {
   env: { account: '732770059798', region: 'us-east-1' },
   envName: 'prod',
+});
+
+const agentCommsEvents = new AgentCommsEventsStack(app, 'AgentCommsEvents', {
+  env: { account: '732770059798', region: 'us-east-1' },
+});
+
+new AgentCommsApiStack(app, 'AgentCommsApi', {
+  env: { account: '732770059798', region: 'us-east-1' },
+  table: agentCommsData.table,
+  eventStream: agentCommsEvents.eventStream,
+  rawInboundBucket: agentCommsData.rawInboundBucket,
+  bodiesBucket: agentCommsData.bodiesBucket,
+  attachmentsBucket: agentCommsData.attachmentsBucket,
+});
+
+new AgentCommsAdaptersStack(app, 'AgentCommsAdapters', {
+  env: { account: '732770059798', region: 'us-east-1' },
+  table: agentCommsData.table,
+  eventStream: agentCommsEvents.eventStream,
+  rawInboundBucket: agentCommsData.rawInboundBucket,
+  bodiesBucket: agentCommsData.bodiesBucket,
+  attachmentsBucket: agentCommsData.attachmentsBucket,
 });
 
 app.synth();
