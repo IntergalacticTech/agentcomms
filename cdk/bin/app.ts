@@ -91,6 +91,8 @@ new AgentCommsAdaptersStack(app, 'AgentCommsAdapters', {
   rawInboundBucket: agentCommsData.rawInboundBucket,
   bodiesBucket: agentCommsData.bodiesBucket,
   attachmentsBucket: agentCommsData.attachmentsBucket,
+  enableSms: true,
+  enablePush: true,
 });
 
 app.synth();

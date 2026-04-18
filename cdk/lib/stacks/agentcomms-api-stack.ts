@@ -3,8 +3,9 @@
 // AgentComms REST API:
 //   - API Gateway RestApi named 'agentcomms-api'
 //   - TOKEN Lambda authorizer wrapping core/api/authorizer_lambda.py
-//   - 8 handler Lambdas (agents, channels, messages, threads, drafts, webhooks, wait, otp)
-//   - Routes wired under /v1/agents/*
+//   - 13 handler Lambdas (agents, channels, messages, threads, drafts, webhooks, wait, otp,
+//                         vault, personas, domains, ai, push_native)
+//   - Routes wired under /v1/agents/*, /v1/vault/*, /v1/personas/*, /v1/domains/*
 //
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -21,6 +22,7 @@ import {
   MethodOptions,
 } from 'aws-cdk-lib/aws-apigateway';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
+import { Key } from 'aws-cdk-lib/aws-kms';
 
 export interface AgentCommsApiStackProps extends StackProps {
   table: Table;
@@ -138,7 +140,7 @@ export class AgentCommsApiStack extends Stack {
       return fn;
     };
 
-    // ── 8 Handler Lambdas ──
+    // ── 13 Handler Lambdas ──
     // agents, channels, messages publish events → grant Kinesis write
     const agentsFn    = makeHandlerFn('AgentsFn',    'agents_handler',    true);
     const channelsFn  = makeHandlerFn('ChannelsFn',  'channels_handler',  true);
@@ -148,6 +150,70 @@ export class AgentCommsApiStack extends Stack {
     const webhooksFn  = makeHandlerFn('WebhooksFn',  'webhooks_handler',  false);
     const waitFn      = makeHandlerFn('WaitFn',      'wait_handler',      false);
     const otpFn       = makeHandlerFn('OtpFn',       'otp_handler',       false);
+
+    // ── Phase 2 Handler Lambdas ──
+
+    // Dedicated KMS key for vault secrets (symmetric, no rotation needed for smoke tests)
+    const vaultKey = new Key(this, 'VaultKey', {
+      description: 'AgentComms vault secrets encryption key',
+      enableKeyRotation: true,
+    });
+
+    // VaultFn: read/write DynamoDB + Kinesis + KMS for encrypt/decrypt
+    const vaultFn = new LambdaFn(this, 'VaultFn', {
+      runtime: Runtime.PYTHON_3_12,
+      handler: 'core.api.vault_handler.handler',
+      code: lambdaCode(),
+      timeout: Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        ...commonEnv,
+        AGENTCOMMS_VAULT_KMS_KEY_ID: vaultKey.keyId,
+      },
+    });
+    props.table.grantReadWriteData(vaultFn);
+    props.eventStream.grantWrite(vaultFn);
+    vaultKey.grantEncryptDecrypt(vaultFn);
+
+    // PersonasFn: read/write DynamoDB + Kinesis
+    const personasFn = makeHandlerFn('PersonasFn', 'personas_handler', true);
+
+    // DomainsFn: read/write DynamoDB + Kinesis + SES identity management
+    const domainsFn = makeHandlerFn('DomainsFn', 'domains_handler', true);
+    domainsFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        'ses:CreateEmailIdentity',
+        'ses:GetEmailIdentity',
+        'ses:DeleteEmailIdentity',
+        'sesv2:CreateEmailIdentity',
+        'sesv2:GetEmailIdentity',
+        'sesv2:DeleteEmailIdentity',
+        'sesv2:PutEmailIdentityDkimAttributes',
+        'sesv2:PutEmailIdentityMailFromAttributes',
+      ],
+      resources: ['*'],
+    }));
+
+    // AiFn: read/write DynamoDB + Kinesis + Bedrock InvokeModel
+    const aiFn = makeHandlerFn('AiFn', 'ai_handler', false);
+    aiFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['arn:aws:bedrock:us-east-1::foundation-model/*'],
+    }));
+
+    // PushNativeFn: read/write DynamoDB + Kinesis + SNS for push delivery
+    const pushNativeFn = makeHandlerFn('PushNativeFn', 'push_native_handler', true);
+    pushNativeFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        'sns:CreatePlatformEndpoint',
+        'sns:DeleteEndpoint',
+        'sns:Publish',
+      ],
+      resources: ['*'],
+    }));
 
     // ── REST API ──
     this.api = new RestApi(this, 'AgentCommsApi', {
@@ -232,5 +298,82 @@ export class AgentCommsApiStack extends Stack {
     // /v1/agents/{agent_id}/extract-otp
     const extractOtp = agent.addResource('extract-otp');
     extractOtp.addMethod('POST', new LambdaIntegration(otpFn), authMethodOptions);
+
+    // ── Phase 2 routes ──
+
+    // /v1/vault
+    const vault = v1.addResource('vault');
+    vault.addMethod('GET',  new LambdaIntegration(vaultFn), authMethodOptions);
+    vault.addMethod('POST', new LambdaIntegration(vaultFn), authMethodOptions);
+
+    // /v1/vault/{vault_id}
+    const vaultItem = vault.addResource('{vault_id}');
+    vaultItem.addMethod('GET',    new LambdaIntegration(vaultFn), authMethodOptions);
+    vaultItem.addMethod('DELETE', new LambdaIntegration(vaultFn), authMethodOptions);
+
+    // /v1/vault/{vault_id}/totp
+    const vaultTotp = vaultItem.addResource('totp');
+    vaultTotp.addMethod('GET', new LambdaIntegration(vaultFn), authMethodOptions);
+
+    // /v1/personas
+    const personas = v1.addResource('personas');
+    personas.addMethod('GET',  new LambdaIntegration(personasFn), authMethodOptions);
+    personas.addMethod('POST', new LambdaIntegration(personasFn), authMethodOptions);
+
+    // /v1/personas/{persona_id}
+    const personaItem = personas.addResource('{persona_id}');
+    personaItem.addMethod('GET',    new LambdaIntegration(personasFn), authMethodOptions);
+    personaItem.addMethod('PATCH',  new LambdaIntegration(personasFn), authMethodOptions);
+    personaItem.addMethod('DELETE', new LambdaIntegration(personasFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/personas
+    const agentPersonas = agent.addResource('personas');
+    agentPersonas.addMethod('POST', new LambdaIntegration(personasFn), authMethodOptions);
+
+    // /v1/domains
+    const domains = v1.addResource('domains');
+    domains.addMethod('GET',  new LambdaIntegration(domainsFn), authMethodOptions);
+    domains.addMethod('POST', new LambdaIntegration(domainsFn), authMethodOptions);
+
+    // /v1/domains/{domain_id}
+    const domainItem = domains.addResource('{domain_id}');
+    domainItem.addMethod('GET',    new LambdaIntegration(domainsFn), authMethodOptions);
+    domainItem.addMethod('DELETE', new LambdaIntegration(domainsFn), authMethodOptions);
+
+    // /v1/domains/{domain_id}/verify
+    const domainVerify = domainItem.addResource('verify');
+    domainVerify.addMethod('POST', new LambdaIntegration(domainsFn), authMethodOptions);
+
+    // /v1/domains/{domain_id}/zone-file
+    const domainZoneFile = domainItem.addResource('zone-file');
+    domainZoneFile.addMethod('GET', new LambdaIntegration(domainsFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/ai/*
+    const ai = agent.addResource('ai');
+
+    const aiCategorize = ai.addResource('categorize');
+    aiCategorize.addMethod('POST', new LambdaIntegration(aiFn), authMethodOptions);
+
+    const aiExtract = ai.addResource('extract');
+    aiExtract.addMethod('POST', new LambdaIntegration(aiFn), authMethodOptions);
+
+    const aiSummarize = ai.addResource('summarize');
+    aiSummarize.addMethod('POST', new LambdaIntegration(aiFn), authMethodOptions);
+
+    const aiSearch = ai.addResource('search');
+    aiSearch.addMethod('POST', new LambdaIntegration(aiFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/push/*
+    const push = agent.addResource('push');
+
+    const pushDevices = push.addResource('devices');
+    pushDevices.addMethod('GET',  new LambdaIntegration(pushNativeFn), authMethodOptions);
+    pushDevices.addMethod('POST', new LambdaIntegration(pushNativeFn), authMethodOptions);
+
+    const pushDevice = pushDevices.addResource('{device_id}');
+    pushDevice.addMethod('DELETE', new LambdaIntegration(pushNativeFn), authMethodOptions);
+
+    const pushSend = push.addResource('send');
+    pushSend.addMethod('POST', new LambdaIntegration(pushNativeFn), authMethodOptions);
   }
 }

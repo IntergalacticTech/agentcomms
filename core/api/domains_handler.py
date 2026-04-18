@@ -296,7 +296,7 @@ def handler(event: dict, context) -> dict:
     method = event.get("httpMethod", "")
     path = event.get("path", "")
     pp = event.get("pathParameters") or {}
-    domain_id = pp.get("id", "")
+    domain_id = pp.get("domain_id") or pp.get("id", "")
 
     repo = get_repo()
 

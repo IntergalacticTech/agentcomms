@@ -186,7 +186,7 @@ def handler(event: dict, context) -> dict:
     method = event.get("httpMethod", "")
     path = event.get("path", "")
     params = event.get("pathParameters") or {}
-    vault_id = params.get("id", "")
+    vault_id = params.get("vault_id") or params.get("id", "")
 
     repo = get_repo()
 

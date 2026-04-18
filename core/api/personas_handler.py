@@ -183,7 +183,7 @@ def handler(event: dict, context) -> dict:
         body = parse_body(event)
         return _associate(caller, pp["agent_id"], body, repo)
 
-    persona_id = pp.get("id", "")
+    persona_id = pp.get("persona_id") or pp.get("id", "")
 
     # GET /v1/personas/{id}
     if method == "GET" and persona_id:
