@@ -59,3 +59,16 @@ def get_repo() -> Repo:
 def parse_body(event: dict) -> dict:
     raw = event.get("body") or "{}"
     return json.loads(raw) if isinstance(raw, str) else raw
+
+
+def require_org_scope(caller: Caller) -> dict | None:
+    """Return a 403 error response if *caller* does not have ``org`` scope.
+
+    Returns ``None`` when the scope check passes so callers can do::
+
+        if resp := require_org_scope(caller):
+            return resp
+    """
+    if caller.scope != "org":
+        return err("This resource requires an org-scoped API key.", status=403)
+    return None

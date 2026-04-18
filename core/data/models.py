@@ -477,6 +477,79 @@ class Draft(BaseModel):
         )
 
 
+class VaultType(str, Enum):
+    TOTP = "totp"
+    PASSWORD = "password"
+    SECRET = "secret"
+    API_KEY = "api_key"
+
+
+class VaultItem(BaseModel):
+    """Encrypted secret stored under PK=ORG#{org_id} SK=VLT#{vault_id}.
+
+    ``encrypted_blob`` is the raw KMS CiphertextBlob (bytes), stored as
+    Base64 in DynamoDB so it survives JSON/boto3 round-trips.
+    ``kms_key_id`` is the KMS key ARN/ID that was used to encrypt.
+    ``tags`` is a free-form dict used for filtering (e.g. ``agent_id``,
+    ``persona_id``).
+
+    GSI1 projects on ``gsi1_pk = ORG#{org_id}#VAULT`` / ``gsi1_sk =
+    TYPE#{type}#VLT#{vault_id}`` so list-by-type queries are O(1).
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    vault_id: str
+    org_id: str
+    type: VaultType
+    label: str
+    encrypted_blob: bytes  # raw KMS ciphertext
+    kms_key_id: str
+    tags: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
+
+    def to_dynamodb_item(self) -> dict[str, Any]:
+        import base64 as _b64
+        return {
+            "PK": f"ORG#{self.org_id}",
+            "SK": f"VLT#{self.vault_id}",
+            "entity": "vault_item",
+            "vault_id": self.vault_id,
+            "org_id": self.org_id,
+            "type": self.type.value,
+            "label": self.label,
+            # Store ciphertext as Base64 string so it survives DynamoDB JSON encoding
+            "encrypted_blob": _b64.b64encode(self.encrypted_blob).decode("ascii"),
+            "kms_key_id": self.kms_key_id,
+            "tags": self.tags,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            # GSI1: list-by-org-vault + sort by type
+            "gsi1_pk": f"ORG#{self.org_id}#VAULT",
+            "gsi1_sk": f"TYPE#{self.type.value}#VLT#{self.vault_id}",
+        }
+
+    @classmethod
+    def from_dynamodb_item(cls, item: dict[str, Any]) -> VaultItem:
+        import base64 as _b64
+        raw = item["encrypted_blob"]
+        if isinstance(raw, bytes):
+            blob = raw
+        else:
+            blob = _b64.b64decode(raw)
+        return cls(
+            vault_id=item["vault_id"],
+            org_id=item["org_id"],
+            type=VaultType(item["type"]),
+            label=item["label"],
+            encrypted_blob=blob,
+            kms_key_id=item["kms_key_id"],
+            tags=item.get("tags") or {},
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+        )
+
+
 class Webhook(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -185,3 +185,19 @@ def kinesis_stream(aws_mock):
 def repo_fixture(agentcomms_table):
     from core.data.repo import Repo
     return Repo(table=agentcomms_table)
+
+
+@pytest.fixture
+def kms_key(aws_mock):
+    """Create a moto-backed KMS CMK and expose its KeyId via env var."""
+    kms = boto3.client("kms", region_name="us-east-1")
+    resp = kms.create_key(
+        Description="test vault key",
+        KeyUsage="ENCRYPT_DECRYPT",
+        KeySpec="SYMMETRIC_DEFAULT",
+    )
+    key_id = resp["KeyMetadata"]["KeyId"]
+    os.environ["AGENTCOMMS_VAULT_KMS_KEY_ID"] = key_id
+    yield key_id
+    # Cleanup env var after test
+    os.environ.pop("AGENTCOMMS_VAULT_KMS_KEY_ID", None)

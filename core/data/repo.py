@@ -14,7 +14,7 @@ from boto3.dynamodb.conditions import Key
 
 from core.data.models import (
     Agent, ApiKey, Channel, Draft, Organization, Thread, UnifiedMessage,
-    Webhook,
+    VaultItem, VaultType, Webhook,
 )
 
 
@@ -213,3 +213,55 @@ class Repo:
         item = items[0]
         # GSI6 item is the message itself (projection=ALL), return directly
         return UnifiedMessage.from_dynamodb_item(item)
+
+    # ─── Vault ───────────────────────────────────────────────────────
+    def put_vault(self, item: VaultItem) -> None:
+        self.table.put_item(Item=item.to_dynamodb_item())
+
+    def get_vault(self, *, org_id: str, vault_id: str) -> VaultItem | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"VLT#{vault_id}"}
+        )
+        raw = resp.get("Item")
+        return VaultItem.from_dynamodb_item(raw) if raw else None
+
+    def list_vault(
+        self,
+        *,
+        org_id: str,
+        type: VaultType | None = None,
+        tag: str | None = None,
+        limit: int = 100,
+    ) -> list[VaultItem]:
+        """List vault items for an org, optionally filtered by type or tag.
+
+        ``tag`` should be a ``key:value`` string, e.g. ``agent_id:agt_1``.
+        """
+        if type is not None:
+            # GSI1: ORG#{org_id}#VAULT / TYPE#{type}#VLT#{…}
+            resp = self.table.query(
+                IndexName="GSI1",
+                KeyConditionExpression=(
+                    Key("gsi1_pk").eq(f"ORG#{org_id}#VAULT")
+                    & Key("gsi1_sk").begins_with(f"TYPE#{type.value}#")
+                ),
+                Limit=limit,
+            )
+        else:
+            resp = self.table.query(
+                KeyConditionExpression=(
+                    Key("PK").eq(f"ORG#{org_id}")
+                    & Key("SK").begins_with("VLT#")
+                ),
+                Limit=limit,
+            )
+        items = [VaultItem.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        if tag:
+            key, _, value = tag.partition(":")
+            items = [i for i in items if i.tags.get(key) == value]
+        return items
+
+    def delete_vault(self, *, org_id: str, vault_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"VLT#{vault_id}"}
+        )

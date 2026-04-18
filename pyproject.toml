@@ -12,6 +12,9 @@ where = ["."]
 include = ["core*", "adapters*", "lambdas*"]
 exclude = ["tests*", "cdk*", "console*", "sdks*", "mcp*", "docs*"]
 
+[project.optional-dependencies]
+test = ["pyotp>=2.9"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "adapters/*/tests"]
 python_files = ["test_*.py"]
