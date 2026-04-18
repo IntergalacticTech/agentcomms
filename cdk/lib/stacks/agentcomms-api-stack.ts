@@ -24,6 +24,7 @@ import {
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { addSlackAdapter } from '../adapters/slack-adapter-stack';
+import { addTelegramAdapter } from '../adapters/telegram-adapter-stack';
 
 export interface AgentCommsApiStackProps extends StackProps {
   table: Table;
@@ -33,6 +34,8 @@ export interface AgentCommsApiStackProps extends StackProps {
   attachmentsBucket: Bucket;
   /** Phase 3: enable Slack webhook routes (default false). */
   enableSlack?: boolean;
+  /** Phase 3: enable Telegram webhook route (default false). */
+  enableTelegram?: boolean;
 }
 
 export class AgentCommsApiStack extends Stack {
@@ -430,6 +433,48 @@ export class AgentCommsApiStack extends Stack {
     // ── Phase 3: Slack webhook routes (inbound from Slack) ──
     if (props.enableSlack) {
       addSlackAdapter(this, {
+        table: props.table,
+        eventStream: props.eventStream,
+        api: this.api,
+      });
+    }
+
+    // ── Phase 3: Telegram native routes ──
+
+    const telegramNativeFn = new LambdaFn(this, 'TelegramNativeFn', {
+      runtime: Runtime.PYTHON_3_12,
+      handler: 'core.api.telegram_native_handler.handler',
+      code: lambdaCode(),
+      timeout: Duration.seconds(30),
+      memorySize: 512,
+      environment: commonEnv,
+    });
+    props.table.grantReadWriteData(telegramNativeFn);
+    props.eventStream.grantWrite(telegramNativeFn);
+    telegramNativeFn.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['ssm:GetParameter'],
+      resources: ['arn:aws:ssm:*:*:parameter/agentcomms/*/adapters/telegram/tokens/*'],
+    }));
+
+    // /v1/agents/{agent_id}/telegram
+    const telegram = agent.addResource('telegram');
+
+    // /v1/agents/{agent_id}/telegram/chats
+    const telegramChats = telegram.addResource('chats');
+    telegramChats.addMethod('GET', new LambdaIntegration(telegramNativeFn), authMethodOptions);
+
+    // /v1/agents/{agent_id}/telegram/chats/{chat_id}
+    const telegramChat = telegramChats.addResource('{chat_id}');
+
+    // /v1/agents/{agent_id}/telegram/chats/{chat_id}/messages
+    const telegramChatMessages = telegramChat.addResource('messages');
+    telegramChatMessages.addMethod('GET',  new LambdaIntegration(telegramNativeFn), authMethodOptions);
+    telegramChatMessages.addMethod('POST', new LambdaIntegration(telegramNativeFn), authMethodOptions);
+
+    // ── Phase 3: Telegram webhook route (inbound from Telegram Bot API) ──
+    if (props.enableTelegram) {
+      addTelegramAdapter(this, {
         table: props.table,
         eventStream: props.eventStream,
         api: this.api,

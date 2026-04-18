@@ -23,6 +23,7 @@ import { EmailAdapterStack } from '../adapters/email-adapter-stack';
 import { SmsAdapterStack } from '../adapters/sms-adapter-stack';
 import { PushAdapterStack } from '../adapters/push-adapter-stack';
 import { SlackAdapterStack } from '../adapters/slack-adapter-stack';
+import { TelegramAdapterStack } from '../adapters/telegram-adapter-stack';
 
 export interface AgentCommsAdaptersStackProps extends StackProps {
   table: Table;
@@ -36,6 +37,8 @@ export interface AgentCommsAdaptersStackProps extends StackProps {
   enablePush?: boolean;
   /** Phase 3: enable Slack adapter stack (default false until Phase 3 deploy). */
   enableSlack?: boolean;
+  /** Phase 3: enable Telegram adapter stack (default false until Phase 3 deploy). */
+  enableTelegram?: boolean;
 }
 
 export class AgentCommsAdaptersStack extends Stack {
@@ -43,6 +46,7 @@ export class AgentCommsAdaptersStack extends Stack {
   public readonly smsAdapterStack?: SmsAdapterStack;
   public readonly pushAdapterStack?: PushAdapterStack;
   public readonly slackAdapterStack?: SlackAdapterStack;
+  public readonly telegramAdapterStack?: TelegramAdapterStack;
 
   constructor(scope: Construct, id: string, props: AgentCommsAdaptersStackProps) {
     super(scope, id, props);
@@ -85,7 +89,13 @@ export class AgentCommsAdaptersStack extends Stack {
       });
     }
 
-    // ── Phase 3 (future) — Telegram adapter ──
-    // new TelegramAdapterStack(scope, `${id}-Telegram`, { env: props.env, ...props });
+    // ── Phase 3: Telegram adapter (disabled by default; enable via enableTelegram: true) ──
+    if (props.enableTelegram) {
+      this.telegramAdapterStack = new TelegramAdapterStack(scope, `${id}-Telegram`, {
+        env: props.env,
+        table: props.table,
+        eventStream: props.eventStream,
+      });
+    }
   }
 }
