@@ -179,3 +179,9 @@ def kinesis_stream(aws_mock):
     kinesis.create_stream(StreamName="agentcomms-events-test", ShardCount=1)
     os.environ["AGENTCOMMS_EVENT_STREAM"] = "agentcomms-events-test"
     return "agentcomms-events-test"
+
+
+@pytest.fixture
+def repo_fixture(agentcomms_table):
+    from core.data.repo import Repo
+    return Repo(table=agentcomms_table)
