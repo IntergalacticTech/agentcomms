@@ -1,5 +1,6 @@
 {
-  "name": "console",
+  "name": "agentcomms-console",
+  "description": "AgentComms developer console.",
   "private": true,
   "version": "0.0.0",
   "type": "module",

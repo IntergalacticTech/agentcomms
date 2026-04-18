@@ -64,7 +64,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <p className="text-sm text-gray-500">Inboxes</p>
+                <p className="text-sm text-gray-500">Agents</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
                   {org.usage?.inboxes ?? "--"}
                 </p>
@@ -96,7 +96,7 @@ export default function DashboardPage() {
                   to="/inboxes"
                   className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700"
                 >
-                  Manage Inboxes
+                  Manage Agents
                 </Link>
                 <Link
                   to="/api-keys"

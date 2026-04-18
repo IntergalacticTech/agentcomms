@@ -1,4 +1,5 @@
 const API_BASE =
+  import.meta.env.VITE_AGENTCOMMS_API_URL ||
   import.meta.env.VITE_API_URL ||
   "https://api.victorymail.dev/v1";
 

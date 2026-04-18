@@ -86,7 +86,7 @@ export default function InboxesPage() {
 
   return (
     <>
-      <Header title="Inboxes" />
+      <Header title="Agents" />
       <div className="p-8">
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm flex justify-between items-center">
