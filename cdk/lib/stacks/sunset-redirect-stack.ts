@@ -42,6 +42,9 @@ import {
 } from 'aws-cdk-lib/aws-route53';
 import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import { Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 export interface SunsetRedirectStackProps extends StackProps {
   /** e.g. "https://api.agentcomms.dev" — no trailing slash */
@@ -239,12 +242,22 @@ export class SunsetRedirectStack extends Stack {
     }
 
     // ── Lambda@Edge ──
-    const edgeHandlerCode = buildEdgeHandlerCode(props.targetApiUrl, props.sunsetDate);
+    //
+    // We cannot use Code.fromInline (4 KB limit, and our handler with template-substituted
+    // values is ~4.5 KB). We also can't use Lambda env vars (unsupported on Edge). So we
+    // substitute the values into the handler source at synth time and deploy via
+    // Code.fromAsset from a temporary directory.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sunset-redirect-'));
+    const sourcePath = path.join(__dirname, '..', '..', 'edge-handlers', 'sunset-redirect', 'index.js');
+    const handlerSource = fs.readFileSync(sourcePath, 'utf8')
+      .replace(/__TARGET_API_URL__/g, props.targetApiUrl)
+      .replace(/__SUNSET_DATE__/g, props.sunsetDate);
+    fs.writeFileSync(path.join(tmpDir, 'index.js'), handlerSource);
 
     const edgeFn = new experimental.EdgeFunction(this, 'SunsetRedirectFn', {
       runtime: Runtime.NODEJS_18_X,
       handler: 'index.handler',
-      code:    Code.fromInline(edgeHandlerCode),
+      code:    Code.fromAsset(tmpDir),
       description: `Sunset redirect: api.victorymail.dev → api.agentcomms.dev (sunset: ${props.sunsetDate})`,
     });
 

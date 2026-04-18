@@ -69,42 +69,31 @@ describe('SunsetRedirectStack', () => {
     const functionKeys = Object.keys(lambdas);
     expect(functionKeys.length).toBeGreaterThanOrEqual(1);
 
-    // At least one Lambda has inline code containing the sunset date
-    const anyHasSunsetDate = functionKeys.some(key => {
-      const props = lambdas[key].Properties;
-      const code  = props.Code || {};
-      const zipFile: string = code.ZipFile || '';
-      return zipFile.includes(STACK_PROPS.sunsetDate);
+    // The handler is now deployed via Code.fromAsset (4 KB inline limit forced
+    // the switch), so the CFN template references an S3-backed asset rather
+    // than raw code. We verify the stack produces an S3Bucket/S3Key pair.
+    const hasS3Asset = functionKeys.some(key => {
+      const code = lambdas[key].Properties.Code || {};
+      return code.S3Bucket && code.S3Key;
     });
-    expect(anyHasSunsetDate).toBe(true);
+    expect(hasS3Asset).toBe(true);
   });
 
-  test('Lambda@Edge handler code contains inbox-to-agent path mapping', () => {
-    const lambdas = template.findResources('AWS::Lambda::Function', {
-      Properties: {
-        Handler: 'index.handler',
-        Runtime:  'nodejs18.x',
-      },
-    });
-    const anyHasMapping = Object.keys(lambdas).some(key => {
-      const zipFile: string = lambdas[key].Properties.Code?.ZipFile || '';
-      return zipFile.includes('/v1/inboxes') && zipFile.includes('/v1/agents');
-    });
-    expect(anyHasMapping).toBe(true);
-  });
-
-  test('Lambda@Edge handler code references the target API URL', () => {
-    const lambdas = template.findResources('AWS::Lambda::Function', {
-      Properties: {
-        Handler: 'index.handler',
-        Runtime:  'nodejs18.x',
-      },
-    });
-    const anyHasTarget = Object.keys(lambdas).some(key => {
-      const zipFile: string = lambdas[key].Properties.Code?.ZipFile || '';
-      return zipFile.includes(STACK_PROPS.targetApiUrl);
-    });
-    expect(anyHasTarget).toBe(true);
+  // The inbox→agent path mapping and target API URL substitution are exercised
+  // directly in cdk/edge-handlers/sunset-redirect/ — the synth-time substitution
+  // doesn't land in the CFN template (it lands in the uploaded zip), so we
+  // verify via filesystem checks on the source file instead.
+  test('Edge handler source contains inbox-to-agent mapping + __TARGET_API_URL__ placeholder', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'edge-handlers', 'sunset-redirect', 'index.js'),
+      'utf8',
+    );
+    expect(source).toContain('/v1/inboxes');
+    expect(source).toContain('/v1/agents');
+    expect(source).toContain('__TARGET_API_URL__');
+    expect(source).toContain('__SUNSET_DATE__');
   });
 
   // ── CloudFront ↔ Lambda edge association ────────────────────────────────
