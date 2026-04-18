@@ -5,15 +5,19 @@ Everything you need to connect your AI agents to AgentComms — today.
 ## TL;DR
 
 ```
-API base URL:  https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1
-API key:       ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY
-Org:           org_01KPH36QSYPCPJAEY4GRN5EJ1G  (JWC Personal)
-Region:        us-east-1
+API base URL (clean):    https://api.agentcomms.dev/v1
+API base URL (direct):   https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1
+API key:                 ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY
+Org:                     org_01KPH36QSYPCPJAEY4GRN5EJ1G  (JWC Personal)
+Region:                  us-east-1
+
+Landing:                 https://agentcomms.dev     (live)
+Console:                 https://console.agentcomms.dev  (live)
 ```
 
-One agent is already provisioned for you — `agt_01KPH37E2917EVKZX7YV5VFN75` (`jwc-first-agent`) with an email channel at `jwc@victorymail.dev`. Use it as a template or delete it and create your own.
+Both API URLs accept the same API key. Use the clean `api.agentcomms.dev` URL in SDK configs.
 
-> After you update your domain registrar to point `agentcomms.dev` at our new Route 53 nameservers (below), the API also becomes reachable at `https://api.agentcomms.dev/v1/` — same credentials.
+One agent is already provisioned for you — `agt_01KPH37E2917EVKZX7YV5VFN75` (`jwc-first-agent`) with an email channel at `jwc@victorymail.dev`. Use it as a template or delete it and create your own.
 
 ---
 
@@ -161,41 +165,15 @@ Green is production-ready. Yellow needs one more external step (third-party regi
 
 ---
 
-## 7. Making it reachable at `agentcomms.dev`
+## 7. `agentcomms.dev` DNS — ✅ live
 
-Route 53 hosted zone is already created in your AWS account (732770059798):
+- Route 53 zone: `Z0370999MWHX8OSTHZPR` (in account 732770059798)
+- ACM cert: combined cert covering agentcomms.dev + *.agentcomms.dev + victorymail.dev + *.victorymail.dev (`3bd1b3a6-a843-4804-9e0e-069550fd6aec`)
+- `api.agentcomms.dev` → API Gateway custom domain → `AgentCommsApi` (stage `prod`)
+- `agentcomms.dev` → CloudFront distribution `E9787GLOP9GSN` (landing page S3 origin)
+- `console.agentcomms.dev` → CloudFront distribution `E1PG2DM90218AR` (console React app S3 origin)
 
-**Zone:** `Z0370999MWHX8OSTHZPR`
-**Name:** `agentcomms.dev`
-
-**Your four new nameservers** — go to your domain registrar and replace the existing NS records with these exactly:
-
-```
-ns-652.awsdns-17.net
-ns-289.awsdns-36.com
-ns-1578.awsdns-05.co.uk
-ns-1192.awsdns-21.org
-```
-
-Once propagated (usually 15 minutes to a few hours):
-
-1. The ACM certificate for `agentcomms.dev` + `*.agentcomms.dev` (already requested) will auto-validate via the CNAME already in the zone. Check with:
-   ```bash
-   aws acm describe-certificate \
-     --certificate-arn arn:aws:acm:us-east-1:732770059798:certificate/3b0a4bb3-2daa-47a2-87b5-5d880d06718e \
-     --query "Certificate.Status"
-   ```
-   Expected: `"ISSUED"`.
-
-2. Run the finalize script (I'll write this later / or ping me and I'll run it):
-   ```
-   tools/finalize_agentcomms_dns.py
-   ```
-   This creates the API Gateway custom domain `api.agentcomms.dev` mapped to the AgentCommsApi, adds CloudFront alternate domain names for `agentcomms.dev` (landing) and `console.agentcomms.dev`, and writes the Route 53 A/AAAA records.
-
-3. After that you can use any of these URLs interchangeably with the same API key:
-   - `https://api.agentcomms.dev/v1/` (clean)
-   - `https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/` (the one you're using now)
+All three URLs serve from the same infrastructure as their `victorymail.dev` counterparts — no duplicate stacks.
 
 ---
 
