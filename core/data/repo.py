@@ -140,6 +140,64 @@ class Repo:
         )
         return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
 
+    def list_thread_messages(
+        self, *, thread_key: str, limit: int = 100,
+    ) -> list[UnifiedMessage]:
+        """GSI5 — list all messages belonging to a thread, oldest first."""
+        resp = self.table.query(
+            IndexName="GSI5",
+            KeyConditionExpression=Key("gsi5_pk").eq(f"THR#{thread_key}"),
+            ScanIndexForward=True,  # chronological order
+            Limit=limit,
+        )
+        return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    # ─── Drafts ──────────────────────────────────────────────────────
+    def put_draft(self, draft: Draft) -> None:
+        self.table.put_item(Item=draft.to_dynamodb_item())
+
+    def get_draft(self, *, agent_id: str, channel: str, draft_id: str) -> Draft | None:
+        resp = self.table.get_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"DRF#{channel}#{draft_id}"}
+        )
+        item = resp.get("Item")
+        return Draft.from_dynamodb_item(item) if item else None
+
+    def list_drafts(self, *, agent_id: str) -> list[Draft]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("DRF#"),
+        )
+        return [Draft.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_draft(self, *, agent_id: str, channel: str, draft_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"DRF#{channel}#{draft_id}"}
+        )
+
+    # ─── Webhooks ────────────────────────────────────────────────────
+    def put_webhook(self, webhook: Webhook) -> None:
+        self.table.put_item(Item=webhook.to_dynamodb_item())
+
+    def get_webhook(self, *, agent_id: str, webhook_id: str) -> Webhook | None:
+        resp = self.table.get_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"WHK#{webhook_id}"}
+        )
+        item = resp.get("Item")
+        return Webhook.from_dynamodb_item(item) if item else None
+
+    def list_webhooks(self, *, agent_id: str) -> list[Webhook]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("WHK#"),
+        )
+        return [Webhook.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_webhook(self, *, agent_id: str, webhook_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"WHK#{webhook_id}"}
+        )
+
     def lookup_message_by_external_id(
         self, *, channel: str, external_id: str,
     ) -> UnifiedMessage | None:
