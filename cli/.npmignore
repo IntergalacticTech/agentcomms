@@ -1,0 +1,19 @@
+# Source files — ship dist/ only
+src/
+__tests__/
+tsconfig.json
+*.ts
+*.map
+
+# Dev tooling
+node_modules/
+.eslintrc*
+.prettierrc*
+jest.config*
+
+# Docs that aren't the package README
+docs/
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md

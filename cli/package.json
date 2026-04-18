@@ -1,0 +1,59 @@
+{
+  "name": "@agentcomms/cli",
+  "version": "0.1.0",
+  "description": "Deploy and operate AgentComms — the agent communications hub — in your AWS account.",
+  "main": "./dist/index.js",
+  "bin": {
+    "agentcomms": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IntergalacticTech/FreeMail.ai.git",
+    "directory": "cli"
+  },
+  "license": "FSL-1.1-Apache-2.0",
+  "keywords": ["agentcomms", "aws", "cdk", "agent", "cli"],
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.600.0",
+    "@aws-sdk/client-route-53": "^3.600.0",
+    "@aws-sdk/client-sesv2": "^3.600.0",
+    "@aws-sdk/client-cloudformation": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.600.0",
+    "commander": "^12.1.0",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.14.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.4.0"
+  },
+  "jest": {
+    "preset": "ts-jest/presets/default-esm",
+    "testEnvironment": "node",
+    "extensionsToTreatAsEsm": [".ts"],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ]
+    },
+    "testMatch": ["**/__tests__/**/*.test.ts"]
+  }
+}
