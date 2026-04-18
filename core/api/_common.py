@@ -1,0 +1,61 @@
+# core/api/_common.py
+"""Shared request/response helpers for hub API handlers."""
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from typing import Any
+
+import boto3
+
+from core.data.repo import Repo
+
+
+def ok(body: Any, status: int = 200) -> dict:
+    return {
+        "statusCode": status,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(body, default=str),
+    }
+
+
+def err(message: str, status: int = 400) -> dict:
+    return ok({"error": message}, status=status)
+
+
+def no_content() -> dict:
+    return {"statusCode": 204, "body": ""}
+
+
+@dataclass
+class Caller:
+    org_id: str
+    scope: str
+    agent_id: str | None = None
+    channel_id: str | None = None
+    api_key_id: str | None = None
+
+    @classmethod
+    def from_event(cls, event: dict) -> Caller:
+        a = event["requestContext"]["authorizer"]
+        return cls(
+            org_id=a["org_id"],
+            scope=a["scope"],
+            agent_id=a.get("agent_id"),
+            channel_id=a.get("channel_id"),
+            api_key_id=a.get("api_key_id"),
+        )
+
+
+def get_repo() -> Repo:
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    table = boto3.resource("dynamodb", region_name=region).Table(
+        os.environ.get("AGENTCOMMS_TABLE", "agentcomms")
+    )
+    return Repo(table)
+
+
+def parse_body(event: dict) -> dict:
+    raw = event.get("body") or "{}"
+    return json.loads(raw) if isinstance(raw, str) else raw
