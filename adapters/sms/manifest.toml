@@ -1,0 +1,13 @@
+[adapter]
+channel = "sms"
+class = "adapters.sms.adapter:SmsAdapter"
+modes = ["provision"]
+cdk_stack = "adapters.sms.stack:SmsAdapterStack"
+min_hub_version = "0.1"
+
+[webhook_routes]
+
+[ssm_secrets]
+end_user_messaging_arn = "PLAIN"
+ten_dlc_brand_id = "PLAIN"
+ten_dlc_campaign_id = "PLAIN"

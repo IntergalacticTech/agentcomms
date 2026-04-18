@@ -20,6 +20,7 @@ import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
 import { EmailAdapterStack } from '../adapters/email-adapter-stack';
+import { SmsAdapterStack } from '../adapters/sms-adapter-stack';
 
 export interface AgentCommsAdaptersStackProps extends StackProps {
   table: Table;
@@ -27,10 +28,13 @@ export interface AgentCommsAdaptersStackProps extends StackProps {
   rawInboundBucket: Bucket;
   bodiesBucket: Bucket;
   attachmentsBucket: Bucket;
+  /** Phase 2: enable SMS adapter stack (default false until Phase 2 deploy). */
+  enableSms?: boolean;
 }
 
 export class AgentCommsAdaptersStack extends Stack {
   public readonly emailAdapterStack: EmailAdapterStack;
+  public readonly smsAdapterStack?: SmsAdapterStack;
 
   constructor(scope: Construct, id: string, props: AgentCommsAdaptersStackProps) {
     super(scope, id, props);
@@ -46,8 +50,14 @@ export class AgentCommsAdaptersStack extends Stack {
       inboundDomains: ['agentcomms.dev'],
     });
 
-    // ── Phase 2 (future) — SMS adapter ──
-    // new SmsAdapterStack(scope, `${id}-Sms`, { env: props.env, ...props });
+    // ── Phase 2: SMS adapter (disabled by default; enable via enableSms: true) ──
+    if (props.enableSms) {
+      this.smsAdapterStack = new SmsAdapterStack(scope, `${id}-Sms`, {
+        env: props.env,
+        table: props.table,
+        eventStream: props.eventStream,
+      });
+    }
 
     // ── Phase 2 (future) — Push adapter ──
     // new PushAdapterStack(scope, `${id}-Push`, { env: props.env, ...props });
