@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
+// with Apache 2.0 Future License. See LICENSE for details.
+
 // cdk/lib/adapters/push-adapter-stack.ts
 //
 // Push adapter AWS resources (SNS Mobile Push — APNs + FCM):

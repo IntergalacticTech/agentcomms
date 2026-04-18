@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
+# with Apache 2.0 Future License. See LICENSE for details.
+
 # core/vault/totp.py
 """RFC 6238 TOTP code generator — stdlib only, no external deps.
 

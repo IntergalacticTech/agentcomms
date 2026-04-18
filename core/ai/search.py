@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
+# with Apache 2.0 Future License. See LICENSE for details.
+
 # core/ai/search.py
 """Keyword-based message search (Phase 2 — Phase 3 adds semantic/vector search)."""
 from __future__ import annotations
