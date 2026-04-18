@@ -98,3 +98,22 @@ class HookedAdapter(ChannelAdapter):
     assert registry["hooked"].webhook_routes == {
         "inbound": {"path": "/webhooks/hooked", "method": "POST"}
     }
+
+
+def test_discord_scaffold_skipped(monkeypatch):
+    """Discord manifest has no [adapter] section → registry must not load it."""
+    # Ensure the real project root is in sys.path so adapter imports resolve.
+    project_root = Path(__file__).resolve().parents[2]
+    monkeypatch.syspath_prepend(str(project_root))
+    _purge_adapter_modules(monkeypatch)
+
+    from core.adapters.registry import load_registry
+    registry = load_registry(
+        adapters_root=project_root / "adapters",
+        load_entry_points=False,
+    )
+    assert "discord" not in registry, (
+        "Discord scaffold should not be registered (manifest has no [adapter] section)"
+    )
+    # Sanity: email should still be present
+    assert "email" in registry
