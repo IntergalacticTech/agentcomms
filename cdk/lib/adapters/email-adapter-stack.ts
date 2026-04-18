@@ -12,6 +12,8 @@
 // email adapter — its AWS resources are declared here in TypeScript CDK instead.
 // This stack is instantiated in Task 26's adapters orchestration stack.
 //
+import * as path from 'path';
+import { execSync } from 'child_process';
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
@@ -41,6 +43,54 @@ export class EmailAdapterStack extends Stack {
   constructor(scope: Construct, id: string, props: EmailAdapterStackProps) {
     super(scope, id, props);
 
+    // ── Shared local bundler ──
+    // Avoids mounting the large repo root into Docker (hits fd limits).
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const makeLambdaCode = () => Code.fromAsset(repoRoot, {
+      exclude: [
+        'cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '.venv',
+        '__pycache__', '*.pyc', '*.md', '.claude', '.github',
+      ],
+      bundling: {
+        image: Runtime.PYTHON_3_12.bundlingImage,
+        local: {
+          tryBundle(outputDir: string): boolean {
+            try {
+              // Stage everything under /tmp to avoid Docker Desktop fd-limit when
+              // mounting /Users paths. pydantic_core is a Rust extension that must
+              // be built for linux/amd64 to work in Lambda.
+              const tmpStage = `/tmp/agentcomms-lambda-bundle-${Date.now()}`;
+              execSync(`mkdir -p ${tmpStage}`);
+              execSync(`cp -r ${repoRoot}/core ${tmpStage}/`);
+              execSync(`cp -r ${repoRoot}/adapters ${tmpStage}/`);
+              execSync(`cp ${repoRoot}/requirements-lambda.txt ${tmpStage}/`);
+              execSync(
+                `docker run --rm --platform linux/amd64 \
+                  -v "${tmpStage}:/stage" \
+                  public.ecr.aws/sam/build-python3.12 \
+                  pip3 install -r /stage/requirements-lambda.txt -t /stage/ --no-cache-dir --disable-pip-version-check`,
+                { stdio: 'inherit' },
+              );
+              // Copy the staged output into the CDK output directory
+              execSync(`cp -r ${tmpStage}/. ${outputDir}/`);
+              execSync(`rm -rf ${tmpStage}`);
+              return true;
+            } catch (e) {
+              return false;
+            }
+          },
+        },
+        command: [
+          'bash', '-c',
+          [
+            'cp -r /asset-input/core /asset-output/',
+            'cp -r /asset-input/adapters /asset-output/',
+            'pip3 install -r /asset-input/requirements-lambda.txt -t /asset-output/ --no-cache-dir --disable-pip-version-check',
+          ].join(' && '),
+        ],
+      },
+    });
+
     // SNS topic SES publishes to
     const inboundTopic = new Topic(this, 'EmailInboundTopic', {
       topicName: 'agentcomms-email-inbound',
@@ -50,9 +100,7 @@ export class EmailAdapterStack extends Stack {
     this.ingestFunction = new LambdaFn(this, 'EmailIngestFn', {
       runtime: Runtime.PYTHON_3_12,
       handler: 'adapters.email.ingest.handler',
-      code: Code.fromAsset('..', {
-        exclude: ['cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '*.md'],
-      }),
+      code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 1024,
       environment: {
@@ -86,9 +134,7 @@ export class EmailAdapterStack extends Stack {
     this.outboundFunction = new LambdaFn(this, 'EmailOutboundFn', {
       runtime: Runtime.PYTHON_3_12,
       handler: 'adapters.email.outbound.handler',
-      code: Code.fromAsset('..', {
-        exclude: ['cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '*.md'],
-      }),
+      code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
       environment: {

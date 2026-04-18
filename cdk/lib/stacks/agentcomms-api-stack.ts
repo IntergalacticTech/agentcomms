@@ -6,6 +6,8 @@
 //   - 8 handler Lambdas (agents, channels, messages, threads, drafts, webhooks, wait, otp)
 //   - Routes wired under /v1/agents/*
 //
+import * as path from 'path';
+import { execSync } from 'child_process';
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
@@ -34,9 +36,54 @@ export class AgentCommsApiStack extends Stack {
   constructor(scope: Construct, id: string, props: AgentCommsApiStackProps) {
     super(scope, id, props);
 
-    // ── Common asset packaging (same exclusion list as email adapter) ──
-    const lambdaCode = () => Code.fromAsset('..', {
-      exclude: ['cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '*.md'],
+    // ── Common asset packaging ──
+    // Uses a local bundler (no Docker) to avoid mounting the large repo root
+    // into a container and hitting file-descriptor limits. The local bundler
+    // copies only core/ + adapters/ then installs pip deps natively.
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const lambdaCode = () => Code.fromAsset(repoRoot, {
+      exclude: [
+        'cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '.venv',
+        '__pycache__', '*.pyc', '*.md', '.claude', '.github',
+      ],
+      bundling: {
+        image: Runtime.PYTHON_3_12.bundlingImage,
+        local: {
+          tryBundle(outputDir: string): boolean {
+            try {
+              // Stage everything under /tmp to avoid Docker Desktop fd-limit when
+              // mounting /Users paths. pydantic_core is a Rust extension that must
+              // be built for linux/amd64 to work in Lambda.
+              const tmpStage = `/tmp/agentcomms-lambda-bundle-${Date.now()}`;
+              execSync(`mkdir -p ${tmpStage}`);
+              execSync(`cp -r ${repoRoot}/core ${tmpStage}/`);
+              execSync(`cp -r ${repoRoot}/adapters ${tmpStage}/`);
+              execSync(`cp ${repoRoot}/requirements-lambda.txt ${tmpStage}/`);
+              execSync(
+                `docker run --rm --platform linux/amd64 \
+                  -v "${tmpStage}:/stage" \
+                  public.ecr.aws/sam/build-python3.12 \
+                  pip3 install -r /stage/requirements-lambda.txt -t /stage/ --no-cache-dir --disable-pip-version-check`,
+                { stdio: 'inherit' },
+              );
+              // Copy the staged output into the CDK output directory
+              execSync(`cp -r ${tmpStage}/. ${outputDir}/`);
+              execSync(`rm -rf ${tmpStage}`);
+              return true;
+            } catch (e) {
+              return false;
+            }
+          },
+        },
+        command: [
+          'bash', '-c',
+          [
+            'cp -r /asset-input/core /asset-output/',
+            'cp -r /asset-input/adapters /asset-output/',
+            'pip3 install -r /asset-input/requirements-lambda.txt -t /asset-output/ --no-cache-dir --disable-pip-version-check',
+          ].join(' && '),
+        ],
+      },
     });
 
     // ── Common env vars for all handler Lambdas ──
