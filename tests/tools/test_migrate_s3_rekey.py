@@ -27,7 +27,7 @@ os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
 os.environ.setdefault("AWS_SECURITY_TOKEN", "testing")
 os.environ.setdefault("AWS_SESSION_TOKEN", "testing")
 
-import tools.migrate_s3_rekey as rekey  # noqa: E402
+import tools.legacy.migrate_s3_rekey as rekey  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures

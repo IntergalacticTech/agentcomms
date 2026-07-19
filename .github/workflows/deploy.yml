@@ -44,4 +44,8 @@ jobs:
           aws-region: us-east-1
 
       - name: CDK Deploy
-        run: cd cdk && npx cdk deploy --all --require-approval never
+        # Deploy only the AgentComms stacks (AgentCommsData, AgentCommsEvents,
+        # AgentCommsApi, AgentCommsAdapters, and its AgentCommsAdapters-* adapter
+        # sub-stacks). The retired victorymail/legacy stacks are intentionally
+        # excluded so they are not re-synthed or re-deployed.
+        run: cd cdk && npx cdk deploy 'AgentComms*' --require-approval never

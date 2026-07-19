@@ -19,7 +19,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-import tools.migrate_stripe_customers as migrator  # noqa: E402
+import tools.legacy.migrate_stripe_customers as migrator  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers to build mock Stripe objects

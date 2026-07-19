@@ -15,8 +15,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-import tools.check_migration_integrity as checker
-import tools.migrate_victorymail_to_agentcomms as migrator
+import tools.legacy.check_migration_integrity as checker
+import tools.legacy.migrate_victorymail_to_agentcomms as migrator
 
 _TS = "2026-04-17T10:00:00+00:00"
 

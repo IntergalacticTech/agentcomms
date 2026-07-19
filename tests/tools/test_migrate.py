@@ -20,7 +20,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-import tools.migrate_victorymail_to_agentcomms as migrator
+import tools.legacy.migrate_victorymail_to_agentcomms as migrator
 
 # ---------------------------------------------------------------------------
 # Shared seed helpers
