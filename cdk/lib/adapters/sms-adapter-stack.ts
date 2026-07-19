@@ -20,11 +20,13 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Function as LambdaFn, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { SqsEventSource, SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 
 export interface SmsAdapterStackProps extends StackProps {
   table: Table;
@@ -35,6 +37,7 @@ export class SmsAdapterStack extends Stack {
   public readonly ingestFunction: LambdaFn;
   public readonly outboundFunction: LambdaFn;
   public readonly outboundQueue: Queue;
+  public readonly outboundDlq: Queue;
   public readonly inboundTopic: Topic;
 
   constructor(scope: Construct, id: string, props: SmsAdapterStackProps) {
@@ -98,6 +101,7 @@ export class SmsAdapterStack extends Stack {
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
@@ -108,16 +112,34 @@ export class SmsAdapterStack extends Stack {
     props.eventStream.grantWrite(this.ingestFunction);
 
     // ── Outbound SQS + Lambda ──
+    // Dead-letter queue captures messages that fail 5 delivery attempts.
+    this.outboundDlq = new Queue(this, 'SmsOutboundDLQ', {
+      queueName: 'agentcomms-sms-outbound-dlq',
+      retentionPeriod: Duration.days(14),
+    });
     this.outboundQueue = new Queue(this, 'SmsOutboundQueue', {
       queueName: 'agentcomms-sms-outbound',
       visibilityTimeout: Duration.seconds(60),
+      deadLetterQueue: { queue: this.outboundDlq, maxReceiveCount: 5 },
     });
+    // Alarm when any message lands in the DLQ (outbound send failing repeatedly).
+    this.outboundDlq
+      .metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5), statistic: 'Maximum' })
+      .createAlarm(this, 'SmsOutboundDLQAlarm', {
+        alarmName: 'agentcomms-sms-outbound-dlq-not-empty',
+        alarmDescription: 'agentcomms-sms-outbound DLQ has messages — outbound SMS delivery is failing.',
+        threshold: 0,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
     this.outboundFunction = new LambdaFn(this, 'SmsOutboundFn', {
       runtime: Runtime.PYTHON_3_12,
       handler: 'adapters.sms.outbound.handler',
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,

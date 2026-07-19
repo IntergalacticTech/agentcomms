@@ -24,11 +24,13 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Function as LambdaFn, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { SqsEventSource, SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 
 export interface PushAdapterStackProps extends StackProps {
   table: Table;
@@ -39,6 +41,7 @@ export class PushAdapterStack extends Stack {
   public readonly ingestFunction: LambdaFn;
   public readonly outboundFunction: LambdaFn;
   public readonly outboundQueue: Queue;
+  public readonly outboundDlq: Queue;
   public readonly deliveryTopic: Topic;
 
   constructor(scope: Construct, id: string, props: PushAdapterStackProps) {
@@ -102,6 +105,7 @@ export class PushAdapterStack extends Stack {
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
@@ -112,16 +116,34 @@ export class PushAdapterStack extends Stack {
     props.eventStream.grantWrite(this.ingestFunction);
 
     // ── Outbound SQS + Lambda ──
+    // Dead-letter queue captures messages that fail 5 delivery attempts.
+    this.outboundDlq = new Queue(this, 'PushOutboundDLQ', {
+      queueName: 'agentcomms-push-outbound-dlq',
+      retentionPeriod: Duration.days(14),
+    });
     this.outboundQueue = new Queue(this, 'PushOutboundQueue', {
       queueName: 'agentcomms-push-outbound',
       visibilityTimeout: Duration.seconds(60),
+      deadLetterQueue: { queue: this.outboundDlq, maxReceiveCount: 5 },
     });
+    // Alarm when any message lands in the DLQ (outbound push failing repeatedly).
+    this.outboundDlq
+      .metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5), statistic: 'Maximum' })
+      .createAlarm(this, 'PushOutboundDLQAlarm', {
+        alarmName: 'agentcomms-push-outbound-dlq-not-empty',
+        alarmDescription: 'agentcomms-push-outbound DLQ has messages — outbound push delivery is failing.',
+        threshold: 0,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
     this.outboundFunction = new LambdaFn(this, 'PushOutboundFn', {
       runtime: Runtime.PYTHON_3_12,
       handler: 'adapters.push.outbound.handler',
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,

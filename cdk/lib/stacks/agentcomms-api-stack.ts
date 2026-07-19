@@ -21,6 +21,7 @@ import { Stream } from 'aws-cdk-lib/aws-kinesis';
 import {
   Function as LambdaFn, Runtime, Code,
 } from 'aws-cdk-lib/aws-lambda';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import {
   RestApi, LambdaIntegration, TokenAuthorizer, AuthorizationType,
   MethodOptions,
@@ -114,6 +115,7 @@ export class AgentCommsApiStack extends Stack {
       code: lambdaCode(),
       timeout: Duration.seconds(10),
       memorySize: 256,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
       },
@@ -144,31 +146,31 @@ export class AgentCommsApiStack extends Stack {
         code: lambdaCode(),
         timeout: Duration.seconds(30),
         memorySize: 512,
+        logRetention: RetentionDays.ONE_MONTH,
         environment: commonEnv,
       });
       props.table.grantReadWriteData(fn);
       if (grantKinesisWrite) {
         props.eventStream.grantWrite(fn);
       }
-      // All handlers may invoke EmailAdapter.send() / .provision() (router picks adapter
-      // based on 'to' format). Grant SES so the outbound path works without the separate
-      // email-adapter SQS worker stack being present.
-      fn.addToRolePolicy(new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: [
-          'ses:SendRawEmail',
-          'ses:SendEmail',
-          'ses:VerifyDomainDkim',
-          'ses:GetSendQuota',
-          'sesv2:SendEmail',
-          'sesv2:CreateEmailIdentity',
-          'sesv2:GetEmailIdentity',
-          'sesv2:DeleteEmailIdentity',
-        ],
-        resources: ['*'],
-      }));
+      // NOTE: SES permissions are NOT granted here. Only the handler(s) that actually
+      // send mail (messagesFn) get SES send, and only domainsFn gets SES identity CRUD.
+      // See the scoped grants below. Granting SES to all 13 handlers was over-broad.
       return fn;
     };
+
+    // SES send policy — the outbound email path (EmailAdapter.send()). Scoped to the
+    // messages handler, the only handler that actually sends mail.
+    const sesSendPolicy = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        'ses:SendRawEmail',
+        'ses:SendEmail',
+        'ses:GetSendQuota',
+        'sesv2:SendEmail',
+      ],
+      resources: ['*'],
+    });
 
     // ── 13 Handler Lambdas ──
     // agents, channels, messages publish events → grant Kinesis write
@@ -181,6 +183,9 @@ export class AgentCommsApiStack extends Stack {
     }));
     const channelsFn  = makeHandlerFn('ChannelsFn',  'channels_handler',  true);
     const messagesFn  = makeHandlerFn('MessagesFn',  'messages_handler',  true);
+    // MessagesFn is the sender: POST /messages invokes EmailAdapter.send() (router picks
+    // adapter based on 'to' format). Grant SES send here rather than to all handlers.
+    messagesFn.addToRolePolicy(sesSendPolicy);
     const threadsFn   = makeHandlerFn('ThreadsFn',   'threads_handler',   false);
     const draftsFn    = makeHandlerFn('DraftsFn',    'drafts_handler',    false);
     const webhooksFn  = makeHandlerFn('WebhooksFn',  'webhooks_handler',  false);
@@ -202,6 +207,7 @@ export class AgentCommsApiStack extends Stack {
       code: lambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         ...commonEnv,
         AGENTCOMMS_VAULT_KMS_KEY_ID: vaultKey.keyId,
@@ -236,7 +242,7 @@ export class AgentCommsApiStack extends Stack {
     aiFn.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ['bedrock:InvokeModel'],
-      resources: ['arn:aws:bedrock:us-east-1::foundation-model/*'],
+      resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
     }));
 
     // PushNativeFn: read/write DynamoDB + Kinesis + SNS for push delivery
@@ -420,6 +426,7 @@ export class AgentCommsApiStack extends Stack {
       code: lambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: commonEnv,
     });
     props.table.grantReadWriteData(slackNativeFn);
@@ -477,6 +484,7 @@ export class AgentCommsApiStack extends Stack {
       code: lambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: commonEnv,
     });
     props.table.grantReadWriteData(telegramNativeFn);

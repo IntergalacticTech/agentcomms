@@ -59,4 +59,35 @@ describe('AgentCommsApiStack', () => {
     // exclude OPTIONS / ANY if any; just ensure count ≥ 20
     expect(Object.keys(methods).length).toBeGreaterThanOrEqual(20);
   });
+
+  // ── SES IAM scoping (finding: blanket SES grant on all 13 handlers) ──
+
+  function policiesContaining(action: string): string[] {
+    const policies = template.findResources('AWS::IAM::Policy');
+    return Object.keys(policies).filter((id) =>
+      JSON.stringify(policies[id].Properties?.PolicyDocument).includes(action),
+    );
+  }
+
+  test('SES send is granted to exactly one handler (the sender), not all handlers', () => {
+    // Previously every handler role carried ses:SendRawEmail (over-broad).
+    expect(policiesContaining('ses:SendRawEmail').length).toBe(1);
+  });
+
+  test('SES identity CRUD is granted to exactly one handler (domains)', () => {
+    expect(policiesContaining('sesv2:CreateEmailIdentity').length).toBe(1);
+  });
+
+  test('Bedrock InvokeModel resource is region-interpolated, not hardcoded us-east-1', () => {
+    const policies = template.findResources('AWS::IAM::Policy');
+    const serialized = JSON.stringify(policies);
+    // No literal us-east-1 bedrock ARN; region comes from a CloudFormation ref.
+    expect(serialized).not.toContain('arn:aws:bedrock:us-east-1::foundation-model/*');
+    expect(serialized).toContain('bedrock:InvokeModel');
+  });
+
+  test('handler Lambdas set a 1-month log retention', () => {
+    const retentions = template.findResources('Custom::LogRetention');
+    expect(Object.keys(retentions).length).toBeGreaterThanOrEqual(1);
+  });
 });

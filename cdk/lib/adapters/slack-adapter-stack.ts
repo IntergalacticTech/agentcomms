@@ -29,10 +29,12 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Function as LambdaFn, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 import {
   RestApi, LambdaIntegration, AuthorizationType,
 } from 'aws-cdk-lib/aws-apigateway';
@@ -136,6 +138,7 @@ export function addSlackAdapter(scope: Construct, props: AddSlackAdapterProps): 
     code,
     timeout: Duration.seconds(10),   // Slack requires <3s but we have buffer for SSM cold start
     memorySize: 512,
+    logRetention: RetentionDays.ONE_MONTH,
     environment: commonEnv,
   });
   props.table.grantReadWriteData(eventsFn);
@@ -149,6 +152,7 @@ export function addSlackAdapter(scope: Construct, props: AddSlackAdapterProps): 
     code,
     timeout: Duration.seconds(30),
     memorySize: 512,
+    logRetention: RetentionDays.ONE_MONTH,
     environment: commonEnv,
   });
   props.table.grantReadWriteData(oauthCallbackFn);
@@ -183,6 +187,7 @@ export function addSlackAdapter(scope: Construct, props: AddSlackAdapterProps): 
 export class SlackAdapterStack extends Stack {
   public readonly outboundFunction: LambdaFn;
   public readonly outboundQueue: Queue;
+  public readonly outboundDlq: Queue;
 
   constructor(scope: Construct, id: string, props: SlackAdapterStackProps) {
     super(scope, id, props);
@@ -196,10 +201,27 @@ export class SlackAdapterStack extends Stack {
     };
 
     // ── Outbound SQS + Lambda ──
+    // Dead-letter queue captures messages that fail 5 delivery attempts.
+    this.outboundDlq = new Queue(this, 'SlackOutboundDLQ', {
+      queueName: 'agentcomms-slack-outbound-dlq',
+      retentionPeriod: Duration.days(14),
+    });
     this.outboundQueue = new Queue(this, 'SlackOutboundQueue', {
       queueName: 'agentcomms-slack-outbound',
       visibilityTimeout: Duration.seconds(60),
+      deadLetterQueue: { queue: this.outboundDlq, maxReceiveCount: 5 },
     });
+    // Alarm when any message lands in the DLQ (outbound send failing repeatedly).
+    this.outboundDlq
+      .metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5), statistic: 'Maximum' })
+      .createAlarm(this, 'SlackOutboundDLQAlarm', {
+        alarmName: 'agentcomms-slack-outbound-dlq-not-empty',
+        alarmDescription: 'agentcomms-slack-outbound DLQ has messages — outbound Slack delivery is failing.',
+        threshold: 0,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
 
     this.outboundFunction = new LambdaFn(this, 'SlackOutboundFn', {
       runtime: Runtime.PYTHON_3_12,
@@ -207,6 +229,7 @@ export class SlackAdapterStack extends Stack {
       code,
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: commonEnv,
     });
     this.outboundFunction.addEventSource(new SqsEventSource(this.outboundQueue));

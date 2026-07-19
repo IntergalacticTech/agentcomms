@@ -23,12 +23,14 @@ import { Construct } from 'constructs';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Function as LambdaFn, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { SqsEventSource, SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { ReceiptRuleSet } from 'aws-cdk-lib/aws-ses';
 import { S3, Sns } from 'aws-cdk-lib/aws-ses-actions';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 
 export interface EmailAdapterStackProps extends StackProps {
   table: Table;
@@ -45,6 +47,7 @@ export class EmailAdapterStack extends Stack {
   public readonly ingestFunction: LambdaFn;
   public readonly outboundFunction: LambdaFn;
   public readonly outboundQueue: Queue;
+  public readonly outboundDlq: Queue;
 
   constructor(scope: Construct, id: string, props: EmailAdapterStackProps) {
     super(scope, id, props);
@@ -109,6 +112,7 @@ export class EmailAdapterStack extends Stack {
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 1024,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_BUCKET_RAW_INBOUND: props.rawInboundBucket.bucketName,
@@ -133,17 +137,34 @@ export class EmailAdapterStack extends Stack {
       ],
     });
 
-    // Outbound
+    // Outbound — dead-letter queue captures messages that fail 5 delivery attempts.
+    this.outboundDlq = new Queue(this, 'EmailOutboundDLQ', {
+      queueName: 'agentcomms-email-outbound-dlq',
+      retentionPeriod: Duration.days(14),
+    });
     this.outboundQueue = new Queue(this, 'EmailOutboundQueue', {
       queueName: 'agentcomms-email-outbound',
       visibilityTimeout: Duration.seconds(60),
+      deadLetterQueue: { queue: this.outboundDlq, maxReceiveCount: 5 },
     });
+    // Alarm when any message lands in the DLQ (outbound send failing repeatedly).
+    this.outboundDlq
+      .metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5), statistic: 'Maximum' })
+      .createAlarm(this, 'EmailOutboundDLQAlarm', {
+        alarmName: 'agentcomms-email-outbound-dlq-not-empty',
+        alarmDescription: 'agentcomms-email-outbound DLQ has messages — outbound email delivery is failing.',
+        threshold: 0,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
     this.outboundFunction = new LambdaFn(this, 'EmailOutboundFn', {
       runtime: Runtime.PYTHON_3_12,
       handler: 'adapters.email.outbound.handler',
       code: makeLambdaCode(),
       timeout: Duration.seconds(30),
       memorySize: 512,
+      logRetention: RetentionDays.ONE_MONTH,
       environment: {
         AGENTCOMMS_TABLE: props.table.tableName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,

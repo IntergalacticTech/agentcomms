@@ -61,9 +61,42 @@ describe('AgentCommsAdaptersStack — email adapter artifacts', () => {
     });
   });
 
-  test('has 2 Lambda functions (ingest + outbound)', () => {
-    const lambdas = emailTemplate.findResources('AWS::Lambda::Function');
-    expect(Object.keys(lambdas).length).toBe(2);
+  test('outbound queue has a dead-letter queue with maxReceiveCount 5', () => {
+    // DLQ exists
+    emailTemplate.hasResourceProperties('AWS::SQS::Queue', {
+      QueueName: 'agentcomms-email-outbound-dlq',
+    });
+    // Main queue redrives to it after 5 failures
+    emailTemplate.hasResourceProperties('AWS::SQS::Queue', {
+      QueueName: 'agentcomms-email-outbound',
+      RedrivePolicy: Match.objectLike({ maxReceiveCount: 5 }),
+    });
+  });
+
+  test('has a CloudWatch alarm on the DLQ depth', () => {
+    emailTemplate.hasResourceProperties('AWS::CloudWatch::Alarm', {
+      MetricName: 'ApproximateNumberOfMessagesVisible',
+      Namespace: 'AWS/SQS',
+      ComparisonOperator: 'GreaterThanThreshold',
+      Threshold: 0,
+    });
+  });
+
+  test('has both adapter Lambda handlers (ingest + outbound)', () => {
+    // The two adapter handlers are present. (A LogRetention custom-resource
+    // provider Lambda is also synthesized because logRetention is set.)
+    emailTemplate.hasResourceProperties('AWS::Lambda::Function', {
+      Handler: 'adapters.email.ingest.handler',
+    });
+    emailTemplate.hasResourceProperties('AWS::Lambda::Function', {
+      Handler: 'adapters.email.outbound.handler',
+    });
+  });
+
+  test('adapter Lambdas set a 1-month log retention', () => {
+    // logRetention synthesizes a Custom::LogRetention resource per function.
+    const retentions = emailTemplate.findResources('Custom::LogRetention');
+    expect(Object.keys(retentions).length).toBeGreaterThanOrEqual(2);
   });
 
   test('uses configured inbound domains in SES receipt rule', () => {
