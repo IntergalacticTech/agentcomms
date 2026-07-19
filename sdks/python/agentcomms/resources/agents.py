@@ -86,9 +86,17 @@ class AgentsResource:
         return [Agent.model_validate(a) for a in data.get("agents", [])]
 
     def patch(self, agent_id: str, **kwargs: Any) -> Agent:
-        """Update mutable fields on an agent."""
-        data = self._client._request("PATCH", f"/agents/{agent_id}", json=kwargs)
+        """Update mutable fields on an agent.
+
+        The API implements agent update as HTTP ``PUT /agents/{agent_id}``,
+        so this issues a ``PUT`` even though the method is named ``patch``
+        (kept stable for backwards compatibility).
+        """
+        data = self._client._request("PUT", f"/agents/{agent_id}", json=kwargs)
         return Agent.model_validate(data)
+
+    # ``update`` is the natural name for a PUT-based update; kept as an alias.
+    update = patch
 
     def delete(self, agent_id: str) -> None:
         """Delete an agent and all its channels."""

@@ -63,8 +63,18 @@ export class AgentsResource {
     return data.agents ?? [];
   }
 
+  /**
+   * Update mutable fields on an agent. The API implements agent update as
+   * HTTP `PUT /agents/{id}`, so this issues a `PUT` even though the method
+   * is named `patch` (kept stable for backwards compatibility).
+   */
   async patch(id: string, updates: Partial<Pick<Agent, "name" | "metadata">>): Promise<Agent> {
-    return this.client.request<Agent>("PATCH", `/agents/${id}`, updates);
+    return this.client.request<Agent>("PUT", `/agents/${id}`, updates);
+  }
+
+  /** Alias for {@link patch} — the natural name for a PUT-based update. */
+  async update(id: string, updates: Partial<Pick<Agent, "name" | "metadata">>): Promise<Agent> {
+    return this.patch(id, updates);
   }
 
   async delete(id: string): Promise<void> {

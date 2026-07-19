@@ -153,3 +153,47 @@ describe("channels_list tool", () => {
     );
   });
 });
+
+describe("apiRequest error handling", () => {
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("surfaces the HTTP status on a non-ok response (checked before parsing)", async () => {
+    global.fetch = makeFetchMock("internal boom", 500) as typeof fetch;
+
+    const tool = agentTools.find((t) => t.name === "agent_list")!;
+    await expect(tool.handler({})).rejects.toThrow(/API error 500/);
+  });
+
+  it("surfaces status even when the error body is not valid JSON", async () => {
+    // A non-JSON body would previously blow up in resp.json(); now we check
+    // resp.ok first and read the body as text.
+    const nonJson: FetchImpl = jest.fn<FetchImpl>().mockResolvedValue(
+      new Response("<html>502 Bad Gateway</html>", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      })
+    );
+    global.fetch = nonJson as typeof fetch;
+
+    const tool = agentTools.find((t) => t.name === "agent_list")!;
+    await expect(tool.handler({})).rejects.toThrow(/API error 502/);
+  });
+
+  it("passes an AbortSignal for timeout enforcement", async () => {
+    global.fetch = makeFetchMock([]) as typeof fetch;
+
+    const tool = agentTools.find((t) => t.name === "agent_list")!;
+    await tool.handler({});
+
+    const callArgs = (global.fetch as jest.MockedFunction<FetchImpl>).mock.calls[0];
+    const requestInit = callArgs[1] as RequestInit;
+    expect(requestInit.signal).toBeInstanceOf(AbortSignal);
+  });
+});

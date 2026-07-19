@@ -8,25 +8,39 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agentcomms import Client
-from agentcomms.exceptions import AgentCommsError, NotFoundError, AuthenticationError, RateLimitError
+from agentcomms.exceptions import (
+    AgentCommsError,
+    NotFoundError,
+    AuthenticationError,
+    RateLimitError,
+    ServerError,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_response(status_code: int, body: dict) -> MagicMock:
+def _make_response(status_code: int, body: dict, headers: dict | None = None) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.ok = status_code < 400
     resp.json.return_value = body
     resp.text = json.dumps(body)
+    resp.headers = headers or {}
     return resp
 
 
 def _mock_session_request(response: MagicMock):
     """Return a context manager patch that makes Session.request return *response*."""
     return patch("requests.Session.request", return_value=response)
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep():
+    """Make retry backoff instant so tests don't actually sleep."""
+    with patch("agentcomms.client.time.sleep"):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +110,23 @@ class TestAgentsResource:
             client = Client(api_key="k")
             client.agents.delete("agt_1")
         assert mock_req.call_args[0][0] == "DELETE"
+
+    def test_patch_issues_put(self):
+        # The API implements agent update as HTTP PUT, not PATCH.
+        resp = _make_response(200, {"agent_id": "agt_1", "name": "Renamed", "org_id": "org_1"})
+        with _mock_session_request(resp) as mock_req:
+            client = Client(api_key="k")
+            agent = client.agents.patch("agt_1", name="Renamed")
+        assert mock_req.call_args[0][0] == "PUT"
+        assert "/agents/agt_1" in mock_req.call_args[0][1]
+        assert agent.name == "Renamed"
+
+    def test_update_alias_issues_put(self):
+        resp = _make_response(200, {"agent_id": "agt_1", "name": "Renamed", "org_id": "org_1"})
+        with _mock_session_request(resp) as mock_req:
+            client = Client(api_key="k")
+            client.agents.update("agt_1", name="Renamed")
+        assert mock_req.call_args[0][0] == "PUT"
 
     def test_agent_context_via_call(self):
         client = Client(api_key="k")
@@ -227,9 +258,87 @@ class TestErrorHandling:
     def test_500_raises_agent_comms_error(self):
         resp = _make_response(500, {"error": {"code": "INTERNAL", "message": "oops"}})
         with _mock_session_request(resp):
-            client = Client(api_key="k")
+            client = Client(api_key="k", max_retries=0)
             with pytest.raises(AgentCommsError):
                 client.agents.list()
+
+    def test_error_as_string_body(self):
+        # The server returns {"error": "<string>"}; it must map to a real
+        # AgentCommsError with the string as the message, not an AttributeError.
+        resp = _make_response(400, {"error": "bad request payload"})
+        with _mock_session_request(resp):
+            client = Client(api_key="k")
+            with pytest.raises(AgentCommsError) as exc_info:
+                client.agents.create(name="x")
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.message == "bad request payload"
+        assert exc_info.value.code == "ERROR"
+
+    def test_error_as_string_body_on_subclass(self):
+        resp = _make_response(404, {"error": "agent not found"})
+        with _mock_session_request(resp):
+            client = Client(api_key="k")
+            with pytest.raises(NotFoundError) as exc_info:
+                client.agents.get("agt_missing")
+        assert exc_info.value.message == "agent not found"
+
+    def test_error_object_body_still_parsed(self):
+        resp = _make_response(404, {"error": {"code": "NOT_FOUND", "message": "nope"}})
+        with _mock_session_request(resp):
+            client = Client(api_key="k")
+            with pytest.raises(NotFoundError) as exc_info:
+                client.agents.get("agt_missing")
+        assert exc_info.value.code == "NOT_FOUND"
+        assert exc_info.value.message == "nope"
+
+
+# ---------------------------------------------------------------------------
+# Retry / resilience
+# ---------------------------------------------------------------------------
+
+class TestRetries:
+    def test_retries_idempotent_on_429_then_succeeds(self):
+        err = _make_response(429, {"error": "slow down"})
+        ok = _make_response(200, {"agents": []})
+        with patch("requests.Session.request", side_effect=[err, ok]) as mock_req:
+            client = Client(api_key="k")
+            agents = client.agents.list()
+        assert mock_req.call_count == 2
+        assert agents == []
+
+    def test_retries_idempotent_on_500_then_succeeds(self):
+        err = _make_response(503, {"error": "unavailable"})
+        ok = _make_response(200, {"agents": []})
+        with patch("requests.Session.request", side_effect=[err, ok]) as mock_req:
+            client = Client(api_key="k")
+            client.agents.list()
+        assert mock_req.call_count == 2
+
+    def test_retries_exhaust_then_raise(self):
+        resp = _make_response(500, {"error": "boom"})
+        with patch("requests.Session.request", return_value=resp) as mock_req:
+            client = Client(api_key="k", max_retries=2)
+            with pytest.raises(ServerError):
+                client.agents.list()
+        # 1 initial attempt + 2 retries
+        assert mock_req.call_count == 3
+
+    def test_non_idempotent_not_retried(self):
+        resp = _make_response(500, {"error": "boom"})
+        with patch("requests.Session.request", return_value=resp) as mock_req:
+            client = Client(api_key="k", max_retries=3)
+            with pytest.raises(ServerError):
+                client.agents.create(name="x")  # POST — not idempotent
+        assert mock_req.call_count == 1
+
+    def test_retry_after_header_honored(self):
+        err = _make_response(429, {"error": "slow"}, headers={"Retry-After": "2"})
+        ok = _make_response(200, {"agents": []})
+        with patch("requests.Session.request", side_effect=[err, ok]):
+            with patch("agentcomms.client.time.sleep") as mock_sleep:
+                client = Client(api_key="k")
+                client.agents.list()
+        mock_sleep.assert_called_once_with(2.0)
 
 
 # ---------------------------------------------------------------------------

@@ -182,13 +182,101 @@ describe("error handling", () => {
 
   test("429 response throws RateLimitError", async () => {
     mockFetch(429, { error: { code: "RATE_LIMITED", message: "slow down" } });
-    const client = new Client({ apiKey: "k" });
+    const client = new Client({ apiKey: "k", maxRetries: 0 });
     await expect(client.agents.list()).rejects.toBeInstanceOf(RateLimitError);
   });
 
   test("500 response throws AgentCommsError", async () => {
     mockFetch(500, { error: { code: "INTERNAL", message: "oops" } });
-    const client = new Client({ apiKey: "k" });
+    const client = new Client({ apiKey: "k", maxRetries: 0 });
     await expect(client.agents.list()).rejects.toBeInstanceOf(AgentCommsError);
+  });
+
+  test("error body as bare string is used as the message", async () => {
+    mockFetch(400, { error: "bad request payload" });
+    const client = new Client({ apiKey: "k", maxRetries: 0 });
+    await expect(client.agents.create({ name: "x" })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "ERROR",
+      message: expect.stringContaining("bad request payload"),
+    });
+  });
+
+  test("error body as string on a 404 maps to NotFoundError with the message", async () => {
+    mockFetch(404, { error: "agent not found" });
+    const client = new Client({ apiKey: "k", maxRetries: 0 });
+    await expect(client.agents.get("missing")).rejects.toMatchObject({
+      name: "NotFoundError",
+      message: expect.stringContaining("agent not found"),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent update (PUT)
+// ---------------------------------------------------------------------------
+
+describe("agents.patch()/update()", () => {
+  test("patch issues PUT to /agents/:id", async () => {
+    const spy = mockFetch(200, { agent_id: "agt_1", name: "Renamed", org_id: "org_1" });
+    const client = new Client({ apiKey: "k" });
+    const agent = await client.agents.patch("agt_1", { name: "Renamed" });
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("PUT");
+    expect(url).toContain("/agents/agt_1");
+    expect(agent.name).toBe("Renamed");
+  });
+
+  test("update alias also issues PUT", async () => {
+    const spy = mockFetch(200, { agent_id: "agt_1", name: "Renamed", org_id: "org_1" });
+    const client = new Client({ apiKey: "k" });
+    await client.agents.update("agt_1", { name: "Renamed" });
+    expect((spy.mock.calls[0][1] as RequestInit).method).toBe("PUT");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Retry / resilience
+// ---------------------------------------------------------------------------
+
+describe("retry behavior", () => {
+  test("retries idempotent GET on 429 then succeeds", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockResponse(429, { error: "slow down" }) as never)
+      .mockResolvedValueOnce(mockResponse(200, { agents: [] }) as never);
+    const client = new Client({ apiKey: "k", retryBaseMs: 0 });
+    const agents = await client.agents.list();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(agents).toEqual([]);
+  });
+
+  test("retries idempotent GET on 503 then succeeds", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockResponse(503, { error: "unavailable" }) as never)
+      .mockResolvedValueOnce(mockResponse(200, { agents: [] }) as never);
+    const client = new Client({ apiKey: "k", retryBaseMs: 0 });
+    await client.agents.list();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test("exhausts retries then throws", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockResponse(500, { error: "boom" }) as never);
+    const client = new Client({ apiKey: "k", maxRetries: 2, retryBaseMs: 0 });
+    await expect(client.agents.list()).rejects.toBeInstanceOf(AgentCommsError);
+    // 1 initial attempt + 2 retries
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  test("does not retry non-idempotent POST", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockResponse(500, { error: "boom" }) as never);
+    const client = new Client({ apiKey: "k", maxRetries: 3, retryBaseMs: 0 });
+    await expect(client.agents.create({ name: "x" })).rejects.toBeInstanceOf(AgentCommsError);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
