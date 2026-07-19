@@ -75,14 +75,12 @@ def handler(event: dict, context) -> dict:
     # ── GET /v1/agents/{id}/threads/{thread_id} ─────────────────────
     if method == "GET" and thread_id:
         limit = int(qs.get("limit", "100"))
-        cursor = qs.get("cursor")
-        msgs, next_cursor = repo.query_thread_messages(
-            thread_key=thread_id, limit=limit, cursor=cursor,
-        )
-        # GSI5 is global; scope the thread to this caller's agent so a foreign
-        # thread_key + own agent_id cannot read another org's thread.
-        msgs = [m for m in msgs if m.agent_id == agent_id]
-        if not msgs and not cursor:
+        # GSI5 is a global index; query_thread_messages scopes the thread to
+        # this caller's agent server-side and never returns a raw index cursor,
+        # so a foreign thread_key + own agent_id can neither read another org's
+        # messages nor enumerate their identifiers via a pagination token.
+        msgs = repo.query_thread_messages(thread_key=thread_id, agent_id=agent_id)[:limit]
+        if not msgs:
             return err("thread not found", 404)
         result = []
         for m in msgs:
@@ -96,6 +94,6 @@ def handler(event: dict, context) -> dict:
                 "received_at": m.received_at.isoformat(),
                 "thread_key": m.thread_key,
             })
-        return ok({"thread_key": thread_id, "messages": result, "next_cursor": next_cursor})
+        return ok({"thread_key": thread_id, "messages": result, "next_cursor": None})
 
     return err("not found", 404)

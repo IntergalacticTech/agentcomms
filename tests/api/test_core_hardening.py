@@ -254,3 +254,38 @@ def test_cursor_encode_decode_roundtrip():
     assert encode_cursor(None) is None
     assert decode_cursor(None) is None
     assert decode_cursor("not-valid-base64!!") is None
+
+
+# ---------------------------------------------------------------------------
+# Filtered inbox pagination completeness (no dropped rows across pages)
+# ---------------------------------------------------------------------------
+
+def test_channel_filtered_pagination_returns_all_rows(agentcomms_table):
+    """With a channel_filter, paging must surface every matching message —
+    the over-fetch page boundary must not silently drop rows."""
+    repo = Repo(agentcomms_table)
+    repo.put_organization(Organization(org_id="org_1", name="O", plan=OrgPlan.FREE))
+    repo.put_agent(Agent(agent_id="agt_1", org_id="org_1", name="a"))
+    total = 12
+    for i in range(total):
+        repo.put_message(UnifiedMessage(
+            message_id=f"msg_{i:02d}",
+            agent_id="agt_1", org_id="org_1", channel_id="chan_1",
+            channel=ChannelType.EMAIL,
+            direction=MessageDirection.INBOUND, status=MessageStatus.RECEIVED,
+            from_=Party(address="x@y.com"), to=[Party(address="a@agentcomms.dev")],
+            body_text=f"m{i}", thread_key=f"t{i}", is_dm=True,
+            received_at=datetime(2026, 4, 17, 12, i, tzinfo=timezone.utc),
+        ))
+
+    seen: list[str] = []
+    cursor = None
+    for _ in range(20):  # guard against infinite loop
+        msgs, cursor = repo.query_unified_inbox(
+            agent_id="agt_1", channel_filter=["email"], limit=3, cursor=cursor,
+        )
+        seen.extend(m.message_id for m in msgs)
+        if not cursor:
+            break
+    assert len(seen) == len(set(seen)) == total  # no drops, no duplicates
+    assert set(seen) == {f"msg_{i:02d}" for i in range(total)}

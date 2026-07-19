@@ -197,6 +197,40 @@ def test_threads_foreign_thread_via_own_agent_denied(two_orgs):
     assert "top secret" not in resp["body"]
 
 
+def test_threads_foreign_thread_with_cursor_no_metadata_leak(two_orgs):
+    """A cursor query param must NOT bypass the 404 guard or leak a next_cursor
+    that encodes the victim's agent_id/message_id (the GSI5 LastEvaluatedKey
+    enumeration hole)."""
+    from core.api.threads_handler import handler
+    from core.data.repo import decode_cursor
+
+    event = _event(
+        "GET", "/v1/agents/agt_A/threads/thr_secret",
+        path_params={"agent_id": "agt_A", "thread_id": "thr_secret"},
+    )
+    event["queryStringParameters"] = {"cursor": "zzz", "limit": "1"}
+    resp = handler(event, None)
+    assert resp["statusCode"] == 404
+    body = resp["body"]
+    assert "agt_B" not in body and "msg_secret" not in body and "top secret" not in body
+    # If any next_cursor were emitted it must not decode to the victim's keys.
+    parsed = json.loads(body)
+    if parsed.get("next_cursor"):
+        decoded = decode_cursor(parsed["next_cursor"]) or {}
+        assert "AGT#agt_B" not in json.dumps(decoded)
+
+
+def test_messages_get_one_cross_tenant_denied(two_orgs):
+    """GET /messages/{id} must gate the same as the inbox list."""
+    from core.api.messages_handler import handler
+    resp = handler(_event(
+        "GET", "/v1/agents/agt_B/messages/msg_secret",
+        path_params={"agent_id": "agt_B", "message_id": "msg_secret"},
+    ), None)
+    assert resp["statusCode"] == 404
+    assert "top secret" not in resp["body"] and "secret" not in resp["body"]
+
+
 # ---------------------------------------------------------------------------
 # slack_native_handler
 # ---------------------------------------------------------------------------

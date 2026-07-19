@@ -126,13 +126,10 @@ def _handle_summarize(caller: Caller, agent_id: str, body: dict, repo) -> dict:
         text += msg.body_text or ""
     else:
         # Thread-level summary: concatenate all messages in thread.
-        # GSI5 is a global index, so scope the results to this caller's agent —
-        # otherwise a caller could summarize another org's thread by passing
-        # their own agent_id together with a foreign thread_key.
-        msgs = [
-            m for m in repo.list_thread_messages(thread_key=thread_key)
-            if m.agent_id == agent_id
-        ]
+        # GSI5 is a global index; list_thread_messages scopes to this caller's
+        # agent so a foreign thread_key + own agent_id cannot summarize another
+        # org's thread.
+        msgs = repo.list_thread_messages(thread_key=thread_key, agent_id=agent_id)
         if not msgs:
             return err("thread not found or empty", status=404)
         parts = []

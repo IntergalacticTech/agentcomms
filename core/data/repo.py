@@ -198,22 +198,57 @@ class Repo:
         elif since:
             since_ms = int(since.timestamp() * 1000)
             key_cond = key_cond & Key("gsi3_sk").gte(f"MSG#{since_ms}")
-        kwargs: dict[str, Any] = {
-            "IndexName": "GSI3",
-            "KeyConditionExpression": key_cond,
-            "ScanIndexForward": False,  # newest first
-            # over-fetch if filtering so a page still yields ~limit rows
-            "Limit": limit * 3 if channel_filter else limit,
-        }
+        # Page through GSI3 accumulating up to ``limit`` matching rows. When a
+        # channel_filter is set we cannot rely on a single DynamoDB page (the
+        # filter is applied client-side), and — critically — the page's
+        # LastEvaluatedKey points *past* every fetched row, so using it as the
+        # next cursor would silently skip matching rows that fell beyond the
+        # page. Instead we resume from the keys of the last row we actually
+        # return, so no matching message is ever dropped between pages.
+        collected: list[tuple[UnifiedMessage, dict]] = []
         start_key = decode_cursor(cursor)
-        if start_key:
-            kwargs["ExclusiveStartKey"] = start_key
-        resp = self.table.query(**kwargs)
-        msgs = [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
-        if channel_filter:
-            msgs = [m for m in msgs if m.channel.value in channel_filter]
-        next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
-        return msgs[:limit], next_cursor
+        hit_limit = False
+        for _ in range(50):  # safety bound on internal pagination
+            kwargs: dict[str, Any] = {
+                "IndexName": "GSI3",
+                "KeyConditionExpression": key_cond,
+                "ScanIndexForward": False,  # newest first
+                "Limit": max(limit, 1) * (3 if channel_filter else 1),
+            }
+            if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+            resp = self.table.query(**kwargs)
+            for item in resp.get("Items", []):
+                m = UnifiedMessage.from_dynamodb_item(item)
+                if channel_filter and m.channel.value not in channel_filter:
+                    continue
+                collected.append((m, item))
+                if len(collected) >= limit:
+                    hit_limit = True
+                    break
+            start_key = resp.get("LastEvaluatedKey")
+            if hit_limit or not start_key:
+                break
+
+        page = collected[:limit]
+        msgs = [m for m, _ in page]
+        if hit_limit:
+            # We stopped at ``limit`` and there may be more matching rows — in
+            # this over-fetched page beyond what we consumed, or in later pages.
+            # Resume exclusively after the last row we actually returned, using
+            # its own GSI3 + base-table keys (never a raw page LastEvaluatedKey,
+            # which could sit past unconsumed matches). A boundary that turns out
+            # to be the true end just yields one final empty page.
+            last_item = page[-1][1]
+            resume = {
+                k: last_item[k]
+                for k in ("PK", "SK", "gsi3_pk", "gsi3_sk")
+                if k in last_item
+            }
+            next_cursor = encode_cursor(resume or None)
+        else:
+            next_cursor = None  # drained every page with room to spare
+        return msgs, next_cursor
 
     def list_unified_inbox(
         self, *, agent_id: str, since=None, until=None,
@@ -243,37 +278,50 @@ class Repo:
         return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
 
     def query_thread_messages(
-        self, *, thread_key: str, limit: int = 100, cursor: str | None = None,
-    ) -> tuple[list[UnifiedMessage], str | None]:
-        """GSI5 — page through messages belonging to a thread, oldest first.
+        self, *, thread_key: str, agent_id: str, max_pages: int = 50,
+    ) -> list[UnifiedMessage]:
+        """GSI5 — return the messages in a thread that belong to ``agent_id``,
+        oldest first.
 
-        Returns a ``(messages, next_cursor)`` tuple. ``next_cursor`` is an
-        opaque pagination token (or ``None`` on the last page).
+        GSI5 is a *global* index keyed only on the thread, so a given
+        ``thread_key`` can appear under more than one agent (thread keys derive
+        from attacker-influenced email Message-ID/References headers). We
+        therefore page the whole thread server-side and return ONLY this agent's
+        messages, and we deliberately never surface a DynamoDB
+        ``LastEvaluatedKey`` to the caller: a GSI cursor embeds the base-table
+        primary key, so returning it would leak another agent's ``agent_id`` /
+        ``message_id`` / timestamps for a shared ``thread_key``. Callers MUST
+        pass the authenticated ``agent_id``.
         """
-        kwargs: dict[str, Any] = {
-            "IndexName": "GSI5",
-            "KeyConditionExpression": Key("gsi5_pk").eq(f"THR#{thread_key}"),
-            "ScanIndexForward": True,  # chronological order
-            "Limit": limit,
-        }
-        start_key = decode_cursor(cursor)
-        if start_key:
-            kwargs["ExclusiveStartKey"] = start_key
-        resp = self.table.query(**kwargs)
-        msgs = [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
-        next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
-        return msgs, next_cursor
+        owned: list[UnifiedMessage] = []
+        start_key: dict | None = None
+        for _ in range(max_pages):
+            kwargs: dict[str, Any] = {
+                "IndexName": "GSI5",
+                "KeyConditionExpression": Key("gsi5_pk").eq(f"THR#{thread_key}"),
+                "ScanIndexForward": True,  # chronological order
+            }
+            if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+            resp = self.table.query(**kwargs)
+            for item in resp.get("Items", []):
+                m = UnifiedMessage.from_dynamodb_item(item)
+                if m.agent_id == agent_id:
+                    owned.append(m)
+            start_key = resp.get("LastEvaluatedKey")
+            if not start_key:
+                break
+        return owned
 
     def list_thread_messages(
-        self, *, thread_key: str, limit: int = 100,
+        self, *, thread_key: str, agent_id: str, limit: int = 100,
     ) -> list[UnifiedMessage]:
-        """GSI5 — list all messages belonging to a thread, oldest first.
+        """GSI5 — list this agent's messages in a thread, oldest first.
 
-        Backward-compatible wrapper around :meth:`query_thread_messages` that
-        returns only the message list.
+        Wrapper around :meth:`query_thread_messages`; ``agent_id`` is required
+        so results are scoped to the caller (see that method's docstring).
         """
-        msgs, _ = self.query_thread_messages(thread_key=thread_key, limit=limit)
-        return msgs
+        return self.query_thread_messages(thread_key=thread_key, agent_id=agent_id)[:limit]
 
     # ─── Drafts ──────────────────────────────────────────────────────
     def put_draft(self, draft: Draft) -> None:
