@@ -19,7 +19,7 @@ import os
 import secrets
 import time
 from typing import Any
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 
 import boto3
 
@@ -30,6 +30,58 @@ ENV = os.environ.get("AGENTCOMMS_ENV", "dev")
 SLACK_OAUTH_URL = "https://slack.com/oauth/v2/authorize"
 SLACK_OAUTH_ACCESS_URL = "https://slack.com/api/oauth.v2.access"
 SLACK_SCOPES = "chat:write,im:history,im:read,im:write,app_mentions:read,channels:history"
+
+
+def get_oauth_callback_url() -> str:
+    """Return the AgentComms-hosted Slack OAuth callback URL.
+
+    This URL is used as the OAuth ``redirect_uri`` in BOTH the authorize URL
+    (build_oauth_url) and the token exchange (exchange_oauth_code). Slack
+    requires the two to byte-match, so both call this single function and the
+    value MUST be derived only from configuration (never from the incoming
+    request), otherwise the token exchange fails with ``bad_redirect_uri``.
+
+    Resolution order:
+      1. AGENTCOMMS_SLACK_OAUTH_CALLBACK_URL (explicit, preferred).
+      2. https://{AGENTCOMMS_API_HOST}[/{AGENTCOMMS_API_STAGE}]/webhooks/slack/oauth/callback
+    """
+    url = os.environ.get("AGENTCOMMS_SLACK_OAUTH_CALLBACK_URL", "").strip()
+    if url:
+        return url
+    host = os.environ.get("AGENTCOMMS_API_HOST", "").strip()
+    if not host:
+        return ""
+    stage = os.environ.get("AGENTCOMMS_API_STAGE", "prod").strip().strip("/")
+    base = f"https://{host}"
+    if stage:
+        base = f"{base}/{stage}"
+    return f"{base}/webhooks/slack/oauth/callback"
+
+
+def _allowed_redirect_hosts() -> set[str]:
+    raw = os.environ.get("AGENTCOMMS_ALLOWED_REDIRECT_HOSTS", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
+
+
+def is_safe_return_url(return_url: str) -> bool:
+    """Guard the final 302 against open-redirect abuse.
+
+    Only https URLs with a host are permitted. When
+    AGENTCOMMS_ALLOWED_REDIRECT_HOSTS is set, the host must be a member of that
+    allowlist; otherwise any https host is accepted.
+    """
+    if not return_url:
+        return False
+    try:
+        parsed = urlparse(return_url)
+    except (ValueError, TypeError):
+        return False
+    if parsed.scheme != "https" or not parsed.hostname:
+        return False
+    allowed = _allowed_redirect_hosts()
+    if not allowed:
+        return True
+    return parsed.hostname.lower() in allowed
 
 
 def _get_table():
@@ -144,13 +196,23 @@ def get_and_consume_oauth_state(state: str) -> dict[str, Any] | None:
 
 
 def build_oauth_url(return_url: str, state: str) -> str:
-    """Build the Slack OAuth v2 authorization URL."""
+    """Build the Slack OAuth v2 authorization URL.
+
+    The ``redirect_uri`` is the AgentComms-hosted callback URL — NOT the
+    caller's ``return_url``. Slack redirects the browser to this callback,
+    which then completes the token exchange and finally 302s the browser to
+    the stored ``return_url``. The callback URL here must byte-match the one
+    used in the token exchange (see exchange_oauth_code / get_oauth_callback_url).
+
+    ``return_url`` is accepted for signature stability but is persisted via
+    store_oauth_state (used only for the final redirect), not embedded here.
+    """
     client_id = get_client_id()
     params = {
         "client_id": client_id,
         "scope": SLACK_SCOPES,
         "user_scope": "",
-        "redirect_uri": return_url,
+        "redirect_uri": get_oauth_callback_url(),
         "state": state,
     }
     return f"{SLACK_OAUTH_URL}?{urlencode(params)}"
@@ -222,10 +284,10 @@ def oauth_callback_handler(event: dict, context) -> dict:
     org_id = state_record["org_id"]
     return_url = state_record["return_url"]
 
-    # Build redirect URI (this Lambda's own URL)
-    host = (event.get("headers") or {}).get("Host", "")
-    stage = (event.get("requestContext") or {}).get("stage", "prod")
-    redirect_uri = f"https://{host}/{stage}/webhooks/slack/oauth/callback"
+    # Build redirect URI — must byte-match the one used in build_oauth_url.
+    # Derived only from configuration (never from the incoming request Host),
+    # otherwise Slack rejects the exchange with bad_redirect_uri.
+    redirect_uri = get_oauth_callback_url()
 
     try:
         token_resp = exchange_oauth_code(code, redirect_uri)
@@ -272,8 +334,18 @@ def oauth_callback_handler(event: dict, context) -> dict:
             "No pending_oauth slack channel found for agent %s", agent_id
         )
 
-    # Redirect back to caller with success
-    redirect_target = f"{return_url}?slack_connected=true&team_id={team_id}"
+    # Redirect back to caller with success — but only to a vetted return_url.
+    # return_url is attacker-influenceable (stored at bridge_start), so refuse
+    # to emit a Location to an unexpected host/scheme (open-redirect guard).
+    if not is_safe_return_url(return_url):
+        logger.warning("Refusing unsafe OAuth return_url: %s", return_url)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "invalid return_url"}),
+        }
+
+    sep = "&" if urlparse(return_url).query else "?"
+    redirect_target = f"{return_url}{sep}slack_connected=true&team_id={team_id}"
     return {
         "statusCode": 302,
         "headers": {"Location": redirect_target},

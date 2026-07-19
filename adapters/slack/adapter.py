@@ -54,6 +54,50 @@ def _slack_client(token: str):
     return WebClient(token=token)
 
 
+def _lookup_slack_channel_by_team(repo: Repo, team_id: str):
+    """Resolve a Slack channel from team_id alone.
+
+    Fallback for event_callback payloads that omit the 'authorizations' array:
+    without it the bot_user_id is unknown, so the exact GSI2 address
+    ({team_id}:{bot_user_id}) cannot be formed. Slack v0.1 connects one
+    workspace per channel, so team_id resolves to a single Slack channel.
+
+    GSI2's partition key embeds the bot_user_id, so a team-only lookup can't use
+    it — we fall back to a bounded scan (a handful of pages) filtered on
+    config.team_id. This is an infrequent path; a dedicated team-only index is
+    the preferred long-term fix (see workstream deferred notes).
+    """
+    if not team_id:
+        return None
+    from boto3.dynamodb.conditions import Attr
+
+    filter_expr = (
+        Attr("entity").eq("channel")
+        & Attr("channel").eq("slack")
+        & Attr("config.team_id").eq(team_id)
+    )
+    start_key = None
+    for _ in range(5):  # bound the work to avoid unbounded scans on this path
+        kwargs: dict[str, Any] = {"FilterExpression": filter_expr, "Limit": 200}
+        if start_key:
+            kwargs["ExclusiveStartKey"] = start_key
+        try:
+            resp = repo.table.scan(**kwargs)
+        except Exception as e:
+            logger.warning("team-only slack lookup scan failed: %s", e)
+            return None
+        items = resp.get("Items", [])
+        if items:
+            item = items[0]
+            return repo.get_channel(
+                agent_id=item["agent_id"], channel="slack", channel_id=item["channel_id"],
+            )
+        start_key = resp.get("LastEvaluatedKey")
+        if not start_key:
+            break
+    return None
+
+
 class SlackAdapter(ChannelAdapter):
     """Slack channel adapter — bridge (OAuth) mode only in v0.1."""
 
@@ -234,11 +278,21 @@ class SlackAdapter(ChannelAdapter):
 
         # Look up the channel by GSI2: ADDR#slack#{team_id}:{bot_user_id}
         repo = Repo(_get_table())
-        address = f"{team_id}:{bot_user_id_from_auth}"
-        channel = repo.lookup_channel_by_address(channel="slack", address=address)
+        channel = None
+        if bot_user_id_from_auth:
+            address = f"{team_id}:{bot_user_id_from_auth}"
+            channel = repo.lookup_channel_by_address(channel="slack", address=address)
+
+        # Fallback: 'authorizations' absent (or exact address unresolved) — the
+        # address would be "{team_id}:" which never matches. Resolve by team_id.
+        if channel is None and team_id:
+            channel = _lookup_slack_channel_by_team(repo, team_id)
 
         if channel is None:
-            logger.info("ingest: no slack channel for %s", address)
+            logger.info(
+                "ingest: no slack channel for team=%s bot_user=%s",
+                team_id, bot_user_id_from_auth,
+            )
             return None
 
         bot_user_id = channel.config.get("bot_user_id", bot_user_id_from_auth)

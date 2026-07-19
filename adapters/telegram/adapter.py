@@ -15,9 +15,11 @@ Implements the ChannelAdapter contract from core/adapters/base.py.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
 from datetime import datetime, timezone
 from typing import Any
 
@@ -96,6 +98,50 @@ def delete_bot_token(channel_id: str) -> None:
         logger.warning("delete_bot_token: %s", e)
 
 
+def _webhook_secret_param(channel_id: str) -> str:
+    return f"/agentcomms/{_env()}/adapters/telegram/webhook_secrets/{channel_id}"
+
+
+def store_webhook_secret(channel_id: str, secret_token: str) -> None:
+    """Store the webhook secret_token as a SecureString in SSM.
+
+    This value is INDEPENDENT of the public {token_hash} URL path segment: it
+    is the shared secret Telegram echoes back in the
+    X-Telegram-Bot-Api-Secret-Token header, and must never be derivable from
+    (or equal to) anything that appears in the public webhook URL.
+    """
+    import boto3
+    boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "us-east-1")).put_parameter(
+        Name=_webhook_secret_param(channel_id),
+        Value=secret_token,
+        Type="SecureString",
+        Overwrite=True,
+    )
+
+
+def get_webhook_secret(channel_id: str) -> str | None:
+    """Retrieve the stored webhook secret_token, or None if not provisioned."""
+    import boto3
+    ssm = boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+    try:
+        resp = ssm.get_parameter(Name=_webhook_secret_param(channel_id), WithDecryption=True)
+    except Exception as e:
+        logger.info("get_webhook_secret miss for %s: %s", channel_id, e)
+        return None
+    return resp["Parameter"]["Value"]
+
+
+def delete_webhook_secret(channel_id: str) -> None:
+    """Delete the stored webhook secret_token from SSM."""
+    import boto3
+    try:
+        boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "us-east-1")).delete_parameter(
+            Name=_webhook_secret_param(channel_id)
+        )
+    except Exception as e:
+        logger.warning("delete_webhook_secret: %s", e)
+
+
 # ── Adapter ────────────────────────────────────────────────────────────────────
 
 class TelegramAdapter(ChannelAdapter):
@@ -114,10 +160,12 @@ class TelegramAdapter(ChannelAdapter):
 
         Steps:
           1. Validate token via getMe.
-          2. Compute token_hash = sha256(bot_token)[:16].
-          3. Call setWebhook with URL https://{api_host}/webhooks/telegram/{token_hash}.
-          4. Store token in SSM at /agentcomms/{env}/adapters/telegram/tokens/{channel_id}.
-          5. Return ProvisionResult.
+          2. Compute token_hash = sha256(bot_token)[:16] (public URL path id).
+          3. Generate an INDEPENDENT random webhook secret_token.
+          4. Call setWebhook with URL https://{api_host}/webhooks/telegram/{token_hash}
+             and the random secret_token (NOT the token_hash).
+          5. Store token + webhook secret in SSM (both keyed by channel_id).
+          6. Return ProvisionResult.
         """
         bot_token = config.get("bot_token", "")
         if not bot_token:
@@ -131,13 +179,19 @@ class TelegramAdapter(ChannelAdapter):
         tok_hash = _token_hash(bot_token)
         webhook_url = f"https://{_api_host()}/webhooks/telegram/{tok_hash}"
 
-        # setWebhook — use token_hash as the secret_token for authentication
-        client.set_webhook(webhook_url, secret_token=tok_hash)
-
         channel_id = new_id("chan", suffix="tg")
 
-        # Store token in SSM
+        # Generate an INDEPENDENT random secret_token. It is stored in SSM only
+        # and is never placed in the (public) webhook URL, so the shared secret
+        # is not exposed by the {token_hash} path segment.
+        secret_token = secrets.token_hex(32)
+
+        # setWebhook — authenticate inbound updates with the random secret_token
+        client.set_webhook(webhook_url, secret_token=secret_token)
+
+        # Store token + webhook secret in SSM
         store_bot_token(channel_id, bot_token)
+        store_webhook_secret(channel_id, secret_token)
 
         # Persist channel to DynamoDB
         channel = Channel(
@@ -182,6 +236,11 @@ class TelegramAdapter(ChannelAdapter):
             delete_bot_token(channel.channel_id)
         except Exception as e:
             logger.error("teardown: delete_bot_token failed: %s", e)
+
+        try:
+            delete_webhook_secret(channel.channel_id)
+        except Exception as e:
+            logger.error("teardown: delete_webhook_secret failed: %s", e)
 
         return None
 
@@ -230,9 +289,14 @@ class TelegramAdapter(ChannelAdapter):
             logger.info("ingest: no telegram channel for token_hash=%s", token_hash)
             return None
 
-        # Authenticate via secret_token header
-        expected_hash = channel.config.get("token_hash", "")
-        if secret_header != expected_hash:
+        # Authenticate via the X-Telegram-Bot-Api-Secret-Token header against
+        # the INDEPENDENT secret stored in SSM (not the public token_hash).
+        expected_secret = get_webhook_secret(channel.channel_id)
+        if expected_secret is None:
+            # Legacy channel provisioned before independent secrets existed:
+            # fall back to the token_hash it was originally configured with.
+            expected_secret = channel.config.get("token_hash", "")
+        if not expected_secret or not hmac.compare_digest(secret_header, expected_secret):
             logger.warning(
                 "ingest: secret_token mismatch for channel %s", channel.channel_id
             )
@@ -262,10 +326,20 @@ class TelegramAdapter(ChannelAdapter):
         if chat_type == "private":
             is_dm = True
         elif chat_type in ("group", "supergroup"):
+            # Telegram entity offset/length are counted in UTF-16 code units,
+            # not Python code points, so slice against the UTF-16-LE encoding to
+            # stay correct after emoji / astral characters in the text.
+            text_utf16 = text.encode("utf-16-le")
+
+            def _entity_text(entity: dict) -> str:
+                start = entity.get("offset", 0) * 2
+                end = start + entity.get("length", 0) * 2
+                return text_utf16[start:end].decode("utf-16-le", errors="replace")
+
             # Check for @mention of bot in entities
             bot_mentioned = any(
                 e.get("type") == "mention"
-                and text[e["offset"] : e["offset"] + e["length"]] == f"@{bot_username}"
+                and _entity_text(e) == f"@{bot_username}"
                 for e in entities
             )
             # Check for reply to bot's own message
@@ -348,8 +422,11 @@ class TelegramAdapter(ChannelAdapter):
         except (ValueError, TypeError):
             chat_id = chat_id_str
 
-        # Get parse_mode
+        # Get parse_mode + the matching body. When parse_mode is HTML we must
+        # send the HTML body (sending body_text with parse_mode=HTML would ship
+        # unformatted text and risk entity-parse errors from stray < & chars).
         parse_mode = "HTML" if message.body_html else None
+        text_to_send = message.body_html if parse_mode == "HTML" else message.body_text
 
         # Get reply_to from thread_key if present
         reply_to_message_id: int | None = None
@@ -367,7 +444,7 @@ class TelegramAdapter(ChannelAdapter):
             client = TelegramBotClient(bot_token)
             result = client.send_message(
                 chat_id=chat_id,
-                text=message.body_text,
+                text=text_to_send,
                 parse_mode=parse_mode,
                 reply_to_message_id=reply_to_message_id,
             )

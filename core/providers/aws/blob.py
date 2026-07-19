@@ -15,3 +15,11 @@ class S3BlobStore:
         obj = self.client.get_object(Bucket=bucket, Key=key)
         return obj["Body"].read()
 
+    def put_bytes(
+        self, *, bucket: str, key: str, data: bytes, content_type: str | None = None
+    ) -> str:
+        """Store bytes at a provider-specific blob location; return the key."""
+        extra = {"ContentType": content_type} if content_type else {}
+        self.client.put_object(Bucket=bucket, Key=key, Body=data, **extra)
+        return key
+

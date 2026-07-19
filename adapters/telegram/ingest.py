@@ -26,12 +26,14 @@ import boto3
 
 from core.adapters.base import IngestPayload
 from core.data.repo import Repo
+from core.providers.aws.events import KinesisEventPublisher
 from adapters.telegram.adapter import TelegramAdapter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _adapter = TelegramAdapter()
+_event_publisher = None
 
 
 def _get_table():
@@ -41,16 +43,11 @@ def _get_table():
     )
 
 
-def _publish_event(event_type: str, msg_dict: dict) -> None:
-    stream = os.environ.get("AGENTCOMMS_EVENT_STREAM")
-    if not stream:
-        return
-    kinesis = boto3.client("kinesis")
-    kinesis.put_record(
-        StreamName=stream,
-        PartitionKey=msg_dict["agent_id"],
-        Data=json.dumps({"type": event_type, "data": msg_dict}).encode("utf-8"),
-    )
+def _get_event_publisher():
+    global _event_publisher
+    if _event_publisher is None:
+        _event_publisher = KinesisEventPublisher()
+    return _event_publisher
 
 
 def handler(event: dict, context) -> dict:
@@ -91,9 +88,10 @@ def handler(event: dict, context) -> dict:
         try:
             repo = Repo(_get_table())
             repo.put_message(msg)
-            _publish_event(
-                "message.received",
-                json.loads(msg.model_dump_json(by_alias=True)),
+            _get_event_publisher().publish(
+                event_type="message.received",
+                partition_key=msg.agent_id,
+                data=json.loads(msg.model_dump_json(by_alias=True)),
             )
         except Exception as e:
             logger.exception("Failed to persist/publish Telegram message: %s", e)

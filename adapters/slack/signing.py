@@ -44,18 +44,16 @@ def verify_slack_request(
     if abs(time.time() - ts_int) > 300:
         return False
 
-    # Build the basestring: v0:{timestamp}:{body}
-    if isinstance(body, bytes):
-        body_str = body.decode("utf-8", errors="replace")
-    else:
-        body_str = str(body)
+    # Build the basestring over the RAW request bytes. Slack signs the exact
+    # bytes it sent, so decoding to str (with errors="replace") and re-encoding
+    # would corrupt any non-UTF-8 / lossy bytes and break the comparison.
+    body_bytes = body if isinstance(body, bytes) else str(body).encode("utf-8")
+    basestring = b"v0:" + timestamp.encode("utf-8") + b":" + body_bytes
 
-    basestring = f"v0:{timestamp}:{body_str}"
-
-    # Compute HMAC-SHA256
+    # Compute HMAC-SHA256 over the raw byte basestring
     mac = hmac.new(
         signing_secret.encode("utf-8"),
-        basestring.encode("utf-8"),
+        basestring,
         hashlib.sha256,
     )
     expected_signature = f"v0={mac.hexdigest()}"

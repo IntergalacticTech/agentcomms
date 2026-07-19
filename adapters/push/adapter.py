@@ -57,6 +57,24 @@ def _sns_client():
     return boto3.client("sns", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
+def _apns_platform(config: dict[str, Any] | None = None) -> str:
+    """Select the APNs SNS platform (sandbox vs production).
+
+    Resolution order: config["apns_platform"] → env APNS_PLATFORM → "sandbox".
+    Defaults safely to the sandbox platform so a misconfiguration never targets
+    production devices. Any explicit "prod"/"production" (case-insensitive)
+    selects the production APNS platform.
+    """
+    raw = ""
+    if config:
+        raw = str(config.get("apns_platform") or "")
+    if not raw:
+        raw = os.environ.get("APNS_PLATFORM", "")
+    if raw.strip().lower() in ("prod", "production", "apns"):
+        return "APNS"
+    return "APNS_SANDBOX"
+
+
 def _build_apns_payload(title: str, body: str, badge: int | None = None) -> dict:
     aps: dict[str, Any] = {
         "alert": {"title": title, "body": body},
@@ -124,7 +142,7 @@ class PushAdapter(ChannelAdapter):
             try:
                 resp = sns.create_platform_application(
                     Name=f"agentcomms-apns-{org_id}",
-                    Platform="APNS_SANDBOX",
+                    Platform=_apns_platform(config),
                     Attributes={
                         "PlatformCredential": apns_cred,
                         "PlatformPrincipal": apns_principal,
