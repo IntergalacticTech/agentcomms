@@ -1,7 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import DOMPurify, { type Config } from "dompurify";
 import { api } from "../api/client";
 import Header from "../components/Header";
+
+// Conservative allowlist for rendering untrusted email HTML. DOMPurify strips
+// scripts, inline event handlers and javascript:/data: URLs by default; we
+// additionally forbid tags/attributes that enable script execution, styling
+// injection, network beacons and form-based credential capture.
+const SANITIZE_CONFIG: Config = {
+  FORBID_TAGS: [
+    "script",
+    "style",
+    "iframe",
+    "frame",
+    "object",
+    "embed",
+    "form",
+    "input",
+    "button",
+    "textarea",
+    "select",
+    "option",
+    "link",
+    "meta",
+    "base",
+    "svg",
+    "math",
+  ],
+  FORBID_ATTR: ["style"],
+  ALLOW_DATA_ATTR: false,
+  // Drop unknown protocols entirely (only http/https/mailto/tel survive).
+  ALLOWED_URI_REGEXP: /^(?:https?|mailto|tel):/i,
+};
+
+// Force links to open safely: no reverse-tabnabbing via window.opener.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && node.hasAttribute("href")) {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer nofollow");
+  }
+});
 
 interface FullMessage {
   id: string;
@@ -48,6 +87,11 @@ export default function MessagePage() {
 
   useEffect(load, [id, mid]);
 
+  const safeHtml = useMemo(() => {
+    if (!message?.body_html) return "";
+    return DOMPurify.sanitize(message.body_html, SANITIZE_CONFIG);
+  }, [message?.body_html]);
+
   return (
     <>
       <Header title="Message" />
@@ -89,10 +133,10 @@ export default function MessagePage() {
               </div>
             </div>
             <div className="px-6 py-6">
-              {message.body_html ? (
+              {safeHtml ? (
                 <div
                   className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: message.body_html }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml }}
                 />
               ) : (
                 <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">

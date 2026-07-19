@@ -35,37 +35,35 @@ export function useAuth() {
   return ctx;
 }
 
-function loadAuth(): AuthState {
-  try {
-    const idToken = localStorage.getItem("fm_id_token");
-    const refreshToken = localStorage.getItem("fm_refresh_token");
-    const email = localStorage.getItem("fm_email");
-    return { idToken, refreshToken, email };
-  } catch {
-    return { idToken: null, refreshToken: null, email: null };
-  }
-}
+const EMPTY_AUTH: AuthState = {
+  idToken: null,
+  refreshToken: null,
+  email: null,
+};
 
-function saveAuth(state: AuthState) {
-  if (state.idToken) {
-    localStorage.setItem("fm_id_token", state.idToken);
-  } else {
+// SECURITY: auth tokens are intentionally held in memory only. Persisting the
+// id/refresh token in localStorage (or sessionStorage) makes them readable by
+// any script, so a single XSS becomes a full account takeover. The tradeoff is
+// that a full page reload requires re-authentication. A durable session should
+// be restored via an httpOnly, Secure, SameSite refresh cookie set by the
+// backend — see the deferred note in the console security workstream.
+//
+// One-time migration: clear any tokens left in localStorage by older builds.
+function purgeLegacyPersistedAuth() {
+  try {
     localStorage.removeItem("fm_id_token");
-  }
-  if (state.refreshToken) {
-    localStorage.setItem("fm_refresh_token", state.refreshToken);
-  } else {
     localStorage.removeItem("fm_refresh_token");
-  }
-  if (state.email) {
-    localStorage.setItem("fm_email", state.email);
-  } else {
     localStorage.removeItem("fm_email");
+  } catch {
+    // Ignore storage access errors (e.g. privacy mode).
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [auth, setAuth] = useState<AuthState>(loadAuth);
+  const [auth, setAuth] = useState<AuthState>(() => {
+    purgeLegacyPersistedAuth();
+    return EMPTY_AUTH;
+  });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -90,9 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         ).then((r) => r.json());
         if (data.id_token) {
-          const next = { ...auth, idToken: data.id_token };
-          setAuth(next);
-          saveAuth(next);
+          setAuth((prev) => ({ ...prev, idToken: data.id_token }));
         }
       } catch {
         // Refresh failed, user will need to re-login
@@ -117,13 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const msg = data?.error?.message || `Login failed (${loginResp.status})`;
         throw new Error(msg);
       }
-      const state: AuthState = {
+      setAuth({
         idToken: data.id_token,
         refreshToken: data.refresh_token,
         email,
-      };
-      setAuth(state);
-      saveAuth(state);
+      });
     } finally {
       setLoading(false);
     }
@@ -155,13 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    const empty: AuthState = {
-      idToken: null,
-      refreshToken: null,
-      email: null,
-    };
-    setAuth(empty);
-    saveAuth(empty);
+    purgeLegacyPersistedAuth();
+    setAuth(EMPTY_AUTH);
   }, []);
 
   return (
