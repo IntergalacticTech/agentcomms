@@ -4,7 +4,10 @@ import { Template, Match } from 'aws-cdk-lib/assertions';
 import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { Code } from 'aws-cdk-lib/aws-lambda';
 import { AgentCommsApiStack } from '../lib/stacks/agentcomms-api-stack';
+
+const STUB_PYTHON = 'def handler(event, context):\n    return {"statusCode": 200, "body": "{}"}\n';
 
 function buildStack() {
   const app = new App();
@@ -26,6 +29,7 @@ function buildStack() {
     rawInboundBucket,
     bodiesBucket,
     attachmentsBucket,
+    lambdaCode: Code.fromInline(STUB_PYTHON),
   });
   return Template.fromStack(stack);
 }

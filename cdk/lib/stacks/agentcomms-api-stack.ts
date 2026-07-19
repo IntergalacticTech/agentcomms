@@ -36,6 +36,8 @@ export interface AgentCommsApiStackProps extends StackProps {
   rawInboundBucket: Bucket;
   bodiesBucket: Bucket;
   attachmentsBucket: Bucket;
+  /** Optional Lambda code override for fast template tests. Production uses bundled repo assets. */
+  lambdaCode?: Code;
   /** Phase 3: enable Slack webhook routes (default false). */
   enableSlack?: boolean;
   /** Phase 3: enable Telegram webhook route (default false). */
@@ -53,7 +55,7 @@ export class AgentCommsApiStack extends Stack {
     // into a container and hitting file-descriptor limits. The local bundler
     // copies only core/ + adapters/ then installs pip deps natively.
     const repoRoot = path.resolve(__dirname, '../../..');
-    const lambdaCode = () => Code.fromAsset(repoRoot, {
+    const lambdaCode = () => props.lambdaCode ?? Code.fromAsset(repoRoot, {
       exclude: [
         'cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '.venv',
         '__pycache__', '*.pyc', '*.md', '.claude', '.github',

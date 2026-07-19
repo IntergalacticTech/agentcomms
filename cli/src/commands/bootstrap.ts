@@ -18,6 +18,29 @@ function repoRoot(): string {
   return resolve(__dirname, "..", "..", "..");
 }
 
+export function buildBootstrapStacks(skipChannels: string): string[] {
+  const skip = skipChannels
+    .split(",")
+    .map((ch) => ch.trim().toLowerCase())
+    .filter(Boolean);
+  const adapterStacks = [
+    ["sms", "AgentCommsAdapters-Sms"],
+    ["push", "AgentCommsAdapters-Push"],
+    ["slack", "AgentCommsAdapters-Slack"],
+    ["telegram", "AgentCommsAdapters-Telegram"],
+  ]
+    .filter(([channel]) => !skip.includes(channel))
+    .map(([, stack]) => stack);
+  return [
+    "AgentCommsData",
+    "AgentCommsEvents",
+    "AgentCommsApi",
+    "AgentCommsAdapters",
+    "AgentCommsAdapters-Email",
+    ...adapterStacks,
+  ];
+}
+
 export function bootstrapCommand(): Command {
   return new Command("bootstrap")
     .description("Deploy AgentComms into your AWS account")
@@ -72,15 +95,15 @@ export function bootstrapCommand(): Command {
 
       // Phase C: Deploy
       emit({ phase: "deploy", status: "running", msg: "deploying all AgentComms stacks" });
-      const stacks = [
-        "AgentCommsData",
-        "AgentCommsEvents",
-        "AgentCommsApi",
-        "AgentCommsAdapters",
-      ];
-      const skip = (opts.skipChannels as string).split(",").filter(Boolean);
+      const stacks = buildBootstrapStacks(opts.skipChannels);
+      const skip = (opts.skipChannels as string)
+        .split(",")
+        .map((ch) => ch.trim().toLowerCase())
+        .filter(Boolean);
       const envVars: NodeJS.ProcessEnv = {
         ...process.env,
+        CDK_DEFAULT_ACCOUNT: pre.account ?? process.env.CDK_DEFAULT_ACCOUNT,
+        CDK_DEFAULT_REGION: opts.region,
         AGENTCOMMS_DOMAIN: opts.domain,
         AGENTCOMMS_ADMIN_EMAIL: opts.adminEmail,
       };

@@ -20,12 +20,16 @@ import boto3
 
 from core.adapters.base import IngestPayload
 from core.data.repo import Repo
+from core.providers.aws.blob import S3BlobStore
+from core.providers.aws.events import KinesisEventPublisher
 from adapters.email.adapter import EmailAdapter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _adapter = EmailAdapter()
+_blob_store = None
+_event_publisher = None
 
 
 def _get_table():
@@ -35,23 +39,34 @@ def _get_table():
     )
 
 
-def _publish_event(event_type: str, msg_dict: dict) -> None:
-    stream = os.environ.get("AGENTCOMMS_EVENT_STREAM")
-    if not stream:
-        return
-    kinesis = boto3.client("kinesis")
-    kinesis.put_record(
-        StreamName=stream,
-        PartitionKey=msg_dict["agent_id"],
-        Data=json.dumps({"type": event_type, "data": msg_dict}).encode("utf-8"),
-    )
+def _get_blob_store():
+    global _blob_store
+    if _blob_store is None:
+        _blob_store = S3BlobStore()
+    return _blob_store
+
+
+def _get_event_publisher():
+    global _event_publisher
+    if _event_publisher is None:
+        _event_publisher = KinesisEventPublisher()
+    return _event_publisher
+
+
+def _raw_email_keys(message_id: str) -> list[str]:
+    prefix = os.environ.get("AGENTCOMMS_RAW_INBOUND_PREFIX", "inbound/").strip("/")
+    if not prefix:
+        return [message_id]
+    prefixed = f"{prefix}/{message_id}"
+    return [prefixed, message_id] if prefixed != message_id else [message_id]
 
 
 def handler(event: dict, context) -> dict:
     """SES-SNS trigger. Each record contains an SES notification with a mail
     action that has already placed the raw MIME in S3."""
-    s3 = boto3.client("s3")
     repo = Repo(_get_table())
+    blob_store = _get_blob_store()
+    event_publisher = _get_event_publisher()
     processed = 0
 
     for record in event.get("Records", []):
@@ -60,18 +75,22 @@ def handler(event: dict, context) -> dict:
         # SES notification payload contains {mail: {...}, receipt: {...}}
         receipt = message.get("receipt", {})
         actions = receipt.get("action", {})
-        # If configured via a LambdaAction preceded by S3Action, the raw MIME
-        # is at the S3 object referenced by the SES messageId.
+        # The SES S3 action stores raw MIME under AGENTCOMMS_RAW_INBOUND_PREFIX
+        # using the SES messageId as the leaf key.
         bucket = os.environ.get("AGENTCOMMS_BUCKET_RAW_INBOUND")
-        key = message.get("mail", {}).get("messageId")  # SES uses this as S3 key
-        if not (bucket and key):
+        message_id = message.get("mail", {}).get("messageId")
+        if not (bucket and message_id):
             logger.warning("no S3 pointer in SES notification; skipping")
             continue
-        try:
-            obj = s3.get_object(Bucket=bucket, Key=key)
-            raw = obj["Body"].read()
-        except Exception as e:
-            logger.exception("failed to fetch raw MIME: %s", e)
+        raw = None
+        for key in _raw_email_keys(message_id):
+            try:
+                raw = blob_store.get_bytes(bucket=bucket, key=key)
+                break
+            except Exception as e:
+                logger.info("failed to fetch raw MIME at %s: %s", key, e)
+        if raw is None:
+            logger.warning("raw MIME not found for SES message %s", message_id)
             continue
 
         payload = IngestPayload(
@@ -84,7 +103,12 @@ def handler(event: dict, context) -> dict:
         if msg is None:
             continue
         repo.put_message(msg)
-        _publish_event("message.received", json.loads(msg.model_dump_json(by_alias=True)))
+        msg_dict = json.loads(msg.model_dump_json(by_alias=True))
+        event_publisher.publish(
+            event_type="message.received",
+            partition_key=msg.agent_id,
+            data=msg_dict,
+        )
         processed += 1
 
     return {"processed": processed}

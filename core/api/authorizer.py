@@ -89,7 +89,9 @@ def authorize(
         m_ch = _CHANNEL_PATH_RE.match(requested_path)
         if not m_agt or m_agt.group("agent_id") != key.agent_id:
             raise DeniedError("channel-scoped key denied (wrong agent)")
-        if m_ch and m_ch.group("channel_id") != key.channel_id:
+        if not m_ch:
+            raise DeniedError("channel-scoped key denied (channel path required)")
+        if m_ch.group("channel_id") != key.channel_id:
             raise DeniedError("channel-scoped key denied (wrong channel)")
         return ctx
 

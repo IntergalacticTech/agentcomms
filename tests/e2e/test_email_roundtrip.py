@@ -110,6 +110,8 @@ def test_email_roundtrip(agentcomms_table, s3_buckets, ses_client):
 
     # Force adapter singleton to re-read env / table on next call
     ingest_mod._adapter = adapter_mod.EmailAdapter()
+    ingest_mod._blob_store = None
+    ingest_mod._event_publisher = None
 
     # Also reset handler-level registry caches so they resolve the moto table
     agents_mod._REGISTRY = None
@@ -157,10 +159,11 @@ def test_email_roundtrip(agentcomms_table, s3_buckets, ses_client):
     raw_eml = INBOUND_EML.read_bytes()
     s3 = boto3.client("s3", region_name="us-east-1")
     raw_bucket = s3_buckets["raw_inbound"]
-    s3.put_object(Bucket=raw_bucket, Key=SES_MSG_ID, Body=raw_eml)
+    s3.put_object(Bucket=raw_bucket, Key=f"inbound/{SES_MSG_ID}", Body=raw_eml)
 
     # Env var must point to the moto bucket (fixture already sets it, but be explicit)
     os.environ["AGENTCOMMS_BUCKET_RAW_INBOUND"] = raw_bucket
+    os.environ["AGENTCOMMS_RAW_INBOUND_PREFIX"] = "inbound/"
 
     sns_event = {"Records": [_sns_record(SES_MSG_ID)]}
 

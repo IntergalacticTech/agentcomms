@@ -1,10 +1,13 @@
 // cdk/test/agentcomms-adapters-stack.test.ts
 import { App, Stack } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { Code } from 'aws-cdk-lib/aws-lambda';
 import { AgentCommsAdaptersStack } from '../lib/stacks/agentcomms-adapters-stack';
+
+const STUB_PYTHON = 'def handler(event, context):\n    return {"statusCode": 200, "body": "{}"}\n';
 
 function buildStacks() {
   const app = new App();
@@ -26,6 +29,8 @@ function buildStacks() {
     rawInboundBucket,
     bodiesBucket,
     attachmentsBucket,
+    inboundDomains: ['example.com'],
+    lambdaCode: Code.fromInline(STUB_PYTHON),
   });
 
   // AgentCommsAdaptersStack instantiates EmailAdapterStack as a sibling in app scope
@@ -59,5 +64,24 @@ describe('AgentCommsAdaptersStack — email adapter artifacts', () => {
   test('has 2 Lambda functions (ingest + outbound)', () => {
     const lambdas = emailTemplate.findResources('AWS::Lambda::Function');
     expect(Object.keys(lambdas).length).toBe(2);
+  });
+
+  test('uses configured inbound domains in SES receipt rule', () => {
+    emailTemplate.hasResourceProperties('AWS::SES::ReceiptRule', {
+      Rule: Match.objectLike({
+        Recipients: ['example.com'],
+      }),
+    });
+  });
+
+  test('passes raw inbound S3 prefix to ingest Lambda', () => {
+    emailTemplate.hasResourceProperties('AWS::Lambda::Function', {
+      Handler: 'adapters.email.ingest.handler',
+      Environment: Match.objectLike({
+        Variables: Match.objectLike({
+          AGENTCOMMS_RAW_INBOUND_PREFIX: 'inbound/',
+        }),
+      }),
+    });
   });
 });

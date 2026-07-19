@@ -37,6 +37,8 @@ export interface EmailAdapterStackProps extends StackProps {
   attachmentsBucket: Bucket;
   eventStream: Stream;
   inboundDomains: string[];    // e.g. ['agentcomms.dev']
+  /** Optional Lambda code override for fast template tests. Production uses bundled repo assets. */
+  lambdaCode?: Code;
 }
 
 export class EmailAdapterStack extends Stack {
@@ -50,7 +52,7 @@ export class EmailAdapterStack extends Stack {
     // ── Shared local bundler ──
     // Avoids mounting the large repo root into Docker (hits fd limits).
     const repoRoot = path.resolve(__dirname, '../../..');
-    const makeLambdaCode = () => Code.fromAsset(repoRoot, {
+    const makeLambdaCode = () => props.lambdaCode ?? Code.fromAsset(repoRoot, {
       exclude: [
         'cdk', 'console', 'sdks', 'node_modules', '.git', 'tests', '.venv',
         '__pycache__', '*.pyc', '*.md', '.claude', '.github',
@@ -113,6 +115,7 @@ export class EmailAdapterStack extends Stack {
         AGENTCOMMS_BUCKET_BODIES: props.bodiesBucket.bucketName,
         AGENTCOMMS_BUCKET_ATTACHMENTS: props.attachmentsBucket.bucketName,
         AGENTCOMMS_EVENT_STREAM: props.eventStream.streamName,
+        AGENTCOMMS_RAW_INBOUND_PREFIX: 'inbound/',
       },
     });
     this.ingestFunction.addEventSource(new SnsEventSource(inboundTopic));

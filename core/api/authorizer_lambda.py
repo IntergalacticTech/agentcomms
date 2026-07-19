@@ -3,9 +3,53 @@
 # with Apache 2.0 Future License. See LICENSE for details.
 
 """API Gateway TOKEN authorizer entrypoint."""
-import os
-from core.api.authorizer import authorize, DeniedError, CallerContext
+from urllib.parse import unquote
+
+from core.api.authorizer import authorize, DeniedError
 from core.api._common import get_repo
+
+
+def _method_and_path(event: dict) -> tuple[str, str]:
+    """Extract request method/path from TOKEN authorizer events.
+
+    API Gateway TOKEN authorizers provide ``methodArn`` instead of the proxy
+    event's ``path`` and ``httpMethod`` fields. Tests and some local harnesses
+    may still pass those fields directly, so keep them as the first choice.
+    """
+    if event.get("path") and event.get("httpMethod"):
+        return event["httpMethod"], event["path"]
+
+    method_arn = event.get("methodArn", "")
+    try:
+        _, resource = method_arn.split("/", 1)
+        parts = resource.split("/")
+        method = parts[1] if len(parts) > 1 else ""
+        path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
+        return method, unquote(path)
+    except ValueError:
+        return "", ""
+
+
+def _resource_policy_arns(method_arn: str, *, scope: str, agent_id: str | None, channel_id: str | None) -> list[str] | str:
+    """Return least-broad execute-api resources for the caller scope."""
+    if not method_arn:
+        return []
+
+    api_prefix, _, rest = method_arn.partition("/")
+    stage = rest.split("/", 1)[0] if rest else "*"
+
+    if scope == "org":
+        return f"{api_prefix}/*"
+
+    if scope == "agent" and agent_id:
+        base = f"{api_prefix}/{stage}/*/v1/agents/{agent_id}"
+        return [base, f"{base}/*"]
+
+    if scope == "channel" and agent_id and channel_id:
+        base = f"{api_prefix}/{stage}/*/v1/agents/{agent_id}/channels/{channel_id}"
+        return [base, f"{base}/*"]
+
+    return method_arn
 
 
 def lambda_handler(event, context):
@@ -13,8 +57,7 @@ def lambda_handler(event, context):
     method_arn = event.get("methodArn", "")
     # API Gateway TOKEN format: Bearer <key>  or  raw <key>
     raw = token.replace("Bearer ", "").strip()
-    path = event.get("path") or ""  # if not provided by API GW, parse from methodArn
-    method = event.get("httpMethod") or ""
+    method, path = _method_and_path(event)
     try:
         ctx = authorize(
             repo=get_repo(), raw_api_key=raw,
@@ -22,11 +65,6 @@ def lambda_handler(event, context):
         )
     except DeniedError:
         raise Exception("Unauthorized")
-    # Resource wildcard: allow the caller (via this cached policy) to call any
-    # method on any path under this API. method_arn format:
-    #   arn:aws:execute-api:REGION:ACCOUNT:API-ID/STAGE/METHOD/PATH...
-    # We keep `arn:...:API-ID/` and append `*` which matches any STAGE/METHOD/PATH.
-    api_prefix = method_arn.split("/", 1)[0]  # arn:...:API-ID
     return {
         "principalId": ctx.api_key_id or "anon",
         "policyDocument": {
@@ -34,7 +72,12 @@ def lambda_handler(event, context):
             "Statement": [{
                 "Action": "execute-api:Invoke",
                 "Effect": "Allow",
-                "Resource": f"{api_prefix}/*",
+                "Resource": _resource_policy_arns(
+                    method_arn,
+                    scope=ctx.scope,
+                    agent_id=ctx.agent_id,
+                    channel_id=ctx.channel_id,
+                ),
             }],
         },
         "context": {

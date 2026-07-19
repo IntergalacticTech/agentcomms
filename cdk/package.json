@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc",
     "cdk": "cdk",
+    "test": "jest",
     "synth": "cdk synth",
     "deploy": "cdk deploy --all"
   },

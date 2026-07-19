@@ -21,6 +21,7 @@ node_modules/
 *.log
 cdk/cdk.out/
 cdk/dist/
+sdks/node/dist/
 
 # Python
 __pycache__/

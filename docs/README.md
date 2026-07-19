@@ -59,6 +59,8 @@ curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp \
 | [SDKs](sdks.md) | Python and Node.js SDK installation, usage, and full API reference |
 | [MCP Server](mcp-server.md) | Using FreeMail with AI agents via Model Context Protocol |
 | [Architecture](architecture.md) | System design, AWS services, data flow, and security model |
+| [Platform Review](platform-review.md) | Current platform assessment, high-priority risks, and recommended roadmap |
+| [Azure Native Setup](azure-native-setup.md) | Proposed Azure-native architecture, deployment plan, and inbound email options |
 | [Billing & Plans](billing.md) | Free / Starter / Pro / Enterprise limits, upgrading, BYOC tier |
 | [BYOC Deployment](byoc.md) | Run FreeMail in your own AWS account via AWS Marketplace |
 | [Roadmap](roadmap.md) | What's shipped and what's coming (SMS OTP, vault, persona, push, WhatsApp, BYOC) |

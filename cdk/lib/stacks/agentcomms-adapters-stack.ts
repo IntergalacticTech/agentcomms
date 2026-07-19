@@ -23,6 +23,7 @@ import { Construct } from 'constructs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Stream } from 'aws-cdk-lib/aws-kinesis';
+import { Code } from 'aws-cdk-lib/aws-lambda';
 import { EmailAdapterStack } from '../adapters/email-adapter-stack';
 import { SmsAdapterStack } from '../adapters/sms-adapter-stack';
 import { PushAdapterStack } from '../adapters/push-adapter-stack';
@@ -35,6 +36,10 @@ export interface AgentCommsAdaptersStackProps extends StackProps {
   rawInboundBucket: Bucket;
   bodiesBucket: Bucket;
   attachmentsBucket: Bucket;
+  /** Domains captured by the email adapter receipt rule. */
+  inboundDomains?: string[];
+  /** Optional Lambda code override for fast template tests. Production uses bundled repo assets. */
+  lambdaCode?: Code;
   /** Phase 2: enable SMS adapter stack (default false until Phase 2 deploy). */
   enableSms?: boolean;
   /** Phase 2: enable Push adapter stack (default false until Phase 2 deploy). */
@@ -63,7 +68,8 @@ export class AgentCommsAdaptersStack extends Stack {
       bodiesBucket: props.bodiesBucket,
       attachmentsBucket: props.attachmentsBucket,
       eventStream: props.eventStream,
-      inboundDomains: ['agentcomms.dev'],
+      inboundDomains: props.inboundDomains ?? ['agentcomms.dev'],
+      lambdaCode: props.lambdaCode,
     });
 
     // ── Phase 2: SMS adapter (disabled by default; enable via enableSms: true) ──
