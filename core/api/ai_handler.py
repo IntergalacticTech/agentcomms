@@ -18,7 +18,8 @@ import logging
 from datetime import datetime
 
 from core.api._common import (
-    Caller, err, get_repo, ok, parse_body, require_org_or_agent_scope,
+    Caller, err, get_repo, ok, parse_body, require_agent,
+    require_org_or_agent_scope,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,9 +52,11 @@ def _handle_categorize(caller: Caller, agent_id: str, body: dict, repo) -> dict:
     from core.ai.categorize import categorize
     result = categorize(message_text, labels, complex=complex_)
 
-    # Update the message's labels in DynamoDB
+    # Update the message's labels in DynamoDB. Labels live in a single canonical
+    # location: the top-level ``labels`` attribute (UnifiedMessage.labels), which
+    # is what repo.update_message_labels writes.
     ts_ms = int(msg.received_at.timestamp() * 1000)
-    existing_labels = list(msg.channel_native.get("labels") or [])
+    existing_labels = list(msg.labels or [])
     new_label = result["label"]
     if new_label not in existing_labels and new_label != "uncategorized":
         existing_labels = [new_label] + existing_labels
@@ -122,8 +125,14 @@ def _handle_summarize(caller: Caller, agent_id: str, body: dict, repo) -> dict:
             text = f"Subject: {msg.subject}\n\n"
         text += msg.body_text or ""
     else:
-        # Thread-level summary: concatenate all messages in thread
-        msgs = repo.list_thread_messages(thread_key=thread_key)
+        # Thread-level summary: concatenate all messages in thread.
+        # GSI5 is a global index, so scope the results to this caller's agent —
+        # otherwise a caller could summarize another org's thread by passing
+        # their own agent_id together with a foreign thread_key.
+        msgs = [
+            m for m in repo.list_thread_messages(thread_key=thread_key)
+            if m.agent_id == agent_id
+        ]
         if not msgs:
             return err("thread not found or empty", status=404)
         parts = []
@@ -202,6 +211,10 @@ def handler(event: dict, context) -> dict:
 
     body = parse_body(event)
     repo = get_repo()
+
+    # Tenant-isolation gate: caller may only run AI ops on agents in their org.
+    if denied := require_agent(caller, agent_id, repo):
+        return denied
 
     if path.endswith("/categorize"):
         return _handle_categorize(caller, agent_id, body, repo)

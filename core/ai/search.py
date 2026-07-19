@@ -38,6 +38,14 @@ def search(
     Returns a list of plain dicts (the DynamoDB items stripped of internal
     index keys).
 
+    Tenant isolation: messages are keyed by ``AGT#{agent_id}`` only (not by
+    org), so this function cannot bind ``org_id`` into the DynamoDB key.
+    ``org_id`` is therefore accepted but not used in the query itself; the
+    org boundary is enforced upstream by the ``require_agent`` ownership gate
+    in ``ai_handler`` (a caller can only reach this with an agent_id in their
+    own org). Keep passing ``org_id`` so a future org-bound key layout can use
+    it without a signature change.
+
     Phase 3 will replace the body_text scan with a vector/embedding search.
     """
     table = _get_table()

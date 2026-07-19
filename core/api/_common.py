@@ -90,3 +90,23 @@ def require_org_or_agent_scope(caller: Caller) -> dict | None:
     if caller.scope not in ("org", "agent"):
         return err("channel-scoped keys cannot access this endpoint", status=403)
     return None
+
+
+def require_agent(caller: Caller, agent_id: str, repo: Repo) -> dict | None:
+    """Tenant-isolation gate for per-agent routes.
+
+    Returns the standard 404 error response when *agent_id* is not an agent in
+    ``caller.org_id`` (either the agent does not exist or it belongs to another
+    org). Returns ``None`` when the caller owns the agent, so handlers can do::
+
+        if denied := require_agent(caller, agent_id, repo):
+            return denied
+
+    A 404 (rather than 403) is used deliberately so a caller cannot distinguish
+    "agent exists in another org" from "agent does not exist" — this avoids a
+    cross-tenant enumeration oracle.
+    """
+    agent = repo.get_agent(org_id=caller.org_id, agent_id=agent_id)
+    if not agent:
+        return err("agent not found", status=404)
+    return None

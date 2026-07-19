@@ -18,6 +18,7 @@ from core.data.repo import Repo
 @pytest.fixture
 def tg_channel_fixture(agentcomms_table, repo_fixture):
     """Create and seed a Telegram channel in DynamoDB."""
+    repo_fixture.put_agent(Agent(agent_id="agt_1", org_id="org_X", name="bot"))
     from adapters.telegram.adapter import _token_hash
     BOT_TOKEN = "555000555:AABBCCDDEEFFaabbccddeeff_test"
     tok_hash = _token_hash(BOT_TOKEN)
@@ -40,13 +41,20 @@ def tg_channel_fixture(agentcomms_table, repo_fixture):
     return channel
 
 
-def _make_event(method: str, path: str, path_params: dict, body: dict | None = None) -> dict:
+def _make_event(
+    method: str, path: str, path_params: dict, body: dict | None = None,
+    org_id: str = "org_X",
+) -> dict:
     return {
         "httpMethod": method,
         "path": path,
         "pathParameters": path_params,
         "body": json.dumps(body) if body else None,
         "headers": {"Authorization": "Bearer test"},
+        "requestContext": {"authorizer": {
+            "org_id": org_id, "scope": "org",
+            "agent_id": None, "channel_id": None, "api_key_id": "k",
+        }},
     }
 
 
@@ -180,13 +188,17 @@ def test_post_to_chat(agentcomms_table, tg_channel_fixture):
 
 # ── Test 5: channel not found returns 404 ────────────────────────────────────
 
-def test_channel_not_found(agentcomms_table):
+def test_channel_not_found(agentcomms_table, repo_fixture):
+    # Seed an owned agent (org_X) that has NO telegram channel, so the request
+    # passes the tenant gate and then hits the channel-not-found branch.
+    from core.data.models import Agent
+    repo_fixture.put_agent(Agent(agent_id="agt_1", org_id="org_X", name="bot"))
     from core.api.telegram_native_handler import handler
 
     event = _make_event(
         "GET",
-        "/v1/agents/agt_UNKNOWN/telegram/chats/111111/messages",
-        {"agent_id": "agt_UNKNOWN", "chat_id": "111111"},
+        "/v1/agents/agt_1/telegram/chats/111111/messages",
+        {"agent_id": "agt_1", "chat_id": "111111"},
     )
 
     with patch("core.api.telegram_native_handler._get_table", return_value=agentcomms_table):

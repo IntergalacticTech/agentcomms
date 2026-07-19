@@ -12,6 +12,8 @@ DynamoDB Table; use in tests with a moto-backed Table fixture.
 """
 from __future__ import annotations
 
+import base64
+import json
 from typing import Any
 
 from boto3.dynamodb.conditions import Key, Attr
@@ -20,6 +22,32 @@ from core.data.models import (
     Agent, ApiKey, Channel, Domain, DomainStatus, Draft, Organization,
     Persona, Thread, UnifiedMessage, VaultItem, VaultType, Webhook,
 )
+
+
+def encode_cursor(last_evaluated_key: dict | None) -> str | None:
+    """Encode a DynamoDB ``LastEvaluatedKey`` into an opaque pagination cursor.
+
+    Returns ``None`` when there is no further page.
+    """
+    if not last_evaluated_key:
+        return None
+    raw = json.dumps(last_evaluated_key, default=str, sort_keys=True)
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def decode_cursor(cursor: str | None) -> dict | None:
+    """Decode an opaque pagination cursor back into a DynamoDB start key.
+
+    Returns ``None`` for a falsy/invalid cursor (treated as "start from top").
+    """
+    if not cursor:
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        key = json.loads(raw)
+        return key if isinstance(key, dict) else None
+    except (ValueError, TypeError):
+        return None
 
 
 class Repo:
@@ -107,19 +135,31 @@ class Repo:
 
         Queries PK=AGT#{agent_id} with SK begins_with "MSG#" and a FilterExpression
         on message_id. Suitable for low-frequency AI/admin operations.
+
+        A ``FilterExpression`` is applied *after* the per-page item scan, so a
+        single page can be exhausted without the target ever appearing. We
+        therefore follow ``LastEvaluatedKey`` until the message is found or the
+        agent's messages are exhausted — otherwise messages on agents with more
+        than one page of history would be silently missed.
         """
-        resp = self.table.query(
-            KeyConditionExpression=(
-                Key("PK").eq(f"AGT#{agent_id}")
-                & Key("SK").begins_with("MSG#")
-            ),
-            FilterExpression=Attr("message_id").eq(message_id),
-            Limit=100,
-        )
-        items = resp.get("Items", [])
-        if not items:
-            return None
-        return UnifiedMessage.from_dynamodb_item(items[0])
+        last_key = None
+        while True:
+            kwargs: dict[str, Any] = {
+                "KeyConditionExpression": (
+                    Key("PK").eq(f"AGT#{agent_id}")
+                    & Key("SK").begins_with("MSG#")
+                ),
+                "FilterExpression": Attr("message_id").eq(message_id),
+            }
+            if last_key:
+                kwargs["ExclusiveStartKey"] = last_key
+            resp = self.table.query(**kwargs)
+            items = resp.get("Items", [])
+            if items:
+                return UnifiedMessage.from_dynamodb_item(items[0])
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                return None
 
     def update_message_labels(
         self, *, agent_id: str, received_at_ms: int, message_id: str, labels: list[str],
@@ -134,12 +174,18 @@ class Repo:
             ExpressionAttributeValues={":l": labels},
         )
 
-    def list_unified_inbox(
+    def query_unified_inbox(
         self, *, agent_id: str, since=None, until=None,
         channel_filter: list[str] | None = None, limit: int = 50,
-    ) -> list[UnifiedMessage]:
+        cursor: str | None = None,
+    ) -> tuple[list[UnifiedMessage], str | None]:
         """
         Query GSI3 (sparse) for all is_dm=True messages, newest first.
+
+        Returns a ``(messages, next_cursor)`` tuple. ``next_cursor`` is an opaque
+        pagination token (or ``None`` when the last page has been reached); pass
+        it back as ``cursor`` to fetch the following page.
+
         Optional filters:
           - since / until: datetimes
           - channel_filter: list of channel names; post-query filter
@@ -152,16 +198,36 @@ class Repo:
         elif since:
             since_ms = int(since.timestamp() * 1000)
             key_cond = key_cond & Key("gsi3_sk").gte(f"MSG#{since_ms}")
-        resp = self.table.query(
-            IndexName="GSI3",
-            KeyConditionExpression=key_cond,
-            ScanIndexForward=False,  # newest first
-            Limit=limit * 3 if channel_filter else limit,  # over-fetch if filtering
-        )
+        kwargs: dict[str, Any] = {
+            "IndexName": "GSI3",
+            "KeyConditionExpression": key_cond,
+            "ScanIndexForward": False,  # newest first
+            # over-fetch if filtering so a page still yields ~limit rows
+            "Limit": limit * 3 if channel_filter else limit,
+        }
+        start_key = decode_cursor(cursor)
+        if start_key:
+            kwargs["ExclusiveStartKey"] = start_key
+        resp = self.table.query(**kwargs)
         msgs = [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
         if channel_filter:
             msgs = [m for m in msgs if m.channel.value in channel_filter]
-        return msgs[:limit]
+        next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
+        return msgs[:limit], next_cursor
+
+    def list_unified_inbox(
+        self, *, agent_id: str, since=None, until=None,
+        channel_filter: list[str] | None = None, limit: int = 50,
+    ) -> list[UnifiedMessage]:
+        """Backward-compatible wrapper returning just the message list.
+
+        New callers that need pagination should use :meth:`query_unified_inbox`.
+        """
+        msgs, _ = self.query_unified_inbox(
+            agent_id=agent_id, since=since, until=until,
+            channel_filter=channel_filter, limit=limit,
+        )
+        return msgs
 
     def list_channel_messages(
         self, *, channel_id: str, limit: int = 50,
@@ -176,17 +242,38 @@ class Repo:
         )
         return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
 
+    def query_thread_messages(
+        self, *, thread_key: str, limit: int = 100, cursor: str | None = None,
+    ) -> tuple[list[UnifiedMessage], str | None]:
+        """GSI5 — page through messages belonging to a thread, oldest first.
+
+        Returns a ``(messages, next_cursor)`` tuple. ``next_cursor`` is an
+        opaque pagination token (or ``None`` on the last page).
+        """
+        kwargs: dict[str, Any] = {
+            "IndexName": "GSI5",
+            "KeyConditionExpression": Key("gsi5_pk").eq(f"THR#{thread_key}"),
+            "ScanIndexForward": True,  # chronological order
+            "Limit": limit,
+        }
+        start_key = decode_cursor(cursor)
+        if start_key:
+            kwargs["ExclusiveStartKey"] = start_key
+        resp = self.table.query(**kwargs)
+        msgs = [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
+        return msgs, next_cursor
+
     def list_thread_messages(
         self, *, thread_key: str, limit: int = 100,
     ) -> list[UnifiedMessage]:
-        """GSI5 — list all messages belonging to a thread, oldest first."""
-        resp = self.table.query(
-            IndexName="GSI5",
-            KeyConditionExpression=Key("gsi5_pk").eq(f"THR#{thread_key}"),
-            ScanIndexForward=True,  # chronological order
-            Limit=limit,
-        )
-        return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        """GSI5 — list all messages belonging to a thread, oldest first.
+
+        Backward-compatible wrapper around :meth:`query_thread_messages` that
+        returns only the message list.
+        """
+        msgs, _ = self.query_thread_messages(thread_key=thread_key, limit=limit)
+        return msgs
 
     # ─── Drafts ──────────────────────────────────────────────────────
     def put_draft(self, draft: Draft) -> None:

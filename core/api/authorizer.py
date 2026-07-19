@@ -65,6 +65,11 @@ def authorize(
     if key is None:
         raise DeniedError("invalid API key")
 
+    # Reject revoked or expired keys before any scope evaluation. A key with
+    # neither field set (the pre-existing default) is treated as active.
+    if not key.is_active():
+        raise DeniedError(f"API key {key.key_id} is revoked or expired")
+
     ctx = CallerContext(
         org_id=key.org_id,
         scope=key.scope.value,

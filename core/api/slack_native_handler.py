@@ -31,6 +31,7 @@ from typing import Any
 
 import boto3
 
+from core.api._common import Caller, require_agent
 from core.data.models import ChannelType
 from core.data.repo import Repo
 
@@ -80,6 +81,13 @@ def handler(event: dict, context) -> dict:
     user_id = path_params.get("user_id", "")
 
     repo = Repo(_get_table())
+
+    # Tenant-isolation gate: this handler talks to stored OAuth tokens and sends
+    # as the agent, so the caller must own the agent in their own org. Without
+    # this a caller could drive another org's Slack workspace.
+    caller = Caller.from_event(event)
+    if denied := require_agent(caller, agent_id, repo):
+        return {"statusCode": denied["statusCode"], "body": denied["body"]}
 
     # ── Route dispatch ──
 

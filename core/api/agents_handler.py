@@ -137,6 +137,33 @@ def handler(event: dict, context) -> dict:
             return err("agent not found", 404)
         return ok({"agent_id": agent.agent_id, "name": agent.name, "metadata": agent.metadata})
 
+    # PUT /v1/agents/{id} → update name/metadata
+    if method == "PUT" and pp.get("agent_id"):
+        agent = repo.get_agent(org_id=caller.org_id, agent_id=pp["agent_id"])
+        if not agent:
+            return err("agent not found", 404)
+        body = parse_body(event)
+        updates: dict = {}
+        if "name" in body:
+            if not body.get("name"):
+                return err("name cannot be empty", 400)
+            updates["name"] = body["name"]
+        if "metadata" in body:
+            metadata = body.get("metadata")
+            if metadata is not None and not isinstance(metadata, dict):
+                return err("metadata must be an object", 400)
+            updates["metadata"] = metadata or {}
+        if updates:
+            from datetime import datetime, timezone
+            updates["updated_at"] = datetime.now(timezone.utc)
+            agent = agent.model_copy(update=updates)
+            repo.put_agent(agent)
+        return ok({
+            "agent_id": agent.agent_id,
+            "name": agent.name,
+            "metadata": agent.metadata,
+        })
+
     # DELETE /v1/agents/{id}
     if method == "DELETE" and pp.get("agent_id"):
         agent = repo.get_agent(org_id=caller.org_id, agent_id=pp["agent_id"])

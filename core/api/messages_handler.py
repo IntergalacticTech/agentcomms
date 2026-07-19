@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from core.api._common import Caller, err, get_repo, no_content, ok, parse_body
+from core.api._common import (
+    Caller, err, get_repo, no_content, ok, parse_body, require_agent,
+)
 from core.adapters.registry import load_registry
 from core.adapters.base import OutboundMessage
 from core.data.models import (
@@ -61,6 +63,11 @@ def handler(event: dict, context) -> dict:
     if not agent_id:
         return err("agent_id required", 400)
 
+    # Tenant-isolation gate: caller may only act on agents in their own org.
+    # Applies to every method/path below (GET inbox, GET one, POST send).
+    if denied := require_agent(caller, agent_id, repo):
+        return denied
+
     # GET /v1/agents/{id}/messages
     if method == "GET" and path.endswith("/messages"):
         since = None
@@ -73,11 +80,15 @@ def handler(event: dict, context) -> dict:
         if qs.get("channels"):
             channel_filter = qs["channels"].split(",")
         limit = int(qs.get("limit", "50"))
-        msgs = repo.list_unified_inbox(
+        cursor = qs.get("cursor")
+        msgs, next_cursor = repo.query_unified_inbox(
             agent_id=agent_id, since=since, until=until,
-            channel_filter=channel_filter, limit=limit,
+            channel_filter=channel_filter, limit=limit, cursor=cursor,
         )
-        return ok({"messages": [_message_to_response(m) for m in msgs]})
+        return ok({
+            "messages": [_message_to_response(m) for m in msgs],
+            "next_cursor": next_cursor,
+        })
 
     # GET /v1/agents/{id}/messages/{msg_id}
     if method == "GET" and pp.get("message_id"):

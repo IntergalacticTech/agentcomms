@@ -25,6 +25,7 @@ from typing import Any
 
 import boto3
 
+from core.api._common import Caller, require_agent
 from core.data.models import ChannelType
 from core.data.repo import Repo
 
@@ -63,6 +64,12 @@ def handler(event: dict, context) -> dict:
     chat_id = path_params.get("chat_id", "")
 
     repo = Repo(_get_table())
+
+    # Tenant-isolation gate: this handler sends as the agent and lists its
+    # chats, so the caller must own the agent in their own org.
+    caller = Caller.from_event(event)
+    if denied := require_agent(caller, agent_id, repo):
+        return {"statusCode": denied["statusCode"], "body": denied["body"]}
 
     # ── Route dispatch ──
 

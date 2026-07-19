@@ -249,6 +249,7 @@ class UnifiedMessage(BaseModel):
     attachments: list[Attachment] = Field(default_factory=list)
     thread_key: str | None = None
     is_dm: bool = False
+    labels: list[str] = Field(default_factory=list)
     received_at: datetime = Field(default_factory=_now_utc)
     channel_native: dict[str, Any] = Field(default_factory=dict)
     external_id: str | None = None
@@ -281,6 +282,7 @@ class UnifiedMessage(BaseModel):
             "attachments": [a.model_dump() for a in self.attachments],
             "thread_key": self.thread_key,
             "is_dm": self.is_dm,
+            "labels": self.labels,
             "received_at": self.received_at.isoformat(),
             "channel_native": self.channel_native,
             "external_id": self.external_id,
@@ -323,6 +325,7 @@ class UnifiedMessage(BaseModel):
             attachments=[Attachment(**a) for a in item.get("attachments") or []],
             thread_key=item.get("thread_key"),
             is_dm=bool(item.get("is_dm", False)),
+            labels=list(item.get("labels") or []),
             received_at=datetime.fromisoformat(item["received_at"]),
             channel_native=item.get("channel_native") or {},
             external_id=item.get("external_id"),
@@ -347,8 +350,30 @@ class ApiKey(BaseModel):
     name: str
     agent_id: str | None = None
     channel_id: str | None = None
+    revoked: bool = False
+    expires_at: datetime | None = None
     created_at: datetime = Field(default_factory=_now_utc)
     last_used_at: datetime | None = None
+
+    def is_active(self, *, now: datetime | None = None) -> bool:
+        """Return True when the key is neither revoked nor past its expiry.
+
+        A missing/None ``expires_at`` never expires; ``revoked`` defaults to
+        False, so pre-existing keys (which have neither field) are active.
+        """
+        if self.revoked:
+            return False
+        if self.expires_at is not None:
+            now = now or _now_utc()
+            expires_at = self.expires_at
+            # Normalize naive stored timestamps to UTC for a safe comparison.
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=timezone.utc)
+            if expires_at <= now:
+                return False
+        return True
 
     def to_dynamodb_item(self) -> dict[str, Any]:
         item: dict[str, Any] = {
@@ -362,6 +387,8 @@ class ApiKey(BaseModel):
             "name": self.name,
             "agent_id": self.agent_id,
             "channel_id": self.channel_id,
+            "revoked": self.revoked,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "created_at": self.created_at.isoformat(),
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "gsi1_pk": f"APIKEY#{self.key_hash}",
@@ -379,6 +406,8 @@ class ApiKey(BaseModel):
             name=item["name"],
             agent_id=item.get("agent_id"),
             channel_id=item.get("channel_id"),
+            revoked=bool(item.get("revoked", False)),
+            expires_at=datetime.fromisoformat(item["expires_at"]) if item.get("expires_at") else None,
             created_at=datetime.fromisoformat(item["created_at"]),
             last_used_at=datetime.fromisoformat(item["last_used_at"]) if item.get("last_used_at") else None,
         )
