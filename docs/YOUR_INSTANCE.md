@@ -6,26 +6,30 @@ Everything you need to connect your AI agents to AgentComms — today.
 
 ```
 API base URL (clean):    https://api.agentcomms.dev/v1
-API base URL (direct):   https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1
-API key:                 ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY
-Org:                     org_01KPH36QSYPCPJAEY4GRN5EJ1G  (JWC Personal)
-Region:                  us-east-1
+API base URL (direct):   https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1
+API key:                 ak_live_YOUR_ORG_KEY_HERE
+Org:                     <YOUR_ORG_ID>
+Region:                  <region>
 
 Landing:                 https://agentcomms.dev     (live)
 Console:                 https://console.agentcomms.dev  (live)
 ```
 
+> **Generate your own org API key** — the `ak_live_...` value above is a placeholder. Create a real
+> org-scoped key from the console (or `POST /v1/api-keys`) and paste it in. Never commit a live key
+> to a tracked file; treat any key that lands in git history as compromised and rotate it.
+
 Both API URLs accept the same API key. Use the clean `api.agentcomms.dev` URL in SDK configs.
 
-One agent is already provisioned for you — `agt_01KPH37E2917EVKZX7YV5VFN75` (`jwc-first-agent`) with an email channel at `jwc@victorymail.dev`. Use it as a template or delete it and create your own.
+One agent is already provisioned for you — `agt_YOUR_AGENT_ID` (`jwc-first-agent`) with an email channel at `jwc@victorymail.dev`. Use it as a template or delete it and create your own.
 
 ---
 
 ## 1. Verify it's working
 
 ```bash
-curl -s -H "Authorization: Bearer ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY" \
-  "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/agents" | python3 -m json.tool
+curl -s -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
+  "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents" | python3 -m json.tool
 ```
 
 Expected: JSON with one agent (`jwc-first-agent`). If you see that, you're good.
@@ -56,8 +60,8 @@ Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
     "agentcomms": {
       "command": "agentcomms-mcp",
       "env": {
-        "AGENTCOMMS_API_KEY": "ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY",
-        "AGENTCOMMS_BASE_URL": "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1"
+        "AGENTCOMMS_API_KEY": "ak_live_YOUR_ORG_KEY_HERE",
+        "AGENTCOMMS_BASE_URL": "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1"
       }
     }
   }
@@ -101,8 +105,8 @@ cd sdks/python && pip install -e .
 from agentcomms import Client
 
 client = Client(
-    api_key="ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY",
-    base_url="https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1",
+    api_key="ak_live_YOUR_ORG_KEY_HERE",
+    base_url="https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1",
 )
 
 # Create a new agent with email + SMS
@@ -132,11 +136,11 @@ python my_agent.py
 Any tool that can make authenticated HTTP calls works. The auth is a simple Bearer token.
 
 ```bash
-curl -H "Authorization: Bearer ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY" \
+curl -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
      -H "Content-Type: application/json" \
      -X POST \
      -d '{"name":"MyBot","provision":{"email":{"local_part":"mybot","domain":"victorymail.dev"}}}' \
-     "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/agents"
+     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents"
 ```
 
 Full API reference: see `docs/api-reference.md` and `docs/openapi.yaml`.
@@ -167,11 +171,11 @@ Green is production-ready. Yellow needs one more external step (third-party regi
 
 ## 7. `agentcomms.dev` DNS — ✅ live
 
-- Route 53 zone: `Z0370999MWHX8OSTHZPR` (in account 732770059798)
-- ACM cert: combined cert covering agentcomms.dev + *.agentcomms.dev + victorymail.dev + *.victorymail.dev (`3bd1b3a6-a843-4804-9e0e-069550fd6aec`)
+- Route 53 zone: `<YOUR_HOSTED_ZONE_ID>` (in account `<YOUR_ACCOUNT_ID>`)
+- ACM cert: combined cert covering agentcomms.dev + *.agentcomms.dev + victorymail.dev + *.victorymail.dev (`<YOUR_ACM_CERT_ID>`)
 - `api.agentcomms.dev` → API Gateway custom domain → `AgentCommsApi` (stage `prod`)
-- `agentcomms.dev` → CloudFront distribution `E9787GLOP9GSN` (landing page S3 origin)
-- `console.agentcomms.dev` → CloudFront distribution `E1PG2DM90218AR` (console React app S3 origin)
+- `agentcomms.dev` → CloudFront distribution `<LANDING_CLOUDFRONT_DIST_ID>` (landing page S3 origin)
+- `console.agentcomms.dev` → CloudFront distribution `<CONSOLE_CLOUDFRONT_DIST_ID>` (console React app S3 origin)
 
 All three URLs serve from the same infrastructure as their `victorymail.dev` counterparts — no duplicate stacks.
 
@@ -179,16 +183,16 @@ All three URLs serve from the same infrastructure as their `victorymail.dev` cou
 
 ## 8. Rotating / creating more API keys
 
-The key you have (`ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY`) is ORG-scoped, which means it can do everything inside your `JWC Personal` org. For production use of a specific agent, you probably want agent-scoped keys.
+The key you have (`ak_live_YOUR_ORG_KEY_HERE`) is ORG-scoped, which means it can do everything inside your `JWC Personal` org. For production use of a specific agent, you probably want agent-scoped keys.
 
 ### Create an agent-scoped key
 
 ```bash
-curl -H "Authorization: Bearer ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY" \
+curl -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
      -H "Content-Type: application/json" \
      -X POST \
-     -d '{"name":"my-invoice-bot-key","scope":"agent","agent_id":"agt_01KPH37E2917EVKZX7YV5VFN75"}' \
-     "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/api-keys"
+     -d '{"name":"my-invoice-bot-key","scope":"agent","agent_id":"agt_YOUR_AGENT_ID"}' \
+     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/api-keys"
 ```
 
 The response includes the plaintext key once. Store it.
@@ -198,7 +202,7 @@ The response includes the plaintext key once. Store it.
 ```bash
 curl -H "Authorization: Bearer ak_live_..." \
      -X DELETE \
-     "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/api-keys/key_01H..."
+     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/api-keys/key_01H..."
 ```
 
 ---
@@ -210,8 +214,8 @@ The agent `jwc-first-agent` has an email address: `jwc@victorymail.dev`. Anythin
 ```bash
 # send yourself a test email to jwc@victorymail.dev from your personal email...
 # then:
-curl -s -H "Authorization: Bearer ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY" \
-     "https://0xztg5asi6.execute-api.us-east-1.amazonaws.com/prod/v1/agents/agt_01KPH37E2917EVKZX7YV5VFN75/messages" | python3 -m json.tool
+curl -s -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
+     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents/agt_YOUR_AGENT_ID/messages" | python3 -m json.tool
 ```
 
 The `messages` array contains every inbound + outbound message with full MIME metadata.

@@ -1,5 +1,13 @@
 # FreeMail Documentation
 
+> ⚠️ **OUTDATED — pre-AgentComms cutover.** The reference pages linked below (api-reference, quickstart,
+> sdks, webhooks, custom-domains, billing, agent-instructions, mcp-server, architecture, roadmap,
+> openapi.yaml) still document the retired FreeMail API — `ak_live_` keys, `/inboxes`, and
+> `api.victorymail.dev`. The platform has since cut over to **AgentComms** (`ak_live_` keys, `/agents`,
+> `api.agentcomms.dev/v1`). These docs are being rewritten. Until then, use the repo root
+> [README.md](../README.md) and [AGENT.md](../AGENT.md) as the current onboarding path, plus
+> [docs/YOUR_INSTANCE.md](YOUR_INSTANCE.md) and [docs/TESTING_PLAN.md](TESTING_PLAN.md).
+
 FreeMail is an email-as-a-service API platform built for AI agents. It provides programmatic inbox creation, message sending and receiving, OTP extraction, custom domains, webhooks, and more -- all through a simple REST API.
 
 **Base URL:** `https://api.victorymail.dev/v1`
@@ -20,17 +28,17 @@ curl -X POST https://api.victorymail.dev/v1/agent/signup \
 curl -X POST https://api.victorymail.dev/v1/agent/verify \
   -H "Content-Type: application/json" \
   -d '{"email": "you@example.com", "code": "123456"}'
-# Response includes your API key (am_live_...) -- save it!
+# Response includes your API key (ak_live_...) -- save it!
 
 # 3. Create an inbox
 curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "x-api-key: ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"display_name": "My Agent"}'
 
 # 4. Send an email
 curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages \
-  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "x-api-key: ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "to": [{"address": "user@example.com"}],
@@ -40,7 +48,7 @@ curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages \
 
 # 5. Wait for a reply and extract an OTP
 curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp \
-  -H "x-api-key: am_live_YOUR_KEY" \
+  -H "x-api-key: ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"sender": "noreply@example.com", "timeout": 25}'
 ```

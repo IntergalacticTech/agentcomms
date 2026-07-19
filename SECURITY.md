@@ -20,7 +20,7 @@ We follow coordinated disclosure: we ask that you give us a reasonable window (t
 ## Scope
 
 In scope:
-- Authentication and authorization bugs in the Hub API (`lambdas/authorizer/`)
+- Authentication and authorization bugs in the Hub API (`core/api/authorizer_lambda.py`)
 - API key exposure or leakage
 - Injection vulnerabilities in Lambda handlers
 - Insecure AWS resource configurations in CDK stacks

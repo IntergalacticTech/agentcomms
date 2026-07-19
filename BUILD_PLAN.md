@@ -1,12 +1,14 @@
 # FreeMail Build Plan
 
+> ⚠️ **SUPERSEDED / PRE-PIVOT** — describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md](./docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md) and [docs/platform-review-2026-07-19.md](./docs/platform-review-2026-07-19.md).
+
 ## Project Context
 
 **Product**: `FreeMail`
 **Public brand**: `FreeMail`
 **Current deployment/test domain**: `victorymail.dev`
 **Target public domain**: `freemail.dev` when acquired
-**AWS Account**: `732770059798`
+**AWS Account**: `<YOUR_ACCOUNT_ID>`
 **Primary region**: `us-east-1`
 **IaC**: AWS CDK (TypeScript)
 **App runtimes**: Python 3.12 for Lambda, TypeScript for CDK and frontend
@@ -23,7 +25,7 @@
 
 ### What Already Exists (as of 2026-04-13)
 
-- **Platform is live in production** on AWS account `732770059798`
+- **Platform is live in production** on AWS account `<YOUR_ACCOUNT_ID>`
 - **Public endpoints:**
   - `api.victorymail.dev` — REST API (API Gateway + Lambda)
   - `console.victorymail.dev` — developer console (CloudFront + S3)

@@ -14,13 +14,13 @@ Before starting, confirm you have:
 - `curl` (stdlib on macOS/Linux; `winget install curl` on Windows)
 - `python3` 3.10+ for the SDK section
 - `npm` / Node 20+ for the CLI and Node SDK sections
-- The API key: `ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY`
+- An org API key (generate one from the console or `POST /v1/api-keys`; placeholder shown as `ak_live_YOUR_ORG_KEY_HERE`). Never paste a live key into a tracked file.
 - A real email address you can read inbound at (for the round-trip test in §5)
 
 Paste these into your shell once — every section below assumes they're exported:
 
 ```bash
-export AGENTCOMMS_API_KEY=ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY
+export AGENTCOMMS_API_KEY=ak_live_YOUR_ORG_KEY_HERE
 export AGENTCOMMS_BASE_URL=https://api.agentcomms.dev/v1
 export MY_EMAIL=you@example.com    # ← replace with an inbox you can read
 ```
@@ -42,7 +42,7 @@ curl -sS -o /dev/null -w "HTTP %{http_code}\n" -H "Authorization: Bearer bogus" 
 
 # 1c. Your key — should be 200 with JSON array of agents
 curl -sS -H "Authorization: Bearer $AGENTCOMMS_API_KEY" "$AGENTCOMMS_BASE_URL/agents" | python3 -m json.tool
-# expected: {"agents": [{"agent_id": "agt_01KPH37E2917EVKZX7YV5VFN75", "name": "jwc-first-agent"}]}
+# expected: {"agents": [{"agent_id": "agt_YOUR_AGENT_ID", "name": "jwc-first-agent"}]}
 ```
 
 **Pass criteria:** HTTP 401 for both unauth cases, HTTP 200 with `jwc-first-agent` for the valid call.
@@ -127,7 +127,7 @@ curl -sS -X POST \
     "subject":"AgentComms test send",
     "body":"This is a live test from my agent at api.agentcomms.dev.\n\nIf you got this, outbound email works end-to-end."
   }' \
-  "$AGENTCOMMS_BASE_URL/agents/agt_01KPH37E2917EVKZX7YV5VFN75/messages" | python3 -m json.tool
+  "$AGENTCOMMS_BASE_URL/agents/agt_YOUR_AGENT_ID/messages" | python3 -m json.tool
 ```
 
 **Pass criteria:** response has `"status": "sent"` and a non-empty `channel_native_id` (SES message ID starting with `01000`).
@@ -154,7 +154,7 @@ If you reply to the email from Section 4, the reply will NOT appear in your agen
    ```bash
    aws sesv2 create-email-identity --email-identity agentcomms.dev --dkim-signing-attributes NextSigningKeyLength=RSA_2048_BIT
    ```
-2. Publish DKIM CNAMEs + SPF + MX records to Route 53 zone `Z0370999MWHX8OSTHZPR`.
+2. Publish DKIM CNAMEs + SPF + MX records to Route 53 zone `<YOUR_HOSTED_ZONE_ID>`.
 3. Deploy a new SES receipt rule set that routes inbound to `AgentCommsApi-MessagesFn` (or to a dedicated ingest Lambda).
 4. Activate the new rule set.
 
@@ -233,7 +233,7 @@ curl -sS -X POST \
   -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{\"persona_id\":\"$PERSONA_ID\"}" \
-  "$AGENTCOMMS_BASE_URL/agents/agt_01KPH37E2917EVKZX7YV5VFN75/personas" | python3 -m json.tool
+  "$AGENTCOMMS_BASE_URL/agents/agt_YOUR_AGENT_ID/personas" | python3 -m json.tool
 
 # 7c. Cleanup
 curl -sS -X DELETE -o /dev/null -w "HTTP %{http_code}\n" \
@@ -272,7 +272,7 @@ curl -sS -X POST \
   -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query":"test"}' \
-  "$AGENTCOMMS_BASE_URL/agents/agt_01KPH37E2917EVKZX7YV5VFN75/ai/search" | python3 -m json.tool
+  "$AGENTCOMMS_BASE_URL/agents/agt_YOUR_AGENT_ID/ai/search" | python3 -m json.tool
 # expected: HTTP 200 with empty results (no messages yet in inbox)
 ```
 
@@ -310,7 +310,7 @@ pip install -e sdks/python
 python3 <<'EOF'
 from agentcomms import Client
 client = Client(
-    api_key="ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY",
+    api_key="ak_live_YOUR_ORG_KEY_HERE",
     base_url="https://api.agentcomms.dev/v1",
 )
 data = client._request("GET", "/agents")
@@ -332,7 +332,7 @@ npm run build
 node --input-type=module -e '
   import("./dist/index.js").then(async ({ Client }) => {
     const client = new Client({
-      apiKey: "ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY",
+      apiKey: "ak_live_YOUR_ORG_KEY_HERE",
       baseUrl: "https://api.agentcomms.dev/v1",
     });
     const data = await client.request("GET", "/agents");
@@ -362,7 +362,7 @@ Then add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
     "agentcomms": {
       "command": "agentcomms-mcp",
       "env": {
-        "AGENTCOMMS_API_KEY": "ak_live_IuSw6CRVC0PbryeJvXapjviOL6AWcbM8aGoyLKgY",
+        "AGENTCOMMS_API_KEY": "ak_live_YOUR_ORG_KEY_HERE",
         "AGENTCOMMS_BASE_URL": "https://api.agentcomms.dev/v1"
       }
     }
@@ -402,7 +402,7 @@ done
 
 # 11d. ACM cert is ISSUED
 aws acm describe-certificate \
-  --certificate-arn arn:aws:acm:us-east-1:732770059798:certificate/3bd1b3a6-a843-4804-9e0e-069550fd6aec \
+  --certificate-arn arn:aws:acm:<region>:<YOUR_ACCOUNT_ID>:certificate/<YOUR_ACM_CERT_ID> \
   --query "Certificate.Status"
 # expected: "ISSUED"
 ```

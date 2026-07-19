@@ -19,8 +19,8 @@ git remote set-url origin git@github.com:IntergalacticTech/agentcomms.git
 **Before flipping to public**, verify:
 
 - [ ] `.env` is gitignored and no `.env.*` files are tracked (run `git grep -l 'AWS_ACCESS_KEY' -- '*.env*'` — should be empty)
-- [ ] No AWS account IDs are in the tracked code besides the one in `cdk/bin/app.ts` (`732770059798` is fine to expose; it's your own account and CDK requires it there)
-- [ ] No real API keys in fixtures — the `ak_live_...` in `project_agentcomms_phase1_status.md` is a memory file (gitignored in `.claude/`), confirm it's not in the repo via `git grep 'ak_live_'`
+- [ ] No AWS account IDs in tracked code. An account ID is not a secret, but publishing it needlessly widens your attack surface (it lets outsiders craft ARNs and enumerate your resources). Before going public, move any hardcoded account ID out of `cdk/bin/app.ts` — source it from `CDK_DEFAULT_ACCOUNT`/an env var or CDK context instead of committing the literal. Run `git grep -nE '[0-9]{12}'` and confirm nothing real remains.
+- [ ] No real API keys in fixtures — the `ak_live_...` in `project_agentcomms_phase1_status.md` is a memory file (gitignored in `.claude/`); confirm no live key is in the repo via `git grep -E 'ak_live_[A-Za-z0-9]{20,}'` (this matches real base62 keys but not the `ak_live_YOUR_ORG_KEY_HERE` placeholder used in the docs — it should return zero hits)
 - [ ] No internal-only docs in `docs/` — `BUILD_PLAN.md` and `ARCHITECTURE.md` are fine to ship; delete `docs/superpowers/` before going public if you'd rather not publish the brainstorming artifacts (they're fine to keep, they just show your work)
 - [ ] LICENSE, NOTICE, README, AGENT.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md all exist at repo root
 
@@ -154,6 +154,6 @@ From `docs/superpowers/plans/2026-04-17-agentcomms-phase6-launch.md`:
 - [ ] `agentcomms doctor --domain $TEST_DOMAIN --json` — runs cleanly against a fresh AWS sub-account
 - [ ] `agentcomms bootstrap ... --json` succeeds end-to-end on a fresh account (see `docs/TESTING.md`)
 - [ ] Smoke tests from `docs/TESTING.md` §5-7 all pass
-- [ ] `grep -r 'ak_live_\|AKIA\|aws_secret' --include='*.py' --include='*.ts' --include='*.md' .` returns zero hits
+- [ ] `grep -rE 'ak_live_[A-Za-z0-9]{20,}|AKIA|aws_secret' --include='*.py' --include='*.ts' --include='*.md' .` returns zero hits (the pattern matches real base62 keys, not the `ak_live_YOUR_ORG_KEY_HERE` doc placeholder)
 
 Once those pass, the code is ready for a public repo.

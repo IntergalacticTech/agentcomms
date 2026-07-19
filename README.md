@@ -3,7 +3,7 @@
 **Your agent's identity and communications hub — email, SMS, Slack, Telegram, push — one unified inbox, one AWS deployment, one source-available codebase.**
 
 [![License: FSL-1.1-Apache-2.0](https://img.shields.io/badge/License-FSL--1.1--Apache--2.0-blue.svg)](./LICENSE)
-[![Tests: 277 passing](https://img.shields.io/badge/tests-277-brightgreen)](https://github.com/IntergalacticTech/FreeMail.ai/actions)
+[![Tests](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml/badge.svg)](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml)
 
 ---
 
@@ -97,8 +97,8 @@ See [docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md](./docs/superp
 | Phase 1: Foundation | Complete |
 | Phase 2: SMS + Push + Vault + Personas + Domains + AI | Complete |
 | Phase 3: Slack + Telegram | Complete |
-| Phase 4: OSS packaging | In progress |
-| Phase 5: Migration + cutover | Upcoming |
+| Phase 4: OSS packaging | Complete |
+| Phase 5: Migration + cutover | Complete |
 | Phase 6: Public launch | Upcoming |
 
 ## Quickstart
@@ -114,12 +114,12 @@ adapters/         Channel adapter implementations (email, sms, push, slack, tele
 cdk/              AWS CDK infrastructure (TypeScript)
 cli/              agentcomms CLI (TypeScript) — Phase 4 Task 3
 console/          React management console
-core/             Shared Python runtime (data models, event bus, adapter registry)
+core/             Shared Python runtime (data models, event bus, adapter registry, API authorizer at core/api/authorizer_lambda.py)
 docs/             API reference, quickstart, per-channel guides
-lambdas/          Lambda handlers (Hub API, authorizer, billing, etc.)
+lambdas/          Lambda handlers (Hub API, billing, processors, etc.)
 mcp-server/       MCP server for agent tool use
 sdks/             Client SDKs — Python (agentcomms) + Node (@agentcomms/client)
-tests/            Integration + unit tests (277 passing)
+tests/            Integration + unit tests (run via CI — see the Tests badge above)
 tools/            Ops scripts (seed, SPDX headers, etc.)
 ```
 
