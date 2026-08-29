@@ -57,6 +57,13 @@ jobs:
           role-to-assume: ${{ secrets.AGENTCOMMS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
+      - name: Validate CDK bootstrap
+        run: |
+          if ! aws ssm get-parameter --name /cdk-bootstrap/hnb659fds/version >/dev/null 2>&1; then
+            echo "::error::Bootstrap the AWS account/region before deploying: cd cdk && npx cdk bootstrap aws://ACCOUNT_ID/${AWS_REGION:-us-east-1}"
+            exit 1
+          fi
+
       - name: CDK Deploy
         # Deploy only the AgentComms stacks (AgentCommsData, AgentCommsEvents,
         # AgentCommsApi, AgentCommsAdapters, and its AgentCommsAdapters-* adapter

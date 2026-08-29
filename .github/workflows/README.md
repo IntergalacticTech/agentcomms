@@ -145,6 +145,14 @@ aws iam create-open-id-connect-provider \
   --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 ```
 
+Bootstrap the AWS account/region once before the first production deploy:
+
+```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+cd cdk
+npx cdk bootstrap "aws://${ACCOUNT_ID}/us-east-1"
+```
+
 Create a deploy role with a trust policy scoped to the production environment:
 
 ```json
