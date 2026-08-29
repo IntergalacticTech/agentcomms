@@ -1,0 +1,82 @@
+AgentComms
+Copyright © 2026 Victory (Intergalactic Tech)
+
+This product includes the following third-party software:
+
+─── Python Runtime Dependencies ────────────────────────────────────────────────
+
+- pydantic (MIT License)
+  https://github.com/pydantic/pydantic
+
+- python-ulid (MIT License)
+  https://github.com/mdomke/python-ulid
+
+- jsonschema (MIT License)
+  https://github.com/python-jsonschema/jsonschema
+
+- slack-sdk (MIT License)
+  https://github.com/slackapi/python-slack-sdk
+
+- requests (Apache Software License 2.0)
+  https://github.com/psf/requests
+
+- boto3 (Apache Software License 2.0)
+  https://github.com/boto/boto3
+
+- botocore (Apache Software License 2.0)
+  https://github.com/boto/botocore
+
+- s3transfer (Apache Software License 2.0)
+  https://github.com/boto/s3transfer
+
+- jmespath (MIT License)
+  https://github.com/jmespath/jmespath.py
+
+- urllib3 (MIT License)
+  https://github.com/urllib3/urllib3
+
+- certifi (Mozilla Public License 2.0)
+  https://github.com/certifi/python-certifi
+
+- charset-normalizer (MIT License)
+  https://github.com/jawah/charset_normalizer
+
+- idna (BSD-3-Clause)
+  https://github.com/kjd/idna
+
+- python-dateutil (Apache Software License 2.0 / BSD License)
+  https://github.com/dateutil/dateutil
+
+- six (MIT License)
+  https://github.com/benjaminp/six
+
+- stripe (Apache Software License 2.0)
+  https://github.com/stripe/stripe-python
+
+─── Node / CDK Runtime Dependencies ────────────────────────────────────────────
+
+- aws-cdk-lib (Apache Software License 2.0)
+  https://github.com/aws/aws-cdk
+
+- constructs (Apache Software License 2.0)
+  https://github.com/aws/constructs
+
+─── MCP Server Runtime Dependencies ────────────────────────────────────────────
+
+- @modelcontextprotocol/sdk (MIT License)
+  https://github.com/modelcontextprotocol/typescript-sdk
+
+─── Notes ───────────────────────────────────────────────────────────────────────
+
+- pyotp is used as a development/runtime dependency for TOTP generation in the
+  vault adapter. (MIT License) https://github.com/pyotp/pyotp
+
+- boto3 / botocore / s3transfer / jmespath are provided by the AWS Lambda
+  runtime environment and are not bundled; they are listed for attribution
+  completeness.
+
+- Development-only dependencies (pytest, moto, jest, typescript, ts-jest,
+  aws-cdk CLI, etc.) are not included here as they are not shipped at runtime.
+
+Each dependency is subject to the terms of its respective license. See the
+original sources for full license text.

@@ -1,4 +1,4 @@
-"""AI-powered email features Lambda handler (Pro tier only)."""
+"""AI-powered email features Lambda handler (Starter tier and above)."""
 
 import json
 
@@ -9,6 +9,7 @@ from shared.dynamo import get_item, update_item
 from shared.models import org_keys, message_keys
 from shared.response import success, bad_request, error
 from shared.s3 import get_body
+from shared.tiers import ai_enabled
 from shared.validation import parse_body, require_fields
 
 BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
@@ -23,16 +24,16 @@ def _get_bedrock():
     return _bedrock
 
 
-def _check_pro_tier(org_id: str) -> dict | None:
-    """Return an error response if the org is not on Pro tier, else None."""
+def _check_ai_tier(org_id: str) -> dict | None:
+    """Return an error response if the org's tier doesn't have AI, else None."""
     keys = org_keys(org_id)
     org = get_item(keys["PK"], keys["SK"])
     if not org:
-        return error("RESOURCE_NOT_FOUND", "Organization not found.", 404)
-    if org.get("tier") != "pro":
+        return error("NOT_FOUND", "Organization not found.", 404)
+    if not ai_enabled(org.get("tier", "free")):
         return error(
             "FORBIDDEN",
-            "AI features require a Pro subscription. Upgrade at https://console.victorymail.dev/settings",
+            "AI features require a Starter subscription or higher. Upgrade at https://console.victorymail.dev/billing",
             403,
         )
     return None
@@ -46,7 +47,7 @@ def _get_message_and_body(inbox_id: str, message_id: str) -> tuple[dict | None, 
     keys = message_keys(inbox_id, message_id)
     msg = get_item(keys["PK"], keys["SK"])
     if not msg:
-        return error("RESOURCE_NOT_FOUND", "Message not found.", 404), "", ""
+        return error("NOT_FOUND", "Message not found.", 404), "", ""
 
     subject = msg.get("subject", "")
     body_text = ""
@@ -79,7 +80,7 @@ def _invoke_bedrock(prompt: str, max_tokens: int = 256) -> str:
 def handle_categorize(event: dict) -> dict:
     """Categorize a message using Bedrock Claude."""
     org_id = get_org_id(event)
-    tier_err = _check_pro_tier(org_id)
+    tier_err = _check_ai_tier(org_id)
     if tier_err:
         return tier_err
 
@@ -118,7 +119,7 @@ Respond with only the category name, nothing else."""
 def handle_extract(event: dict) -> dict:
     """Extract structured data from a message using Bedrock Claude."""
     org_id = get_org_id(event)
-    tier_err = _check_pro_tier(org_id)
+    tier_err = _check_ai_tier(org_id)
     if tier_err:
         return tier_err
 
@@ -161,7 +162,7 @@ Respond with only the JSON object, nothing else."""
 def handle_summarize(event: dict) -> dict:
     """Summarize a message using Bedrock Claude."""
     org_id = get_org_id(event)
-    tier_err = _check_pro_tier(org_id)
+    tier_err = _check_ai_tier(org_id)
     if tier_err:
         return tier_err
 

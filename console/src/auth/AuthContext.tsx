@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { api } from "../api/client";
+import { API_BASE, api } from "../api/client";
 
 interface AuthState {
   idToken: string | null;
@@ -29,43 +29,44 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
 
-function loadAuth(): AuthState {
-  try {
-    const idToken = localStorage.getItem("fm_id_token");
-    const refreshToken = localStorage.getItem("fm_refresh_token");
-    const email = localStorage.getItem("fm_email");
-    return { idToken, refreshToken, email };
-  } catch {
-    return { idToken: null, refreshToken: null, email: null };
-  }
-}
+const EMPTY_AUTH: AuthState = {
+  idToken: null,
+  refreshToken: null,
+  email: null,
+};
 
-function saveAuth(state: AuthState) {
-  if (state.idToken) {
-    localStorage.setItem("fm_id_token", state.idToken);
-  } else {
-    localStorage.removeItem("fm_id_token");
-  }
-  if (state.refreshToken) {
-    localStorage.setItem("fm_refresh_token", state.refreshToken);
-  } else {
-    localStorage.removeItem("fm_refresh_token");
-  }
-  if (state.email) {
-    localStorage.setItem("fm_email", state.email);
-  } else {
-    localStorage.removeItem("fm_email");
+// SECURITY: auth tokens are intentionally held in memory only. Persisting the
+// id/refresh token in localStorage (or sessionStorage) makes them readable by
+// any script, so a single XSS becomes a full account takeover. The tradeoff is
+// that a full page reload requires re-authentication. A durable session should
+// be restored via an httpOnly, Secure, SameSite refresh cookie set by the
+// backend — see the deferred note in the console security workstream.
+//
+// One-time migration: clear any tokens left in localStorage by older builds.
+function purgeLegacyPersistedAuth() {
+  try {
+    for (const prefix of ["fm", "agentcomms"]) {
+      for (const key of ["id_token", "refresh_token", "email"]) {
+        localStorage.removeItem(`${prefix}_${key}`);
+      }
+    }
+  } catch {
+    // Ignore storage access errors (e.g. privacy mode).
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [auth, setAuth] = useState<AuthState>(loadAuth);
+  const [auth, setAuth] = useState<AuthState>(() => {
+    purgeLegacyPersistedAuth();
+    return EMPTY_AUTH;
+  });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const interval = setInterval(async () => {
       try {
         const data = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/refresh`,
+          `${API_BASE}/console/refresh`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -90,9 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         ).then((r) => r.json());
         if (data.id_token) {
-          const next = { ...auth, idToken: data.id_token };
-          setAuth(next);
-          saveAuth(next);
+          setAuth((prev) => ({ ...prev, idToken: data.id_token }));
         }
       } catch {
         // Refresh failed, user will need to re-login
@@ -105,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const loginResp = await fetch(
-        `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/login`,
+        `${API_BASE}/console/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -117,13 +116,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const msg = data?.error?.message || `Login failed (${loginResp.status})`;
         throw new Error(msg);
       }
-      const state: AuthState = {
+      setAuth({
         idToken: data.id_token,
         refreshToken: data.refresh_token,
         email,
-      };
-      setAuth(state);
-      saveAuth(state);
+      });
     } finally {
       setLoading(false);
     }
@@ -134,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       try {
         const resp = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/signup`,
+          `${API_BASE}/console/signup`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -155,13 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    const empty: AuthState = {
-      idToken: null,
-      refreshToken: null,
-      email: null,
-    };
-    setAuth(empty);
-    saveAuth(empty);
+    purgeLegacyPersistedAuth();
+    setAuth(EMPTY_AUTH);
   }, []);
 
   return (

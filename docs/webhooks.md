@@ -1,41 +1,16 @@
 # Webhooks
 
-Webhooks let you receive real-time notifications when events happen in your FreeMail account. Instead of polling for new messages, you register an HTTPS endpoint and FreeMail pushes events to it.
+Webhooks deliver AgentComms events to your HTTPS endpoint. They are scoped under an agent.
 
-## How Webhooks Work
-
-1. You create a webhook via `POST /webhooks` with a URL and list of events to subscribe to.
-2. FreeMail generates a signing secret (`whsec_...`) for your webhook.
-3. When a subscribed event occurs, FreeMail sends an HTTP POST to your URL with the event payload.
-4. Your server verifies the signature and processes the event.
-5. FreeMail expects a 2xx response within 10 seconds.
-
-## Available Events
-
-| Event | Description |
-|-------|-------------|
-| `message.received` | A new inbound email was received in an inbox |
-| `message.sent` | An outbound email was successfully sent via SES |
-| `message.bounced` | An outbound email bounced (hard or soft bounce) |
-| `message.complained` | A recipient marked an outbound email as spam |
-| `message.delayed` | An outbound email delivery is delayed |
-| `inbox.created` | A new inbox was created |
-| `inbox.deleted` | An inbox was deleted |
-| `domain.verified` | A custom domain passed DNS verification |
-| `domain.failed` | A custom domain failed DNS verification |
-| `subscription.updated` | The organization's billing subscription changed |
-
-## Setting Up a Webhook
-
-### 1. Create the Webhook
+## Create a Webhook
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/webhooks \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST https://api.agentcomms.dev/v1/agents/agt_.../webhooks \
+  -H "Authorization: Bearer ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://api.yourapp.com/webhooks/freemail",
-    "events": ["message.received", "message.bounced"]
+    "url": "https://api.example.com/webhooks/agentcomms",
+    "events": ["message.received", "message.sent"]
   }'
 ```
 
@@ -43,228 +18,136 @@ Response:
 
 ```json
 {
-  "id": "01HXYZ...",
-  "url": "https://api.yourapp.com/webhooks/freemail",
-  "events": ["message.received", "message.bounced"],
+  "webhook_id": "wh_...",
+  "agent_id": "agt_...",
+  "url": "https://api.example.com/webhooks/agentcomms",
+  "events": ["message.received", "message.sent"],
   "status": "active",
-  "secret": "whsec_a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
-  "filter": {},
-  "delivery_stats": {
-    "total": 0,
-    "success": 0,
-    "failed": 0,
-    "last_delivered_at": null,
-    "last_failed_at": null
-  },
-  "created_at": "2025-01-15T10:30:00Z",
-  "updated_at": "2025-01-15T10:30:00Z"
+  "secret": "whsec_..."
 }
 ```
 
-Save the `secret` value -- you will need it to verify webhook signatures.
+Store `secret` securely. It is used to verify deliveries.
 
-### 2. Filter by Pod or Inbox (Optional)
+## Events
 
-You can scope a webhook to specific pods or inboxes using the `filter` field:
+Core events should use stable names:
 
-```bash
-curl -X POST https://api.victorymail.dev/v1/webhooks \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://api.yourapp.com/webhooks/freemail",
-    "events": ["message.received"],
-    "filter": {
-      "pod_ids": ["01HXYZ_POD_1"],
-      "inbox_ids": ["01HXYZ_INBOX_1", "01HXYZ_INBOX_2"]
-    }
-  }'
-```
+| Event | Meaning |
+|---|---|
+| `message.received` | Inbound direct message or explicit mention persisted |
+| `message.sent` | Outbound message accepted/sent |
+| `message.failed` | Outbound send failed |
+| `channel.created` | Agent channel was provisioned or bridged |
+| `channel.deleted` | Agent channel was removed |
+| `domain.verified` | Domain verification succeeded |
 
-## Webhook Payload
+Adapters may add provider-specific event metadata in `data.channel_native`.
 
-Every webhook delivery is an HTTP POST with these headers:
-
-| Header | Description |
-|--------|-------------|
-| `Content-Type` | `application/json` |
-| `X-FreeMail-Signature` | HMAC-SHA256 signature: `sha256=<hex>` |
-| `X-FreeMail-Event` | Event type (e.g., `message.received`) |
-
-The request body contains:
+## Delivery Shape
 
 ```json
 {
   "event": "message.received",
+  "agent_id": "agt_...",
   "data": {
-    "message_id": "01HXYZ...",
-    "inbox_id": "01HXYZ...",
-    "from": "sender@example.com",
-    "subject": "Hello!",
-    "received_at": "2025-01-15T11:00:00Z"
+    "message_id": "msg_...",
+    "channel": "email",
+    "from": {"address": "alice@example.com"},
+    "subject": "Question",
+    "received_at": "2026-08-29T18:00:00+00:00"
   },
-  "timestamp": "2025-01-15T11:00:01Z"
+  "timestamp": "2026-08-29T18:00:01+00:00"
 }
 ```
 
-## Verifying Webhook Signatures
+Recommended headers:
 
-Every webhook delivery is signed with your webhook's secret using HMAC-SHA256. Always verify the signature before processing the event.
+| Header | Description |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-AgentComms-Signature` | HMAC-SHA256 signature, `sha256=<hex>` |
+| `X-AgentComms-Event` | Event name |
 
-The signature is computed over the raw JSON request body. To verify:
+## Verify Signatures
 
-1. Get the `X-FreeMail-Signature` header value (format: `sha256=<hex_digest>`)
-2. Compute HMAC-SHA256 of the raw request body using your webhook secret
-3. Compare the computed signature with the one in the header
+Compute HMAC-SHA256 over the raw request body with the webhook secret, then compare in constant time.
 
-### Python Example
+Python:
 
 ```python
 import hashlib
 import hmac
-from flask import Flask, request, abort
+from flask import Flask, abort, request
 
 app = Flask(__name__)
-WEBHOOK_SECRET = "whsec_your_secret_here"
+WEBHOOK_SECRET = "whsec_your_secret"
 
-@app.route("/webhooks/freemail", methods=["POST"])
-def handle_webhook():
-    # Get the signature from the header
-    signature_header = request.headers.get("X-FreeMail-Signature", "")
-    if not signature_header.startswith("sha256="):
-        abort(400, "Missing signature")
+@app.post("/webhooks/agentcomms")
+def handle_agentcomms():
+    header = request.headers.get("X-AgentComms-Signature", "")
+    if not header.startswith("sha256="):
+        abort(400, "missing signature")
 
-    received_signature = signature_header[7:]  # Remove "sha256=" prefix
-
-    # Compute expected signature
-    expected_signature = hmac.new(
+    expected = hmac.new(
         WEBHOOK_SECRET.encode(),
         request.data,
         hashlib.sha256,
     ).hexdigest()
 
-    # Constant-time comparison to prevent timing attacks
-    if not hmac.compare_digest(received_signature, expected_signature):
-        abort(401, "Invalid signature")
+    if not hmac.compare_digest(header[7:], expected):
+        abort(401, "invalid signature")
 
-    # Process the event
-    payload = request.json
-    event_type = payload["event"]
-    data = payload["data"]
-
-    if event_type == "message.received":
-        print(f"New email from {data['from']}: {data['subject']}")
-    elif event_type == "message.bounced":
-        print(f"Message {data['message_id']} bounced")
-
-    return "", 200
+    payload = request.get_json()
+    return {"ok": True, "event": payload["event"]}
 ```
 
-### Node.js Example
+Node:
 
 ```typescript
-import express from "express";
 import crypto from "crypto";
+import express from "express";
 
 const app = express();
-const WEBHOOK_SECRET = "whsec_your_secret_here";
+const secret = "whsec_your_secret";
 
-app.post(
-  "/webhooks/freemail",
-  express.raw({ type: "application/json" }),
-  (req, res) => {
-    const signatureHeader = req.headers["x-freemail-signature"] as string;
-    if (!signatureHeader?.startsWith("sha256=")) {
-      return res.status(400).send("Missing signature");
-    }
+app.post("/webhooks/agentcomms", express.raw({ type: "application/json" }), (req, res) => {
+  const header = String(req.headers["x-agentcomms-signature"] ?? "");
+  if (!header.startsWith("sha256=")) return res.status(400).send("missing signature");
 
-    const receivedSignature = signatureHeader.slice(7);
+  const expected = crypto.createHmac("sha256", secret).update(req.body).digest("hex");
+  const received = header.slice(7);
 
-    // Compute expected signature
-    const expectedSignature = crypto
-      .createHmac("sha256", WEBHOOK_SECRET)
-      .update(req.body)
-      .digest("hex");
-
-    // Constant-time comparison
-    if (
-      !crypto.timingSafeEqual(
-        Buffer.from(receivedSignature),
-        Buffer.from(expectedSignature)
-      )
-    ) {
-      return res.status(401).send("Invalid signature");
-    }
-
-    // Process the event
-    const payload = JSON.parse(req.body.toString());
-    const { event, data } = payload;
-
-    switch (event) {
-      case "message.received":
-        console.log(`New email from ${data.from}: ${data.subject}`);
-        break;
-      case "message.bounced":
-        console.log(`Message ${data.message_id} bounced`);
-        break;
-    }
-
-    res.status(200).send();
+  if (!crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected))) {
+    return res.status(401).send("invalid signature");
   }
-);
 
-app.listen(3000);
+  res.status(204).send();
+});
 ```
 
-## Retry Behavior
-
-If your endpoint returns a non-2xx status code or does not respond within 10 seconds, FreeMail considers the delivery failed. Failed deliveries are retried via the SQS queue with standard retry behavior.
-
-The `delivery_stats` on your webhook object tracks delivery success and failure counts:
-
-```json
-{
-  "delivery_stats": {
-    "total": 150,
-    "success": 148,
-    "failed": 2,
-    "last_delivered_at": "2025-01-15T11:30:00Z",
-    "last_failed_at": "2025-01-15T10:15:00Z"
-  }
-}
-```
-
-## Managing Webhooks
-
-### Pause a Webhook
+## Manage Webhooks
 
 ```bash
-curl -X PATCH https://api.victorymail.dev/v1/webhooks/WEBHOOK_ID \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS https://api.agentcomms.dev/v1/agents/agt_.../webhooks \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
+```
+
+```bash
+curl -sS -X PATCH https://api.agentcomms.dev/v1/agents/agt_.../webhooks/wh_... \
+  -H "Authorization: Bearer ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"status": "paused"}'
+  -d '{"events": ["message.received"]}'
 ```
-
-### Update Subscribed Events
 
 ```bash
-curl -X PATCH https://api.victorymail.dev/v1/webhooks/WEBHOOK_ID \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"events": ["message.received", "message.sent", "message.bounced"]}'
+curl -sS -X DELETE https://api.agentcomms.dev/v1/agents/agt_.../webhooks/wh_... \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
 ```
 
-### Delete a Webhook
+## Operational Notes
 
-```bash
-curl -X DELETE https://api.victorymail.dev/v1/webhooks/WEBHOOK_ID \
-  -H "x-api-key: am_live_YOUR_KEY"
-```
-
-## Best Practices
-
-- Always verify webhook signatures before processing events.
-- Respond to webhooks quickly (within 10 seconds). If you need to do heavy processing, acknowledge the webhook immediately and process asynchronously.
-- Handle duplicate events gracefully. Use `message_id` or other identifiers for idempotency.
-- Use filters to limit webhook deliveries to only the pods or inboxes you care about.
-- Monitor `delivery_stats` to detect issues with your endpoint.
+- Acknowledge quickly with a 2xx response and do slow work asynchronously.
+- Handle duplicate deliveries with `event_id` or provider-native IDs once durable webhook delivery is enabled.
+- Subscribe narrowly by agent and event type.
+- Failed delivery retry/dead-letter behavior is part of the durable async delivery roadmap.

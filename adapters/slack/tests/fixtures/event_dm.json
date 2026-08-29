@@ -1,0 +1,33 @@
+{
+  "token": "XXYYZZ",
+  "team_id": "T012AB3C4",
+  "api_app_id": "A012AB3C4",
+  "event": {
+    "type": "message",
+    "channel": "D012AB3C4",
+    "user": "U012AB3C4",
+    "text": "Hello, I need help with my order",
+    "ts": "1512085950.000216",
+    "event_ts": "1512085950.000216",
+    "channel_type": "im",
+    "blocks": [
+      {
+        "type": "rich_text",
+        "block_id": "abc123",
+        "elements": []
+      }
+    ]
+  },
+  "type": "event_callback",
+  "event_id": "Ev0PV52K25",
+  "event_time": 1512085950,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T012AB3C4",
+      "user_id": "U0123456789",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ]
+}

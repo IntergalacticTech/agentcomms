@@ -1,0 +1,13 @@
+[adapter]
+channel = "email"
+class = "adapters.email.adapter:EmailAdapter"
+modes = ["provision"]
+cdk_stack = "adapters.email.stack:EmailAdapterStack"
+min_hub_version = "0.1"
+
+[webhook_routes]
+# Email ingest is via SES → SNS → Lambda, not an API Gateway webhook.
+# No entries here.
+
+[ssm_secrets]
+# No per-deploy secrets needed for email beyond what CDK auto-wires.

@@ -1,268 +1,133 @@
-# Custom Domain Setup
+# Custom Domains
 
-By default, FreeMail inboxes use `@victorymail.dev` email addresses. With a custom domain, you can send and receive email using your own domain (e.g., `agent@mail.acme.com`).
+AgentComms uses Amazon SES for email send and receive in the default AWS deployment. Custom domains are registered at the org level, then email channels can provision addresses on verified domains.
 
-## Overview
-
-Setting up a custom domain involves:
-
-1. Registering the domain with FreeMail
-2. Configuring DNS records at your DNS provider
-3. Triggering verification
-4. Creating inboxes on the verified domain
-
-## Step 1: Register the Domain
+## Register a Domain
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/domains \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST https://api.agentcomms.dev/v1/domains \
+  -H "Authorization: Bearer ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"domain": "mail.acme.com"}'
+  -d '{"domain_name": "mail.example.com"}'
 ```
 
-The response includes all required DNS records:
+Response:
 
 ```json
 {
-  "id": "01HXYZ...",
-  "domain": "mail.acme.com",
-  "status": "pending",
+  "domain_id": "dom_...",
+  "domain_name": "mail.example.com",
+  "status": "pending_dns",
+  "dkim_tokens": ["token1", "token2", "token3"],
   "dns_records": {
     "mx": {
       "type": "MX",
-      "name": "mail.acme.com",
+      "name": "mail.example.com",
       "value": "10 inbound-smtp.us-east-1.amazonaws.com",
-      "ttl": 3600
+      "ttl": 1800
     },
     "spf": {
       "type": "TXT",
-      "name": "mail.acme.com",
+      "name": "mail.example.com",
       "value": "v=spf1 include:amazonses.com ~all",
       "ttl": 3600
     },
     "dkim": [
-      {"type": "CNAME", "name": "s1._domainkey.mail.acme.com", "value": "s1.dkim.victorymail.dev", "ttl": 3600},
-      {"type": "CNAME", "name": "s2._domainkey.mail.acme.com", "value": "s2.dkim.victorymail.dev", "ttl": 3600},
-      {"type": "CNAME", "name": "s3._domainkey.mail.acme.com", "value": "s3.dkim.victorymail.dev", "ttl": 3600}
+      {
+        "type": "CNAME",
+        "name": "token1._domainkey.mail.example.com",
+        "value": "token1.dkim.amazonses.com",
+        "ttl": 1800
+      }
     ],
     "dmarc": {
       "type": "TXT",
-      "name": "_dmarc.mail.acme.com",
-      "value": "v=DMARC1; p=quarantine; rua=mailto:dmarc@victorymail.dev",
+      "name": "_dmarc.mail.example.com",
+      "value": "v=DMARC1; p=quarantine; rua=mailto:dmarc@mail.example.com",
       "ttl": 3600
     }
   }
 }
 ```
 
-## Step 2: Configure DNS Records
+DKIM tokens are issued by SES per domain. Use the exact records returned by your API response.
 
-Add all of the following records at your DNS provider:
+## Publish DNS
 
-### MX Record (Required for Receiving)
+At your DNS provider, publish:
 
-Routes inbound email to FreeMail's mail servers.
+| Type | Name | Value |
+|---|---|---|
+| MX | `mail.example.com` | `10 inbound-smtp.us-east-1.amazonaws.com` |
+| TXT | `mail.example.com` | `v=spf1 include:amazonses.com ~all` |
+| CNAME | `<token>._domainkey.mail.example.com` | `<token>.dkim.amazonses.com` |
+| TXT | `_dmarc.mail.example.com` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@mail.example.com` |
 
-| Type | Name | Value | Priority | TTL |
-|------|------|-------|----------|-----|
-| MX | `mail.acme.com` | `inbound-smtp.us-east-1.amazonaws.com` | 10 | 3600 |
+If you already have an SPF record, merge `include:amazonses.com` into the existing record instead of publishing a second SPF record.
 
-### SPF Record (Required for Sending)
-
-Authorizes FreeMail (via Amazon SES) to send email on behalf of your domain.
-
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| TXT | `mail.acme.com` | `v=spf1 include:amazonses.com ~all` | 3600 |
-
-If you already have an SPF record on this domain, merge it by adding `include:amazonses.com` to the existing record.
-
-### DKIM Records (Required for Sending)
-
-Three CNAME records that enable DKIM email signing.
-
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| CNAME | `s1._domainkey.mail.acme.com` | `s1.dkim.victorymail.dev` | 3600 |
-| CNAME | `s2._domainkey.mail.acme.com` | `s2.dkim.victorymail.dev` | 3600 |
-| CNAME | `s3._domainkey.mail.acme.com` | `s3.dkim.victorymail.dev` | 3600 |
-
-### DMARC Record (Recommended)
-
-Tells receiving mail servers how to handle emails that fail SPF or DKIM checks.
-
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| TXT | `_dmarc.mail.acme.com` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@victorymail.dev` | 3600 |
-
-## Step 3: Export Zone File (Optional)
-
-If your DNS provider supports BIND-format zone file imports, you can export the records as a zone file:
+## Verify
 
 ```bash
-curl https://api.victorymail.dev/v1/domains/DOMAIN_ID/zone-file \
-  -H "x-api-key: am_live_YOUR_KEY"
+curl -sS -X POST https://api.agentcomms.dev/v1/domains/dom_.../verify \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
 ```
 
-This returns a ready-to-import zone file:
-
-```
-; Zone file for mail.acme.com
-; Generated by FreeMail
-$ORIGIN mail.acme.com.
-$TTL 3600
-
-mail.acme.com.    3600    IN    MX    10 inbound-smtp.us-east-1.amazonaws.com
-
-mail.acme.com.    3600    IN    TXT    "v=spf1 include:amazonses.com ~all"
-
-s1._domainkey.mail.acme.com.    3600    IN    CNAME    s1.dkim.victorymail.dev.
-s2._domainkey.mail.acme.com.    3600    IN    CNAME    s2.dkim.victorymail.dev.
-s3._domainkey.mail.acme.com.    3600    IN    CNAME    s3.dkim.victorymail.dev.
-
-_dmarc.mail.acme.com.    3600    IN    TXT    "v=DMARC1; p=quarantine; rua=mailto:dmarc@victorymail.dev"
-```
-
-## Step 4: Trigger Verification
-
-After configuring DNS records, trigger verification:
+Check status:
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/domains/DOMAIN_ID/verify \
-  -H "x-api-key: am_live_YOUR_KEY"
+curl -sS https://api.agentcomms.dev/v1/domains/dom_... \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
 ```
 
-The domain status transitions to `verifying`. DNS propagation can take up to 48 hours, but typically completes within 15-30 minutes.
-
-Check the status:
+Export a BIND-style zone file:
 
 ```bash
-curl https://api.victorymail.dev/v1/domains/DOMAIN_ID \
-  -H "x-api-key: am_live_YOUR_KEY"
+curl -sS https://api.agentcomms.dev/v1/domains/dom_.../zone-file \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
 ```
 
-Each DNS record type is verified independently:
+## Provision an Email Channel
 
-```json
-{
-  "status": "verified",
-  "mx_verified": true,
-  "spf_verified": true,
-  "dkim_verified": true,
-  "dmarc_verified": true,
-  "verified_at": "2025-01-15T11:00:00Z"
-}
-```
-
-## Step 5: Create Inboxes on Your Domain
-
-Once verified, create inboxes with email addresses on your domain:
+After the domain is verified, create an email channel under an agent:
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST https://api.agentcomms.dev/v1/agents/agt_.../channels \
+  -H "Authorization: Bearer ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "support@mail.acme.com",
-    "display_name": "Support Agent"
+    "channel": "email",
+    "mode": "provision",
+    "config": {
+      "local_part": "invoice",
+      "domain": "mail.example.com"
+    }
   }'
 ```
 
-## Catch-All Inbox
+## SDKs
 
-You can configure a catch-all inbox that receives all email sent to your domain that does not match any specific inbox:
-
-```bash
-curl -X PATCH https://api.victorymail.dev/v1/domains/DOMAIN_ID \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"catch_all_inbox_id": "01HXYZ..."}'
-```
-
-## SDK Examples
-
-### Python
+Python:
 
 ```python
-from freemail import FreeMail
+from agentcomms import Client
 
-client = FreeMail("am_live_YOUR_KEY")
-
-# Register domain
-domain = client.domains.create(domain="mail.acme.com")
-print("Configure these DNS records:")
-for record_type, record in domain["dns_records"].items():
-    if isinstance(record, list):
-        for r in record:
-            print(f"  {r['type']} {r['name']} -> {r['value']}")
-    else:
-        print(f"  {record['type']} {record['name']} -> {record['value']}")
-
-# After DNS is configured, verify
-client.domains.verify(domain["id"])
-
-# Check status
-status = client.domains.get(domain["id"])
-print(f"Domain status: {status['status']}")
+client = Client(api_key="ak_live_YOUR_KEY")
+domain = client.domains.create(domain_name="mail.example.com")
+client.domains.verify(domain.domain_id)
 ```
 
-### Node.js
+Node:
 
 ```typescript
-import { FreeMail } from "@freemail/sdk";
+import { Client } from "@agentcomms/client";
 
-const client = new FreeMail("am_live_YOUR_KEY");
-
-// Register domain
-const domain = await client.domains.create({ domain: "mail.acme.com" });
-console.log("Configure these DNS records:", domain.dns_records);
-
-// After DNS is configured, verify
-await client.domains.verify(domain.id);
-
-// Check status
-const status = await client.domains.get(domain.id);
-console.log(`Domain status: ${status.status}`);
+const client = new Client({ apiKey: "ak_live_YOUR_KEY" });
+const domain = await client.domains.create({ domain_name: "mail.example.com" });
+await client.domains.verify(domain.domain_id);
 ```
 
 ## Troubleshooting
 
-### Domain stuck in "pending" or "verifying"
-
-- DNS changes can take up to 48 hours to propagate. Wait and retry verification.
-- Use `dig` or `nslookup` to verify your records are visible:
-
-```bash
-dig MX mail.acme.com
-dig TXT mail.acme.com
-dig CNAME s1._domainkey.mail.acme.com
-dig TXT _dmarc.mail.acme.com
-```
-
-### MX record not verifying
-
-- Ensure the MX value is exactly `10 inbound-smtp.us-east-1.amazonaws.com` (no trailing dot in most DNS providers).
-- Some DNS providers require you to enter the priority (10) separately from the value.
-
-### SPF record not verifying
-
-- If you already have an SPF record, you cannot add a second one. Merge `include:amazonses.com` into the existing record.
-- Example merged record: `v=spf1 include:_spf.google.com include:amazonses.com ~all`
-
-### DKIM records not verifying
-
-- CNAME records should not have quotes around the value.
-- Some DNS providers automatically append your domain to the record name -- check that it is not duplicated (e.g., `s1._domainkey.mail.acme.com.mail.acme.com`).
-
-### Not receiving inbound email
-
-- Verify the MX record is configured and propagated.
-- Ensure you have created an inbox with an email address on this domain, or configured a catch-all inbox.
-- Check that the inbox status is `active`.
-
-## Limits
-
-| Tier | Max Domains |
-|------|-------------|
-| Free | 1 |
-| Pro | 10 |
+- DNS propagation can take minutes to hours. Use `dig MX`, `dig TXT`, and `dig CNAME` to verify records are externally visible.
+- Some DNS providers append the zone name automatically. Avoid names like `token._domainkey.mail.example.com.example.com`.
+- SES inbound email is regional. The default docs assume `us-east-1`; adjust records if your deployment uses another supported SES inbound region.

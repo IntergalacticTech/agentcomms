@@ -1,0 +1,11 @@
+From: Alice <alice@example.com>
+To: bot@agentcomms.dev
+Subject: March invoice
+Message-ID: <abc123@example.com>
+Date: Fri, 17 Apr 2026 09:12:03 +0000
+Content-Type: text/plain; charset=utf-8
+
+Hi bot, please see the attached invoice.
+
+Thanks,
+Alice

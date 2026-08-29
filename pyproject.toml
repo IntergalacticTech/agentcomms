@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentcomms-hub"
+version = "1.0.0"
+description = "Open-source communications hub runtime for AI agents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Victory", email = "hello@agentcomms.dev" }]
+dependencies = [
+  "boto3>=1.35.0",
+  "jsonschema>=4.0",
+  "pydantic>=2.0,<3",
+  "python-ulid>=2.0",
+  "requests>=2.31",
+  "slack-sdk>=3.27.0",
+  "stripe>=8.0.0",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://agentcomms.dev"
+Repository = "https://github.com/IntergalacticTech/FreeMail.ai"
+Documentation = "https://agentcomms.dev/docs"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "adapters*", "lambdas*"]
+exclude = ["tests*", "cdk*", "console*", "sdks*", "mcp*", "docs*"]
+
+[project.optional-dependencies]
+test = ["pyotp>=2.9"]
+
+# NOTE: pytest configuration lives in pytest.ini (the single source of truth).
+# Do not add a [tool.pytest.ini_options] block here — pytest ignores it when
+# pytest.ini is present, which silently shadows any settings placed here.

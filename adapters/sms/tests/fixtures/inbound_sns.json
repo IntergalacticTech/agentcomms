@@ -1,0 +1,22 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:agentcomms-sms-inbound:abc123",
+      "Sns": {
+        "Type": "Notification",
+        "MessageId": "sns-msg-001",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:agentcomms-sms-inbound",
+        "Subject": null,
+        "Message": "{\"originationNumber\":\"+14155551234\",\"destinationNumber\":\"+18005550000\",\"messageBody\":\"Your code is 482917\",\"messageId\":\"abc123\",\"inboundMessageId\":\"def456\",\"previousPublishedMessageId\":null,\"messageKeyword\":\"KEYWORD\",\"messageSegmentCount\":1,\"originationCountryIso\":\"US\",\"carrierCode\":\"310410\",\"timestamp\":\"2026-04-17T12:00:00.000Z\"}",
+        "Timestamp": "2026-04-17T12:00:00.000Z",
+        "SignatureVersion": "1",
+        "Signature": "FAKE_SIGNATURE",
+        "SigningCertUrl": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-abc.pem",
+        "UnsubscribeUrl": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:...",
+        "MessageAttributes": {}
+      }
+    }
+  ]
+}

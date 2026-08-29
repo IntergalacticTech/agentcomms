@@ -1,0 +1,14 @@
+{
+  "notification": {
+    "messageId": "sns-msg-id-apns-001",
+    "timestamp": "2026-04-17T12:00:00.000Z"
+  },
+  "delivery": {
+    "providerId": 0,
+    "destination": "arn:aws:sns:us-east-1:123456789012:endpoint/APNS_SANDBOX/agentcomms-apns/device-001",
+    "providerResponse": "{}",
+    "dwellTimeMs": 51,
+    "dwellTimesMsSum": 51
+  },
+  "status": "SUCCESSFUL"
+}

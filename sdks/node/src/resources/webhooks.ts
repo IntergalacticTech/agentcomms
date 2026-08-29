@@ -1,38 +1,34 @@
-import type {
-  Webhook,
-  PaginatedResponse,
-  CreateWebhookOptions,
-  UpdateWebhookOptions,
-  ListWebhookOptions,
-} from "../types.js";
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
+import type { Client } from "../client.js";
+import type { Webhook } from "../types.js";
 
-type RequestFn = <T>(method: string, path: string, body?: unknown) => Promise<T>;
+export class WebhooksResource {
+  constructor(private client: Client, private agentId: string) {}
 
-export class WebhookResource {
-  constructor(private request: RequestFn) {}
-
-  async list(
-    options?: ListWebhookOptions
-  ): Promise<PaginatedResponse<Webhook>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set("limit", String(options.limit));
-    if (options?.page_token) params.set("page_token", options.page_token);
-    const qs = params.toString();
-    return this.request("GET", `/webhooks${qs ? `?${qs}` : ""}`);
+  private path(suffix = ""): string {
+    return `/agents/${this.agentId}/webhooks${suffix}`;
   }
 
-  async create(options: CreateWebhookOptions): Promise<Webhook> {
-    return this.request("POST", "/webhooks", options);
+  async list(): Promise<Webhook[]> {
+    const data = await this.client.request<{ webhooks: Webhook[] }>("GET", this.path());
+    return data.webhooks ?? [];
   }
 
-  async update(
-    webhookId: string,
-    updates: UpdateWebhookOptions
-  ): Promise<Webhook> {
-    return this.request("PATCH", `/webhooks/${webhookId}`, updates);
+  async get(webhookId: string): Promise<Webhook> {
+    return this.client.request<Webhook>("GET", this.path(`/${webhookId}`));
+  }
+
+  async create(params: { url: string; events: string[]; channels?: string[]; secret?: string }): Promise<Webhook> {
+    return this.client.request<Webhook>("POST", this.path(), params);
+  }
+
+  async patch(webhookId: string, updates: Partial<{ url: string; events: string[]; channels: string[] }>): Promise<Webhook> {
+    return this.client.request<Webhook>("PATCH", this.path(`/${webhookId}`), updates);
   }
 
   async delete(webhookId: string): Promise<void> {
-    await this.request("DELETE", `/webhooks/${webhookId}`);
+    await this.client.request("DELETE", this.path(`/${webhookId}`));
   }
 }

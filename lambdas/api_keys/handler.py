@@ -22,14 +22,14 @@ API_KEY_LIST_FIELDS = [
 
 
 def _generate_api_key() -> str:
-    """Generate an API key: am_live_ + base62 encoded 32 random bytes."""
+    """Generate an API key: ak_live_ + base62 encoded 32 random bytes."""
     raw = secrets.token_bytes(32)
     num = int.from_bytes(raw, "big")
     encoded = []
     while num > 0:
         num, remainder = divmod(num, 62)
         encoded.append(_BASE62[remainder])
-    return f"am_live_{''.join(reversed(encoded))}"
+    return f"ak_live_{''.join(reversed(encoded))}"
 
 
 def _filter_key(item: dict) -> dict:

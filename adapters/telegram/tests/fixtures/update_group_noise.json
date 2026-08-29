@@ -1,0 +1,20 @@
+{
+  "update_id": 100000003,
+  "message": {
+    "message_id": 1003,
+    "from": {
+      "id": 987654321,
+      "is_bot": false,
+      "first_name": "Bob",
+      "username": "bob_user"
+    },
+    "chat": {
+      "id": -1001234567890,
+      "title": "Test Group",
+      "type": "supergroup"
+    },
+    "date": 1711900002,
+    "text": "Hey everyone, how's it going?",
+    "entities": []
+  }
+}

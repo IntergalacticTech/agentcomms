@@ -1,0 +1,13 @@
+[adapter]
+channel = "telegram"
+class = "adapters.telegram.adapter:TelegramAdapter"
+modes = ["provision"]
+cdk_stack = "adapters.telegram.stack:TelegramAdapterStack"
+min_hub_version = "0.1"
+
+[webhook_routes]
+telegram_ingest = { path = "/webhooks/telegram/{token_hash}", method = "POST" }
+
+[ssm_secrets]
+# Bot tokens are stored per-channel at /agentcomms/{env}/adapters/telegram/tokens/{channel_id}
+# No adapter-wide shared secret needed.

@@ -1,0 +1,12 @@
+[adapter]
+channel = "push"
+class = "adapters.push.adapter:PushAdapter"
+modes = ["provision"]
+cdk_stack = "adapters.push.stack:PushAdapterStack"
+min_hub_version = "0.1"
+
+[webhook_routes]
+
+[ssm_secrets]
+apns_platform_application_arn = "PLAIN"
+fcm_platform_application_arn  = "PLAIN"

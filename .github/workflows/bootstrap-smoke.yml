@@ -1,0 +1,48 @@
+name: bootstrap-smoke
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily
+  workflow_dispatch:
+jobs:
+  smoke:
+    name: agentcomms bootstrap on fresh sub-account
+    runs-on: ubuntu-latest
+    environment: bootstrap-smoke     # separate GitHub env with AWS OIDC role for SUB-ACCOUNT only
+    timeout-minutes: 40
+    permissions:
+      id-token: write                 # for OIDC
+      contents: read
+    if: github.repository == 'IntergalacticTech/FreeMail.ai'  # skip on forks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BOOTSTRAP_SMOKE_ROLE }}
+          aws-region: us-east-1
+      - name: Install CLI
+        run: cd cli && npm ci && npm run build && npm link
+      - name: Preflight
+        run: |
+          agentcomms doctor \
+            --domain ${{ secrets.AGENTCOMMS_SMOKE_DOMAIN }} \
+            --json
+      - name: Bootstrap
+        run: |
+          agentcomms bootstrap \
+            --domain ${{ secrets.AGENTCOMMS_SMOKE_DOMAIN }} \
+            --admin-email ${{ secrets.AGENTCOMMS_SMOKE_ADMIN_EMAIL }} \
+            --non-interactive --json | tee bootstrap.log
+      - name: Teardown
+        if: always()
+        run: |
+          agentcomms destroy --yes || true
+      - name: Upload log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-log
+          path: bootstrap.log

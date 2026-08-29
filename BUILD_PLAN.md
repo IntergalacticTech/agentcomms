@@ -1,12 +1,14 @@
 # FreeMail Build Plan
 
+> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](./docs/architecture.md), [docs/adapter-roadmap.md](./docs/adapter-roadmap.md), and [docs/platform-review.md](./docs/platform-review.md).
+
 ## Project Context
 
 **Product**: `FreeMail`
 **Public brand**: `FreeMail`
 **Current deployment/test domain**: `victorymail.dev`
 **Target public domain**: `freemail.dev` when acquired
-**AWS Account**: `732770059798`
+**AWS Account**: `<YOUR_ACCOUNT_ID>`
 **Primary region**: `us-east-1`
 **IaC**: AWS CDK (TypeScript)
 **App runtimes**: Python 3.12 for Lambda, TypeScript for CDK and frontend
@@ -21,12 +23,21 @@
 - Treat `freemail.dev` as the customer-facing brand/domain target.
 - Legacy references to `AgentMail` in older docs are design inheritance, not the final product identity.
 
-### What Already Exists
+### What Already Exists (as of 2026-04-13)
 
-- Route53 hosted zone for `victorymail.dev`
-- SES production access in the AWS account
-- Prior SES identity history for another domain
-- No infrastructure deployed yet for this project
+- **Platform is live in production** on AWS account `<YOUR_ACCOUNT_ID>`
+- **Public endpoints:**
+  - `api.victorymail.dev` — REST API (API Gateway + Lambda)
+  - `console.victorymail.dev` — developer console (CloudFront + S3)
+  - `victorymail.dev` — marketing site (CloudFront + S3)
+- SES production access, 50K/day send, 14/sec rate
+- SES domain identities verified for `victorymail.dev`, `karmascale.net`, `karmascale.org` (domain pool)
+- Route53 hosted zones for `karmascale.net` (Z071121127YBF0QF7XIJG) and `karmascale.org` (Z0712406NGP913O4A6EG)
+  - NOTE: `victorymail.dev` Route53 zone lives in a separate AWS account; flagged for consolidation
+- Cognito User Pool for console authentication
+- Stripe billing integration for Free/Starter/Pro tiers (Starter $5 tier in progress)
+- GitHub Actions OIDC for CI/CD
+- BYOC (Bring Your Own Cloud) tier via AWS Marketplace: design complete, implementation in progress
 
 ---
 

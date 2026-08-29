@@ -34,11 +34,12 @@ def check_quota(org_id: str, resource: str) -> dict | None:
     max_allowed = quotas.get(quota_field, 0)
     current = usage.get(resource, 0)
 
-    # 0 means unlimited
-    if max_allowed == 0:
+    # -1 means unlimited (Enterprise tier). 0 means hard block (e.g. Free
+    # tier custom domains). Any positive integer is an enforced cap.
+    if max_allowed < 0:
         return None
 
-    if current >= max_allowed:
+    if max_allowed == 0 or current >= max_allowed:
         return error(
             "QUOTA_EXCEEDED",
             f"You have reached your {resource} limit ({max_allowed}). Upgrade to increase your quota.",

@@ -2609,7 +2609,7 @@ import { AgentCommsDataStack } from '../lib/stacks/agentcomms-data-stack';
 
 // existing victorymail-* stacks stay as-is
 new AgentCommsDataStack(app, 'AgentCommsData', {
-  env: { account: '732770059798', region: 'us-east-1' },
+  env: { account: '<AWS_ACCOUNT_ID>', region: 'us-east-1' },
   envName: 'prod',
 });
 ```
@@ -4673,7 +4673,7 @@ The E2E test exercises the full Phase 1 surface against moto (no real AWS requir
 - **Spec §2 (Data model):** Organization, Agent, Channel, UnifiedMessage, ApiKey, Thread, Draft, Webhook, Attachment — Tasks 4–8 cover all 9 entities. GSI1–GSI7 all declared in Task 15. ✅
 - **Spec §3 (REST API):** Agents + Channels + Messages + Threads + Drafts + Webhooks + Wait + OTP + AI all listed; Phase 1 covers all except AI (deferred to Phase 2). Domains CRUD is not covered — add to Phase 2. ⚠️ *noted.*
 - **Spec §4 (Adapter SDK):** ChannelAdapter ABC (Task 12), registry (Task 13), manifest.toml (Task 18), cdk_wiring doc-tied to email stack (Task 19). ✅
-- **Spec §5 (Bootstrap CLI, AGENT.md, FSL license):** Deferred to Phase 4. ✅
+- **Spec §5 (Bootstrap CLI, AGENT.md, Apache-2.0 license):** Deferred to Phase 4. ✅
 - **Spec §6 (Migration):** Phase 5 — not in Phase 1. ✅
 - **Spec §7 (v0.1 scope):** Phase 1 covers email only (v0.1 scope includes 5 channels). Remaining channels covered in Phases 2 & 3. ✅
 
@@ -4684,5 +4684,4 @@ The E2E test exercises the full Phase 1 surface against moto (no real AWS requir
 - The spec's 8 "Open questions" (Section 8) should be addressed at the start of Phase 4 or wherever they intersect the work.
 
 *Phase 1 plan complete. Total tasks: 29. Estimated calendar: 2–3 weeks for a focused solo engineer; proportionally less with subagent-driven execution across parallel tasks where possible (e.g., 24a–24f can partially parallelize).*
-
 

@@ -1,224 +1,145 @@
-export interface PaginatedResponse<T> {
-  data: T[];
-  next_page_token?: string;
-  has_more: boolean;
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
+/**
+ * TypeScript interfaces mirroring AgentComms API response shapes.
+ */
+
+export interface ChannelDetails {
+  address?: string;
+  phone_e164?: string;
+  bot_username?: string;
+  oauth_url?: string;
+  status?: string;
+  [key: string]: unknown;
 }
 
-export interface Organization {
-  id: string;
+export interface Channel {
+  channel_id: string;
+  channel: string;
+  agent_id: string;
+  mode?: string;
+  status?: string;
+  details?: ChannelDetails;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Agent {
+  agent_id: string;
+  org_id?: string;
   name: string;
-  plan: string;
-  created_at: string;
-  updated_at: string;
+  metadata?: Record<string, unknown>;
+  channels?: Channel[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Response from POST /agents — includes a one-time api_key. */
+export interface AgentCreateResponse extends Agent {
+  api_key?: string;
 }
 
 export interface Recipient {
-  name?: string;
-  address: string;
-}
-
-export interface Inbox {
-  id: string;
-  email: string;
+  address?: string;
   display_name?: string;
-  pod_id?: string;
-  organization_id: string;
-  created_at: string;
-  updated_at: string;
+  platform_user_id?: string;
 }
 
 export interface Message {
-  id: string;
-  inbox_id: string;
-  thread_id?: string;
-  from: Recipient;
-  to: Recipient[];
-  cc?: Recipient[];
-  bcc?: Recipient[];
-  subject: string;
-  body_text?: string;
-  body_html?: string;
-  is_read: boolean;
-  is_starred: boolean;
-  labels?: string[];
-  direction: "inbound" | "outbound";
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Thread {
-  id: string;
-  inbox_id: string;
-  subject: string;
-  message_count: number;
-  last_message_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Draft {
-  id: string;
-  inbox_id: string;
+  message_id: string;
+  agent_id: string;
+  channel_id?: string;
+  channel?: string;
+  direction?: "inbound" | "outbound";
+  status?: string;
+  from?: Recipient;
   to?: Recipient[];
-  cc?: Recipient[];
-  bcc?: Recipient[];
   subject?: string;
   body_text?: string;
   body_html?: string;
-  created_at: string;
-  updated_at: string;
+  thread_key?: string;
+  is_dm?: boolean;
+  received_at?: string;
+  created_at?: string;
+  channel_native?: Record<string, unknown>;
 }
 
-export interface Pod {
-  id: string;
-  name: string;
-  description?: string;
-  organization_id: string;
-  inbox_count?: number;
-  created_at: string;
-  updated_at: string;
+export interface Thread {
+  thread_key: string;
+  agent_id: string;
+  channel?: string;
+  message_count?: number;
+  last_message_at?: string;
+  created_at?: string;
 }
 
-export interface Domain {
-  id: string;
-  domain: string;
-  status: string;
-  verified: boolean;
-  dns_records?: DnsRecord[];
-  organization_id: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DnsRecord {
-  type: string;
-  name: string;
-  value: string;
-  priority?: number;
+export interface Draft {
+  draft_id: string;
+  agent_id: string;
+  channel?: string;
+  to?: string;
+  subject?: string;
+  body_text?: string;
+  body_html?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Webhook {
-  id: string;
+  webhook_id: string;
+  agent_id: string;
   url: string;
   events: string[];
-  active: boolean;
-  secret?: string;
-  organization_id: string;
-  created_at: string;
-  updated_at: string;
+  channels?: string[];
+  created_at?: string;
 }
 
-export interface ApiKey {
-  id: string;
+export interface VaultItem {
+  vault_id: string;
+  org_id: string;
+  label?: string;
+  name?: string;
+  type: string;
+  value?: string;
+  tags?: Record<string, unknown>;
+  kms_key_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Persona {
+  persona_id: string;
+  org_id: string;
   name: string;
-  key?: string;
-  last_used_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Option types
-
-export interface CreateInboxOptions {
-  display_name?: string;
   email?: string;
-  pod_id?: string;
+  phone?: string;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
 }
 
-export interface ListInboxesOptions {
-  pod_id?: string;
-  limit?: number;
-  page_token?: string;
+export interface Domain {
+  domain_id: string;
+  org_id: string;
+  domain_name?: string;
+  domain?: string;
+  status?: string;
+  dkim_tokens?: string[];
+  dkim_verified?: boolean;
+  spf_verified?: boolean;
+  mx_verified?: boolean;
+  dmarc_verified?: boolean;
+  dns_records?: Record<string, unknown>;
+  verified_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface SendMessageOptions {
-  to: Recipient[];
-  subject: string;
-  body_text?: string;
-  body_html?: string;
+export interface PaginatedMessages {
+  messages: Message[];
+  next_cursor?: string;
 }
 
-export interface ReplyMessageOptions {
-  body_text?: string;
-  body_html?: string;
-}
-
-export interface ForwardMessageOptions {
-  to: Recipient[];
-  body_text?: string;
-}
-
-export interface UpdateMessageOptions {
-  is_read?: boolean;
-  is_starred?: boolean;
-  labels?: string[];
-}
-
-export interface ListMessagesOptions {
-  limit?: number;
-  page_token?: string;
-}
-
-export interface WaitForMessageOptions {
-  timeout?: number;
-  sender?: string;
-  subject_contains?: string;
-}
-
-export interface ExtractOtpOptions {
-  timeout?: number;
-  sender?: string;
-  subject_contains?: string;
-}
-
-export interface ExtractOtpResult {
-  code: string | null;
-  message_id: string;
-  from: string;
-  subject: string;
-}
-
-export interface CreatePodOptions {
-  name: string;
-  description?: string;
-}
-
-export interface ListPodOptions {
-  limit?: number;
-  page_token?: string;
-}
-
-export interface CreateDomainOptions {
-  domain: string;
-}
-
-export interface ListDomainOptions {
-  limit?: number;
-  page_token?: string;
-}
-
-export interface CreateWebhookOptions {
-  url: string;
-  events: string[];
-  active?: boolean;
-}
-
-export interface UpdateWebhookOptions {
-  url?: string;
-  events?: string[];
-  active?: boolean;
-}
-
-export interface ListWebhookOptions {
-  limit?: number;
-  page_token?: string;
-}
-
-export interface CreateApiKeyOptions {
-  name: string;
-}
-
-export interface ListApiKeyOptions {
-  limit?: number;
-  page_token?: string;
+export interface AgentsList {
+  agents: Agent[];
 }

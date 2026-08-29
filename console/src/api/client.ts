@@ -1,6 +1,7 @@
-const API_BASE =
+export const API_BASE =
+  import.meta.env.VITE_AGENTCOMMS_API_URL ||
   import.meta.env.VITE_API_URL ||
-  "https://api.victorymail.dev/v1";
+  "https://api.agentcomms.dev/v1";
 
 class ApiClient {
   private token: string | null = null;

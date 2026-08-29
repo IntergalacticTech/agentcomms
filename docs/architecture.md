@@ -1,200 +1,124 @@
-# Technical Architecture
+# AgentComms Architecture
 
-FreeMail is built as a fully serverless email platform on AWS. This document describes the system design, data flow, and security model.
+AgentComms is an open-source communications hub for AI agents. The product boundary is simple: agents get durable identities on many channels, every direct message and explicit mention becomes a normalized `UnifiedMessage`, and channel-specific behavior stays available through native sub-surfaces.
 
-## System Overview
+## System Shape
 
-```
-                     +----------------------------------------------------+
-                     |                    CLIENTS                          |
-                     |   REST API   |   SDKs   |   MCP Server   |  Console|
-                     +------+-------+----+-----+--------+-------+----+----+
-                            |            |               |            |
-                     +------v------------v---------------v------------v----+
-                     |                  API Gateway (REST)                 |
-                     |            api.victorymail.dev/v1                   |
-                     +------+---------------------------------------------+
-                            |
-                     +------v------+
-                     |   Lambda    |
-                     | Authorizer  |----> DynamoDB (API key lookup via GSI)
-                     +------+------+
-                            |
-          +-----------+-----+------+-----------+-----------+----------+
-          |           |            |           |           |          |
-     +----v----+ +----v----+ +----v----+ +----v----+ +----v----+ +---v----+
-     | Inboxes | |Messages | | Domains | |Webhooks | | Wait /  | | Billing|
-     | Lambda  | | Lambda  | | Lambda  | | Lambda  | |OTP Lamb.| | Lambda |
-     +----+----+ +----+----+ +----+----+ +----+----+ +----+----+ +---+----+
-          |           |            |           |           |          |
-          +-----------+-----+------+-----------+-----------+         |
-                            |                                        |
-                     +------v------+                          +------v------+
-                     |  DynamoDB   |                          |   Stripe    |
-                     | Single Table|                          |   Billing   |
-                     +------+------+                          +-------------+
-                            |
-                     +------v------+
-                     |     S3      |
-                     | Email Bodies|
-                     | Attachments |
-                     +-------------+
+```text
+SDKs / MCP / REST clients
+        |
+        v
+API Gateway + Lambda handlers
+        |
+        +--> Lambda authorizer -> DynamoDB API key lookup
+        |
+        +--> DynamoDB single-table metadata
+        +--> S3 buckets for large message bodies and attachments
+        +--> Kinesis event stream for message and lifecycle events
+        +--> Channel adapters for provider-specific ingress/egress
 
-
-     INBOUND EMAIL FLOW:
-
-     Internet ---> SES Inbound ---> S3 (raw MIME) ---> Lambda (Inbound Processor)
-                                                          |
-                                        +-----------------+-----------------+
-                                        |                 |                 |
-                                   DynamoDB          S3 (bodies)    SQS (webhook queue)
-                                  (message +        (text/html)         |
-                                   thread)                        Lambda (Webhook Worker)
-                                                                        |
-                                                                  Customer Endpoint
-
-
-     OUTBOUND EMAIL FLOW:
-
-     API (POST /messages) ---> Lambda ---> DynamoDB (status=queued)
-                                              |
-                                        SQS (send queue)
-                                              |
-                                        Lambda (Outbound Worker)
-                                              |
-                                           SES v2
-                                              |
-                                        SNS (bounce/complaint)
-                                              |
-                                        Lambda (Bounce Processor)
-                                              |
-                                        DynamoDB (status=bounced)
+Adapters today: email, SMS, push, Slack, Telegram
+Scaffolded next: Discord
+Open adapter targets: WhatsApp, voice, fax, postal, Matrix, Signal, webhooks, and anything event-shaped
 ```
 
-## AWS Services
+## Core Invariants
 
-| Layer | Service | Purpose |
-|-------|---------|---------|
-| **API** | API Gateway (REST) | Request routing, throttling, CORS |
-| **Auth** | Lambda Authorizer + Cognito | API key validation, JWT authentication for console |
-| **Compute** | Lambda (Python 3.12) | All API handlers, email processing, workers |
-| **Database** | DynamoDB | All metadata: orgs, inboxes, messages, threads, API keys, webhooks |
-| **Object Storage** | S3 | Raw MIME emails, message bodies (text/HTML), attachments |
-| **Email Transport** | SES v2 | Send and receive email with DKIM/SPF/DMARC |
-| **Queuing** | SQS | Outbound send queue, webhook delivery queue |
-| **Notifications** | SNS | Bounce and complaint notifications from SES |
-| **DNS** | Route 53 | Platform domain management |
-| **CDN** | CloudFront | Developer console hosting |
-| **IaC** | CDK (TypeScript) | Infrastructure as code |
-| **Billing** | Stripe | Subscription management, checkout, billing portal |
+- `Agent` is the top-level actor. Channels, messages, threads, drafts, webhooks, and native surfaces hang under an agent.
+- `Channel` records describe one identity or bridge on one medium: email address, SMS number, Slack workspace app, Telegram bot, push target, and future adapters.
+- `UnifiedMessage` is the channel-neutral message shape. It preserves `channel_native` metadata so adapters do not flatten away details the agent may need.
+- Direct messages and explicit mentions use `is_dm=true` and project into the unified inbox index.
+- Ambient room traffic, such as Slack channels or Discord guild chatter, stays out of the unified inbox and is exposed through native channel routes.
+- API keys are hashed before storage and scoped to org, agent, or channel.
 
-## Data Flow: Inbound Email
+## Main Data Flow
 
-When someone sends an email to a FreeMail inbox:
+### Inbound
 
-1. **MX Record** -- The sender's mail server looks up the MX record for the domain, which points to `inbound-smtp.us-east-1.amazonaws.com`.
+1. A provider delivers an event to an adapter endpoint or AWS event source.
+2. The adapter validates provider signatures and normalizes the payload.
+3. The adapter returns a `UnifiedMessage` or `None` if the event is not message material.
+4. Core persistence writes the message, updates indexes, and publishes a `message.received` event.
+5. Webhooks, wait/OTP polling, SDKs, MCP tools, and future async consumers observe the normalized message.
 
-2. **SES Receipt** -- Amazon SES receives the email and applies spam/virus/SPF/DKIM/DMARC verdicts.
+### Outbound
 
-3. **S3 Storage** -- SES stores the raw MIME email in S3 (`inbound/{message-id}`).
+1. A client calls `POST /v1/agents/{agent_id}/messages` or `.../{message_id}/reply`.
+2. The API selects the active channel by explicit `channel`, inferred recipient address, or original thread context.
+3. The adapter sends using the provider-native API.
+4. Core persistence stores the outbound message with native provider IDs and status.
+5. Delivery, bounce, complaint, or provider callback events update status when available.
 
-4. **Lambda Invocation** -- SES invokes the Inbound Processor Lambda.
+## Adapter Contract
 
-5. **Processing** -- The Lambda:
-   - Parses the MIME email (headers, body text/HTML, attachments)
-   - Looks up the inbox by recipient email address (GSI2)
-   - Stores the message body in S3
-   - Stores attachments in a separate S3 bucket
-   - Creates message and thread records in DynamoDB
-   - Increments inbox message/unread counters
-   - Publishes a `message.received` event to the webhook queue
+Every adapter implements `core.adapters.base.ChannelAdapter`:
 
-6. **Webhook Delivery** -- The Webhook Worker Lambda delivers the event to subscribed customer endpoints.
+```python
+class ChannelAdapter:
+    channel_name: str
+    supports_modes: list[Literal["provision", "bridge"]]
 
-## Data Flow: Outbound Email
+    def provision(self, *, agent, config): ...
+    def bridge_start(self, *, agent, config): ...
+    def bridge_complete(self, *, channel, callback_params): ...
+    def teardown(self, *, channel): ...
+    def health_check(self, *, channel): ...
+    def ingest(self, *, payload): ...
+    def send(self, *, channel, message): ...
+    def list_native_containers(self, *, channel): ...
+    def list_native_messages(self, *, channel, container_id, **filters): ...
+    def send_to_native_target(self, *, channel, target, message): ...
+    def cdk_wiring(self, *, stack, context): ...
+```
 
-When an API client sends an email via `POST /inboxes/{id}/messages`:
+Adapters are discovered from in-repo `adapters/*/manifest.toml` files and Python entry points in the `agentcomms.adapters` group. That means the OSS hub can grow through independent adapter packages, not only through core repo changes. See [adapter-authoring.md](./adapter-authoring.md) for channel slug rules, package shape, security expectations, and adapter tests.
 
-1. **API Handler** -- The Messages Lambda validates the request, stores the message body in S3, and creates a message record in DynamoDB with `status=queued`.
+## AWS Implementation
 
-2. **SQS Enqueue** -- The message ID is enqueued to the send queue (SQS).
+The default deployment target is AWS:
 
-3. **Send Worker** -- The Outbound Worker Lambda:
-   - Reads the message from DynamoDB
-   - Fetches the body from S3
-   - Builds a MIME message (multipart/alternative with text and HTML parts)
-   - Sends via SES v2 `SendEmail` (raw mode)
-   - Updates the message status to `sent` with the SES message ID
+| Layer | AWS service |
+|---|---|
+| HTTP API | API Gateway REST |
+| Compute | Lambda Python 3.12 |
+| Metadata | DynamoDB single-table |
+| Large bodies and attachments | S3 |
+| Events | Kinesis |
+| Queues and notifications | SQS/SNS where adapters need them |
+| Email | SES |
+| SMS | AWS End User Messaging |
+| Secrets | SSM Parameter Store and KMS |
+| AI helpers | Bedrock |
+| Static console/landing | CloudFront and S3 |
+| Infrastructure | AWS CDK v2 |
 
-4. **Bounce/Complaint Handling** -- If the email bounces or receives a complaint, SES publishes to an SNS topic, which invokes the Bounce Processor Lambda. The Lambda updates the message status to `bounced` or `complained`.
+The CDK app defaults to the caller's account/region via CDK context or `CDK_DEFAULT_ACCOUNT`/`CDK_DEFAULT_REGION`. Legacy VictoryMail stacks are opt-in and are not part of normal AgentComms bootstrap.
 
-## DynamoDB Table Design
+## API Surface
 
-FreeMail uses a single-table design with composite primary keys. All entities share one DynamoDB table (`victorymail`).
+The stable public surface is agent-centric:
 
-### Entity Key Patterns
+- `/v1/agents`
+- `/v1/agents/{agent_id}/channels`
+- `/v1/agents/{agent_id}/messages`
+- `/v1/agents/{agent_id}/messages/{message_id}/reply`
+- `/v1/agents/{agent_id}/wait`
+- `/v1/agents/{agent_id}/extract-otp`
+- `/v1/agents/{agent_id}/threads`
+- `/v1/agents/{agent_id}/drafts`
+- `/v1/agents/{agent_id}/webhooks`
+- `/v1/agents/{agent_id}/slack/...`
+- `/v1/agents/{agent_id}/telegram/...`
+- `/v1/agents/{agent_id}/push/...`
+- `/v1/api-keys`
+- `/v1/vault`
+- `/v1/personas`
+- `/v1/domains`
 
-| Entity | PK | SK |
-|--------|----|----|
-| Organization | `ORG#{org_id}` | `META` |
-| API Key | `ORG#{org_id}` | `APIKEY#{key_id}` |
-| Pod | `ORG#{org_id}` | `POD#{pod_id}` |
-| Inbox | `ORG#{org_id}` | `INBOX#{inbox_id}` |
-| Message | `INBOX#{inbox_id}` | `MSG#{message_id}` |
-| Thread | `INBOX#{inbox_id}` | `THREAD#{thread_id}` |
-| Draft | `INBOX#{inbox_id}` | `DRAFT#{draft_id}` |
-| Domain | `ORG#{org_id}` | `DOMAIN#{domain_id}` |
-| Webhook | `ORG#{org_id}` | `WEBHOOK#{webhook_id}` |
-| Attachment | `MSG#{message_id}` | `ATTACH#{attachment_id}` |
-| List | `ORG#{org_id}` | `LIST#{list_id}` |
-| List Member | `LIST#{list_id}` | `MEMBER#{email}` |
+SDKs and the MCP server should be treated as contract tests for this surface. When a route changes, update API handler tests, SDK tests, MCP tests, OpenAPI docs, and CLI docs in the same change.
 
-### Global Secondary Indexes
+## Design Direction
 
-| GSI | PK | Purpose |
-|-----|----|----|
-| GSI1 | Varies | API key lookup by hash, pod-to-inbox mapping, thread messages, inbox drafts, org webhooks, org lists |
-| GSI2 | `EMAIL#{address}` | Inbox lookup by email address (inbound routing) |
-| GSI3 | `ORG#{org_id}` | Org-level message queries |
-| GSI6 | `SES#{ses_message_id}` | Message lookup by SES ID (bounce processing) |
+AgentComms should become a hub for any communication medium an agent can use. The core should stay boring and strict: auth, tenancy, normalized persistence, event publication, and dispatch. The adapters should absorb provider-specific complexity.
 
-### Design Rationale
-
-- **Single table** -- reduces operational overhead, one set of alarms, one backup config
-- **Partition key prefixes** -- natural multi-tenant isolation; an org can never accidentally query another org's data
-- **On-demand capacity** -- cost scales with usage; no capacity planning required
-- **S3 for large content** -- message bodies and attachments are stored in S3, keeping DynamoDB items small and reads fast
-
-## Security Model
-
-### Authentication
-
-FreeMail supports two authentication methods, both enforced by a Lambda Authorizer at the API Gateway level:
-
-1. **API Keys** -- Tokens prefixed with `am_live_` or `am_test_`. Keys are hashed (SHA-256) before storage. The authorizer hashes the incoming key and looks it up via GSI1. Keys support three scope levels: org, pod, and inbox.
-
-2. **JWT (Cognito)** -- Used by the developer console. The authorizer validates the JWT issuer, expiration, token_use, and kid against the Cognito JWKS endpoint. The `custom:org_id` claim maps the user to their organization.
-
-### Data Isolation
-
-- All DynamoDB queries are scoped by the authenticated `org_id`, which is injected by the authorizer into the Lambda context.
-- API key scoping (pod/inbox level) restricts access to specific resources within the organization.
-- S3 object keys include the `org_id` prefix, preventing cross-tenant access.
-
-### Transport Security
-
-- All API traffic is HTTPS (TLS 1.2+) via API Gateway.
-- SES uses TLS for email transport (opportunistic TLS for SMTP connections).
-- DKIM, SPF, and DMARC protect email authenticity.
-
-### Webhook Security
-
-- Each webhook has a unique signing secret (`whsec_` prefix).
-- Payloads are signed with HMAC-SHA256.
-- Customers verify signatures to ensure webhook authenticity.
-
-### Secrets Management
-
-- API keys are stored as SHA-256 hashes in DynamoDB.
-- Stripe keys and other secrets are stored in Lambda environment variables (encrypted at rest by AWS).
-- Webhook signing secrets are generated using `secrets.token_hex(32)`.
+See [adapter-authoring.md](./adapter-authoring.md) for the adapter implementation guide and [adapter-roadmap.md](./adapter-roadmap.md) for the deeper OSS adapter roadmap.

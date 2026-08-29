@@ -1,36 +1,30 @@
-import type {
-  Domain,
-  PaginatedResponse,
-  CreateDomainOptions,
-  ListDomainOptions,
-} from "../types.js";
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
+import type { Client } from "../client.js";
+import type { Domain } from "../types.js";
 
-type RequestFn = <T>(method: string, path: string, body?: unknown) => Promise<T>;
+export class DomainsResource {
+  constructor(private client: Client) {}
 
-export class DomainResource {
-  constructor(private request: RequestFn) {}
-
-  async list(options?: ListDomainOptions): Promise<PaginatedResponse<Domain>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set("limit", String(options.limit));
-    if (options?.page_token) params.set("page_token", options.page_token);
-    const qs = params.toString();
-    return this.request("GET", `/domains${qs ? `?${qs}` : ""}`);
+  async list(): Promise<Domain[]> {
+    const data = await this.client.request<{ domains: Domain[] }>("GET", "/domains");
+    return data.domains ?? [];
   }
 
   async get(domainId: string): Promise<Domain> {
-    return this.request("GET", `/domains/${domainId}`);
+    return this.client.request<Domain>("GET", `/domains/${domainId}`);
   }
 
-  async create(options: CreateDomainOptions): Promise<Domain> {
-    return this.request("POST", "/domains", options);
-  }
-
-  async verify(domainId: string): Promise<Domain> {
-    return this.request("POST", `/domains/${domainId}/verify`);
+  async create(params: { domain_name?: string; domain?: string; metadata?: Record<string, unknown> }): Promise<Domain> {
+    return this.client.request<Domain>("POST", "/domains", {
+      ...params,
+      domain_name: params.domain_name ?? params.domain,
+      domain: undefined,
+    });
   }
 
   async delete(domainId: string): Promise<void> {
-    await this.request("DELETE", `/domains/${domainId}`);
+    await this.client.request("DELETE", `/domains/${domainId}`);
   }
 }

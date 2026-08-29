@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
+
 import * as cdk from "aws-cdk-lib";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import { Construct } from "constructs";

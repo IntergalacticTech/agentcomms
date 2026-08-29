@@ -1,0 +1,9 @@
+# DISCORD SCAFFOLD — manifest intentionally empty so registry does not load the adapter.
+# Uncomment when Discord implementation lands.
+#
+# [adapter]
+# channel = "discord"
+# class = "adapters.discord.adapter:DiscordAdapter"
+# modes = ["bridge"]
+# cdk_stack = "adapters.discord.stack:DiscordAdapterStack"
+# min_hub_version = "0.1"

@@ -1,83 +1,111 @@
-import {
-  FreemailAPIError,
-  NotFoundError,
-  AuthenticationError,
-  RateLimitError,
-  QuotaExceededError,
-} from "./errors.js";
-import { InboxResource } from "./resources/inboxes.js";
-import { MessageResource } from "./resources/messages.js";
-import { PodResource } from "./resources/pods.js";
-import { DomainResource } from "./resources/domains.js";
-import { WebhookResource } from "./resources/webhooks.js";
-import { ApiKeyResource } from "./resources/api-keys.js";
-import type { Organization } from "./types.js";
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
+import { AgentsResource } from "./resources/agents.js";
+import { VaultResource } from "./resources/vault.js";
+import { PersonasResource } from "./resources/personas.js";
+import { DomainsResource } from "./resources/domains.js";
+import { AgentCommsError } from "./errors.js";
 
-export interface FreemailClientOptions {
+export interface ClientOptions {
+  apiKey?: string;
   baseUrl?: string;
+  timeout?: number;
+  /** Max retries for idempotent requests on 429/5xx. Default 3. */
+  maxRetries?: number;
+  /** Base backoff in ms for exponential retry delay. Default 500. */
+  retryBaseMs?: number;
 }
 
-export class FreeMail {
-  private apiKey: string;
-  private baseUrl: string;
+// HTTP methods that are safe to retry (idempotent). POST/PATCH are excluded.
+const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]);
 
-  readonly inboxes: InboxResource;
-  readonly messages: MessageResource;
-  readonly pods: PodResource;
-  readonly domains: DomainResource;
-  readonly webhooks: WebhookResource;
-  readonly apiKeys: ApiKeyResource;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  constructor(apiKey: string, options?: FreemailClientOptions) {
-    this.apiKey = apiKey;
+export class Client {
+  readonly apiKey: string;
+  readonly baseUrl: string;
+  readonly timeout: number;
+  readonly maxRetries: number;
+  readonly retryBaseMs: number;
+  readonly agents: AgentsResource;
+  readonly vault: VaultResource;
+  readonly personas: PersonasResource;
+  readonly domains: DomainsResource;
+
+  constructor(opts: ClientOptions = {}) {
+    this.apiKey =
+      opts.apiKey ??
+      process.env["AGENTCOMMS_API_KEY"] ??
+      (() => {
+        throw new Error("AgentComms API key required — pass apiKey or set AGENTCOMMS_API_KEY");
+      })();
     this.baseUrl = (
-      options?.baseUrl || "https://api.victorymail.dev/v1"
+      opts.baseUrl ??
+      process.env["AGENTCOMMS_BASE_URL"] ??
+      "https://api.agentcomms.dev/v1"
     ).replace(/\/$/, "");
+    this.timeout = opts.timeout ?? 30_000;
+    this.maxRetries = opts.maxRetries ?? 3;
+    this.retryBaseMs = opts.retryBaseMs ?? 500;
 
-    const boundRequest = this.request.bind(this);
-    this.inboxes = new InboxResource(boundRequest);
-    this.messages = new MessageResource(boundRequest);
-    this.pods = new PodResource(boundRequest);
-    this.domains = new DomainResource(boundRequest);
-    this.webhooks = new WebhookResource(boundRequest);
-    this.apiKeys = new ApiKeyResource(boundRequest);
-  }
-
-  async getOrganization(): Promise<Organization> {
-    return this.request("GET", "/organization");
+    this.agents = new AgentsResource(this);
+    this.vault = new VaultResource(this);
+    this.personas = new PersonasResource(this);
+    this.domains = new DomainsResource(this);
   }
 
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers: Record<string, string> = {
-      "x-api-key": this.apiKey,
-      "Content-Type": "application/json",
-    };
-
-    const resp = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      const errorData = data as { error?: { code?: string; message?: string } };
-      const code = errorData?.error?.code || "UNKNOWN";
-      const msg = errorData?.error?.message || resp.statusText;
-
-      if (resp.status === 404)
-        throw new NotFoundError(resp.status, code, msg);
-      if (resp.status === 401)
-        throw new AuthenticationError(resp.status, code, msg);
-      if (resp.status === 429)
-        throw new RateLimitError(resp.status, code, msg);
-      if (resp.status === 403 && code === "QUOTA_EXCEEDED")
-        throw new QuotaExceededError(resp.status, code, msg);
-
-      throw new FreemailAPIError(resp.status, code, msg);
+    // Idempotent requests are retried on 429/5xx with bounded exponential
+    // backoff, honoring a Retry-After header when present.
+    const retryable = IDEMPOTENT_METHODS.has(method.toUpperCase());
+    let attempt = 0;
+    for (;;) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
+      let resp: Response;
+      try {
+        resp = await fetch(`${this.baseUrl}${path}`, {
+          method,
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+            "User-Agent": "@agentcomms/client/1.0.0",
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!resp.ok) {
+        if (
+          retryable &&
+          attempt < this.maxRetries &&
+          (resp.status === 429 || resp.status >= 500)
+        ) {
+          await sleep(this.retryDelay(resp, attempt));
+          attempt++;
+          continue;
+        }
+        throw await AgentCommsError.fromResponse(resp);
+      }
+      if (resp.status === 204) return undefined as T;
+      return (await resp.json()) as T;
     }
+  }
 
-    if (resp.status === 204) return {} as T;
-    return resp.json() as Promise<T>;
+  /** Delay (ms) before the next retry, honoring Retry-After when present. */
+  private retryDelay(resp: Response, attempt: number): number {
+    const retryAfter = resp.headers?.get?.("Retry-After");
+    if (retryAfter) {
+      const seconds = Number(retryAfter);
+      if (!Number.isNaN(seconds)) return Math.max(0, seconds * 1000);
+      const when = Date.parse(retryAfter);
+      if (!Number.isNaN(when)) return Math.max(0, when - Date.now());
+    }
+    return this.retryBaseMs * 2 ** attempt;
   }
 }

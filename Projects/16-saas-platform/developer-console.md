@@ -1319,7 +1319,7 @@ interface ApiKeyCardProps {
   apiKey: {
     id: string
     name: string
-    prefix: string      // e.g., "am_live_7kB3"
+    prefix: string      // e.g., "ak_live_7kB3"
     scope: 'org' | 'pod' | 'inbox'
     scope_resource_id?: string
     environment: 'live' | 'test'
@@ -1341,7 +1341,7 @@ interface ApiKeyCardProps {
  *   ┌────────────────────────────────────────────────────┐
  *   │  🔑 Production Key                     [Revoke]   │
  *   │                                                    │
- *   │  Key:     am_live_7kB3••••••••••••••    [Reveal]  │
+ *   │  Key:     ak_live_7kB3••••••••••••••    [Reveal]  │
  *   │  Scope:   Organization                             │
  *   │  Created: April 1, 2026                            │
  *   │  Last used: 2 hours ago                            │
@@ -1351,7 +1351,7 @@ interface ApiKeyCardProps {
  *   └────────────────────────────────────────────────────┘
  *
  * Key display:
- *   - By default, shows prefix + dots: "am_live_7kB3••••••••••••••"
+ *   - By default, shows prefix + dots: "ak_live_7kB3••••••••••••••"
  *   - "Reveal" button: only available if plaintextKey is provided
  *     (i.e., the key was just created in this session).
  *     On click, shows the full key and changes button to "Copy".
@@ -1366,7 +1366,7 @@ interface ApiKeyCardProps {
  *   - Dialog shows: "Are you sure you want to revoke {name}?"
  *   - Warning text: "This action cannot be undone. Any applications using
  *     this key will immediately lose access."
- *   - Requires typing the key prefix ("am_live_7kB3") to confirm
+ *   - Requires typing the key prefix ("ak_live_7kB3") to confirm
  *   - "Revoke Key" button (destructive variant, red)
  *   - Calls DELETE /v1/api-keys/:id
  *   - On success: invalidates api-keys query, shows success toast

@@ -21,6 +21,14 @@ node_modules/
 *.log
 cdk/cdk.out/
 cdk/dist/
+sdks/node/dist/
+
+# SDK build / venv artifacts
+sdks/python/.venv/
+sdks/python/build/
+sdks/python/**/*.egg-info/
+sdks/node/dist/
+mcp/dist/
 
 # Python
 __pycache__/
@@ -48,3 +56,4 @@ lambdas/bin/
 lambdas/*.so
 lambdas/*.dist-info/
 .exterminator/state.json
+.claude/

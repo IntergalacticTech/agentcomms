@@ -1,2172 +1,932 @@
 openapi: 3.0.3
 info:
-  title: FreeMail API
-  description: Email-as-a-service API for AI agents. Provides programmatic inbox management, message sending/receiving, domain configuration, and real-time email waiting.
+  title: AgentComms API
   version: 1.0.0
-  contact:
-    name: VictoryMail
-    url: https://victorymail.dev
-
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  description: Open-source communications hub API for AI agents.
 servers:
-  - url: https://api.victorymail.dev/v1
-    description: Production
-
+  - url: https://api.agentcomms.dev/v1
 security:
-  - ApiKeyHeader: []
-  - BearerAuth: []
-
-tags:
-  - name: Agent
-    description: Account signup and verification (no auth required)
-  - name: Organizations
-    description: Organization management
-  - name: API Keys
-    description: API key management
-  - name: Pods
-    description: Logical groupings of inboxes
-  - name: Inboxes
-    description: Email inbox management
-  - name: Messages
-    description: Send, receive, and manage email messages
-  - name: Threads
-    description: Email thread management
-  - name: Drafts
-    description: Draft message management
-  - name: Attachments
-    description: Message attachment access
-  - name: Domains
-    description: Custom domain management
-  - name: Webhooks
-    description: Webhook endpoint management
-  - name: Lists
-    description: Mailing list management
-  - name: Wait
-    description: Long-poll for incoming messages and OTP extraction
-
+  - bearerApiKey: []
+  - headerApiKey: []
 paths:
-  # ── Agent (no auth) ──────────────────────────────────────────────
-  /agent/signup:
-    post:
-      tags: [Agent]
-      summary: Start account signup
-      description: Sends a one-time verification code to the provided email.
-      operationId: agentSignup
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: admin@example.com
-      responses:
-        '201':
-          description: Verification code sent
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Verification code sent
-                  email:
-                    type: string
-                    format: email
-                    example: admin@example.com
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /agent/verify:
-    post:
-      tags: [Agent]
-      summary: Verify OTP and create account
-      description: Validates the verification code and creates the organization with an initial API key.
-      operationId: agentVerify
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, code]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: admin@example.com
-                code:
-                  type: string
-                  example: "482917"
-      responses:
-        '201':
-          description: Account created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  organization:
-                    type: object
-                    properties:
-                      id:
-                        $ref: '#/components/schemas/Ulid'
-                      name:
-                        type: string
-                      email:
-                        type: string
-                        format: email
-                      tier:
-                        type: string
-                        example: free
-                      status:
-                        type: string
-                        example: active
-                  api_key:
-                    type: object
-                    properties:
-                      id:
-                        $ref: '#/components/schemas/Ulid'
-                      key:
-                        type: string
-                        description: Plaintext API key. Shown only once.
-                        example: am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL
-                      key_prefix:
-                        type: string
-                        example: am_live_7kB3
-                      scope:
-                        type: string
-                        example: org
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  # ── Organizations ────────────────────────────────────────────────
-  /organizations/me:
+  /agents:
     get:
-      tags: [Organizations]
-      summary: Get current organization
-      operationId: getOrganization
+      summary: List agents
       responses:
-        '200':
-          description: Organization details
+        "200":
+          description: Agents
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── API Keys ─────────────────────────────────────────────────────
-  /api-keys:
-    get:
-      tags: [API Keys]
-      summary: List API keys
-      operationId: listApiKeys
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of API keys
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ApiKey'
+                $ref: "#/components/schemas/AgentsResponse"
     post:
-      tags: [API Keys]
-      summary: Create an API key
-      operationId: createApiKey
+      summary: Create an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreate"
+      responses:
+        "201":
+          description: Created agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentCreateResponse"
+  /agents/{agent_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: Get an agent
+      responses:
+        "200":
+          description: Agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+    put:
+      summary: Update an agent
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name, scope]
               properties:
                 name:
                   type: string
-                  example: Worker Key
-                scope:
-                  type: string
-                  enum: [org, pod, inbox]
-                scope_resource_id:
-                  $ref: '#/components/schemas/Ulid'
-      responses:
-        '201':
-          description: API key created. The `key` field is shown only once.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKeyCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-    delete:
-      tags: [API Keys]
-      summary: Revoke all API keys
-      operationId: deleteAllApiKeys
-      responses:
-        '204':
-          description: All keys revoked
-
-  /api-keys/{id}:
-    delete:
-      tags: [API Keys]
-      summary: Revoke an API key
-      operationId: deleteApiKey
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '204':
-          description: Key revoked
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Pods ─────────────────────────────────────────────────────────
-  /pods:
-    get:
-      tags: [Pods]
-      summary: List pods
-      operationId: listPods
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of pods
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Pod'
-    post:
-      tags: [Pods]
-      summary: Create a pod
-      operationId: createPod
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  example: Customer Outreach
-                settings:
+                metadata:
                   type: object
                   additionalProperties: true
       responses:
-        '201':
-          description: Pod created
+        "200":
+          description: Updated agent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pod'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /pods/{id}:
-    get:
-      tags: [Pods]
-      summary: Get a pod
-      operationId: getPod
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: Pod details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pod'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Agent"
     delete:
-      tags: [Pods]
-      summary: Delete a pod
-      description: Fails if the pod contains any inboxes.
-      operationId: deletePod
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
+      summary: Delete an agent
       responses:
-        '204':
-          description: Pod deleted
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Inboxes ──────────────────────────────────────────────────────
-  /inboxes:
+        "204":
+          description: Deleted
+  /agents/{agent_id}/provision:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Provision additional channels for an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provision:
+                  type: object
+                  additionalProperties: true
+                bridge:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Provisioning result
+  /agents/{agent_id}/channels:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
     get:
-      tags: [Inboxes]
-      summary: List inboxes
-      operationId: listInboxes
+      summary: List channels
+      responses:
+        "200":
+          description: Channels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channels:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Channel"
+    post:
+      summary: Provision or bridge a channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelCreate"
+      responses:
+        "201":
+          description: Channel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+  /agents/{agent_id}/channels/{channel_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/ChannelId"
+    get:
+      summary: Get a channel
+      responses:
+        "200":
+          description: Channel
+    patch:
+      summary: Update a channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                config:
+                  type: object
+                  additionalProperties: true
+                status:
+                  type: string
+      responses:
+        "200":
+          description: Channel
+    delete:
+      summary: Delete a channel
+      responses:
+        "204":
+          description: Deleted
+  /agents/{agent_id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: List unified inbox messages
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-        - name: pod_id
+        - name: since
           in: query
           schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Filter by pod
+            type: string
+            format: date-time
+        - name: channels
+          in: query
+          schema:
+            type: string
+          description: Comma-separated channel names.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
       responses:
-        '200':
-          description: Paginated list of inboxes
+        "200":
+          description: Messages
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Inbox'
+                $ref: "#/components/schemas/MessagesResponse"
     post:
-      tags: [Inboxes]
-      summary: Create an inbox
-      operationId: createInbox
+      summary: Send a message
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                  description: Desired email address. If omitted, a random address is generated.
-                display_name:
-                  type: string
-                pod_id:
-                  $ref: '#/components/schemas/Ulid'
-                settings:
-                  type: object
-                  additionalProperties: true
-                forwarding:
-                  type: object
-                  additionalProperties: true
+              $ref: "#/components/schemas/MessageSend"
       responses:
-        '201':
-          description: Inbox created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Inbox'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /inboxes/{id}:
+        "201":
+          description: Sent
+  /agents/{agent_id}/messages/{message_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/MessageId"
     get:
-      tags: [Inboxes]
-      summary: Get an inbox
-      operationId: getInbox
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: Inbox details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Inbox'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Inboxes]
-      summary: Update an inbox
-      operationId: updateInbox
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                display_name:
-                  type: string
-                settings:
-                  type: object
-                  additionalProperties: true
-                forwarding:
-                  type: object
-                  additionalProperties: true
-      responses:
-        '200':
-          description: Inbox updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Inbox'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Inboxes]
-      summary: Delete an inbox
-      description: Soft-deletes the inbox and its messages.
-      operationId: deleteInbox
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '204':
-          description: Inbox deleted
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Messages ─────────────────────────────────────────────────────
-  /inboxes/{id}/messages:
-    get:
-      tags: [Messages]
-      summary: List messages in an inbox
-      operationId: listMessages
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of messages
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/MessageSummary'
-    post:
-      tags: [Messages]
-      summary: Send a new message
-      operationId: sendMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-      responses:
-        '201':
-          description: Message sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /inboxes/{id}/messages/{mid}:
-    get:
-      tags: [Messages]
       summary: Get a message
-      operationId: getMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
       responses:
-        '200':
-          description: Full message with body
+        "200":
+          description: Message
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Messages]
-      summary: Update message metadata
-      operationId: updateMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                is_read:
-                  type: boolean
-                is_starred:
-                  type: boolean
-                is_trash:
-                  type: boolean
-                labels:
-                  type: array
-                  items:
-                    type: string
+                $ref: "#/components/schemas/Message"
+    delete:
+      summary: Delete a message
       responses:
-        '200':
-          description: Message updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /inboxes/{id}/messages/{mid}/reply:
+        "204":
+          description: Deleted
+  /agents/{agent_id}/messages/{message_id}/reply:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/MessageId"
     post:
-      tags: [Messages]
       summary: Reply to a message
-      operationId: replyToMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReplyRequest'
-      responses:
-        '201':
-          description: Reply sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /inboxes/{id}/messages/{mid}/reply-all:
-    post:
-      tags: [Messages]
-      summary: Reply-all to a message
-      operationId: replyAllToMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReplyRequest'
-      responses:
-        '201':
-          description: Reply-all sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /inboxes/{id}/messages/{mid}/forward:
-    post:
-      tags: [Messages]
-      summary: Forward a message
-      operationId: forwardMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [to]
+              required: [body]
               properties:
-                to:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/Recipient'
-                body_text:
+                body:
                   type: string
                 body_html:
                   type: string
       responses:
-        '201':
-          description: Message forwarded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Attachments ──────────────────────────────────────────────────
-  /inboxes/{id}/messages/{mid}/attachments:
-    get:
-      tags: [Attachments]
-      summary: List message attachments
-      operationId: listAttachments
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
+        "201":
+          description: Sent
+  /agents/{agent_id}/messages/{message_id}/read:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/MessageId"
+    post:
+      summary: Mark a message read
       responses:
-        '200':
-          description: List of attachments
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Attachment'
-
-  /inboxes/{id}/messages/{mid}/attachments/{aid}:
-    get:
-      tags: [Attachments]
-      summary: Download an attachment
-      description: Returns a 302 redirect to a pre-signed S3 URL (15-minute expiry).
-      operationId: getAttachment
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/MessageId'
-        - name: aid
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Attachment ID
-      responses:
-        '302':
-          description: Redirect to pre-signed download URL
-          headers:
-            Location:
-              schema:
-                type: string
-                format: uri
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Threads ──────────────────────────────────────────────────────
-  /inboxes/{id}/threads:
-    get:
-      tags: [Threads]
-      summary: List threads in an inbox
-      operationId: listThreads
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of threads
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Thread'
-
-  /inboxes/{id}/threads/{tid}:
-    get:
-      tags: [Threads]
-      summary: Get a thread with messages
-      operationId: getThread
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: tid
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Thread ID
-      responses:
-        '200':
-          description: Thread with embedded messages
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ThreadDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Threads]
-      summary: Update thread metadata
-      operationId: updateThread
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: tid
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Thread ID
+        "204":
+          description: Marked read
+  /agents/{agent_id}/wait:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Long-poll for a message
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                is_read:
-                  type: boolean
-                is_starred:
-                  type: boolean
-                is_trash:
-                  type: boolean
-                labels:
-                  type: array
-                  items:
-                    type: string
+              $ref: "#/components/schemas/WaitRequest"
       responses:
-        '200':
-          description: Thread updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Thread'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Threads]
-      summary: Soft-delete a thread
-      operationId: deleteThread
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: tid
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Thread ID
+        "200":
+          description: Message
+  /agents/{agent_id}/extract-otp:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Extract an OTP from recent messages
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
       responses:
-        '200':
-          description: Thread moved to trash
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Thread'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Drafts ───────────────────────────────────────────────────────
-  /inboxes/{id}/drafts:
+        "200":
+          description: OTP result
+  /agents/{agent_id}/threads:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
     get:
-      tags: [Drafts]
+      summary: List threads
+      responses:
+        "200":
+          description: Threads
+  /agents/{agent_id}/threads/{thread_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - name: thread_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a thread
+      responses:
+        "200":
+          description: Thread
+  /agents/{agent_id}/drafts:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
       summary: List drafts
-      operationId: listDrafts
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
       responses:
-        '200':
-          description: Paginated list of drafts
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Draft'
+        "200":
+          description: Drafts
     post:
-      tags: [Drafts]
       summary: Create a draft
-      operationId: createDraft
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DraftRequest'
       responses:
-        '201':
-          description: Draft created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Draft'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /inboxes/{id}/drafts/{did}:
+        "201":
+          description: Draft
+  /agents/{agent_id}/drafts/{draft_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - name: draft_id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [Drafts]
       summary: Get a draft
-      operationId: getDraft
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: did
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Draft ID
       responses:
-        '200':
-          description: Draft details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Draft'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          description: Draft
     patch:
-      tags: [Drafts]
       summary: Update a draft
-      operationId: updateDraft
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: did
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Draft ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DraftRequest'
       responses:
-        '200':
-          description: Draft updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Draft'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          description: Draft
     delete:
-      tags: [Drafts]
       summary: Delete a draft
-      operationId: deleteDraft
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: did
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Draft ID
       responses:
-        '204':
-          description: Draft deleted
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /inboxes/{id}/drafts/{did}/send:
-    post:
-      tags: [Drafts]
-      summary: Send a draft
-      description: Converts the draft to a sent message and deletes the draft.
-      operationId: sendDraft
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: did
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/Ulid'
-          description: Draft ID
+        "204":
+          description: Deleted
+  /agents/{agent_id}/webhooks:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: List webhooks
       responses:
-        '201':
-          description: Draft sent as message
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Wait / Extract OTP ──────────────────────────────────────────
-  /inboxes/{id}/wait:
+        "200":
+          description: Webhooks
     post:
-      tags: [Wait]
-      summary: Wait for a matching message
-      description: Long-polls for up to 25 seconds for a message matching the provided filters.
-      operationId: waitForMessage
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
+      summary: Create a webhook
+      responses:
+        "201":
+          description: Webhook
+  /agents/{agent_id}/webhooks/{webhook_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a webhook
+      responses:
+        "200":
+          description: Webhook
+    patch:
+      summary: Update a webhook
+      responses:
+        "200":
+          description: Webhook
+    delete:
+      summary: Delete a webhook
+      responses:
+        "204":
+          description: Deleted
+  /api-keys:
+    get:
+      summary: List API keys
+      responses:
+        "200":
+          description: API keys
+    post:
+      summary: Create an API key
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                timeout:
-                  type: integer
-                  description: Max seconds to wait (capped at 25).
-                  default: 25
-                  maximum: 25
-                filter:
-                  type: object
-                  properties:
-                    from:
-                      type: string
-                      description: Sender address substring match.
-                    subject_contains:
-                      type: string
-                    after:
-                      type: string
-                      format: date-time
-                      description: Only messages created after this timestamp.
-                    is_read:
-                      type: boolean
+              $ref: "#/components/schemas/ApiKeyCreate"
       responses:
-        '200':
-          description: Matching message found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageDetail'
-        '408':
-          description: Timeout - no matching message
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /inboxes/{id}/extract-otp:
-    post:
-      tags: [Wait]
-      summary: Wait for a message and extract OTP code
-      description: Waits for a matching message, then extracts a verification/OTP code from the body.
-      operationId: extractOtp
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
+        "201":
+          description: API key and plaintext secret
+  /api-keys/{key_id}:
+    parameters:
+      - name: key_id
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                timeout:
-                  type: integer
-                  default: 25
-                  maximum: 25
-                sender:
-                  type: string
-                  description: Filter by sender address substring.
-                subject_contains:
-                  type: string
-                after:
-                  type: string
-                  format: date-time
+        schema:
+          type: string
+    delete:
+      summary: Revoke an API key
       responses:
-        '200':
-          description: OTP extracted (code may be null if not found)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: string
-                    nullable: true
-                    description: Extracted OTP code, or null if none found.
-                    example: "482917"
-                  message_id:
-                    $ref: '#/components/schemas/Ulid'
-                  from:
-                    type: string
-                    format: email
-                  subject:
-                    type: string
-                  body_text:
-                    type: string
-                    description: Included only when code is null, for manual inspection.
-        '408':
-          description: Timeout - no matching message
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  # ── Domains ──────────────────────────────────────────────────────
+        "204":
+          description: Revoked
+  /vault:
+    get:
+      summary: List vault items
+      responses:
+        "200":
+          description: Vault items
+    post:
+      summary: Create a vault item
+      responses:
+        "201":
+          description: Vault item
+  /vault/{vault_id}:
+    parameters:
+      - name: vault_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a vault item
+      responses:
+        "200":
+          description: Vault item
+    delete:
+      summary: Delete a vault item
+      responses:
+        "204":
+          description: Deleted
+  /vault/{vault_id}/totp:
+    parameters:
+      - name: vault_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get current TOTP code
+      responses:
+        "200":
+          description: TOTP code
+  /personas:
+    get:
+      summary: List personas
+      responses:
+        "200":
+          description: Personas
+    post:
+      summary: Create a persona
+      responses:
+        "201":
+          description: Persona
+  /personas/{persona_id}:
+    parameters:
+      - name: persona_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a persona
+      responses:
+        "200":
+          description: Persona
+    patch:
+      summary: Update a persona
+      responses:
+        "200":
+          description: Persona
+    delete:
+      summary: Delete a persona
+      responses:
+        "204":
+          description: Deleted
   /domains:
     get:
-      tags: [Domains]
       summary: List domains
-      operationId: listDomains
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
       responses:
-        '200':
-          description: Paginated list of domains
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Domain'
+        "200":
+          description: Domains
     post:
-      tags: [Domains]
-      summary: Register a custom domain
-      operationId: createDomain
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [domain]
-              properties:
-                domain:
-                  type: string
-                  example: mail.acme.com
+      summary: Register a domain
       responses:
-        '201':
-          description: Domain registered with DNS records to configure
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Domain'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /domains/{id}:
+        "201":
+          description: Domain
+  /domains/{domain_id}:
+    parameters:
+      - name: domain_id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [Domains]
       summary: Get a domain
-      operationId: getDomain
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
       responses:
-        '200':
-          description: Domain details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Domain'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Domains]
-      summary: Update domain settings
-      operationId: updateDomain
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                catch_all_inbox_id:
-                  $ref: '#/components/schemas/Ulid'
-      responses:
-        '200':
-          description: Domain updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Domain'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          description: Domain
     delete:
-      tags: [Domains]
       summary: Delete a domain
-      operationId: deleteDomain
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
       responses:
-        '204':
-          description: Domain deleted
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /domains/{id}/verify:
-    post:
-      tags: [Domains]
-      summary: Trigger DNS verification
-      operationId: verifyDomain
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: Verification started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Domain'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /domains/{id}/zone-file:
-    get:
-      tags: [Domains]
-      summary: Export BIND-format zone file
-      operationId: getDomainZoneFile
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: BIND-format zone file
-          content:
-            text/dns:
-              schema:
-                type: string
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Webhooks ─────────────────────────────────────────────────────
-  /webhooks:
-    get:
-      tags: [Webhooks]
-      summary: List webhooks
-      operationId: listWebhooks
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of webhooks
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Webhook'
-    post:
-      tags: [Webhooks]
-      summary: Create a webhook
-      operationId: createWebhook
-      requestBody:
+        "204":
+          description: Deleted
+  /domains/{domain_id}/verify:
+    parameters:
+      - name: domain_id
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [url, events]
-              properties:
-                url:
-                  type: string
-                  format: uri
-                  example: https://api.example.com/webhooks/freemail
-                events:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/WebhookEvent'
-                filter:
-                  $ref: '#/components/schemas/WebhookFilter'
+        schema:
+          type: string
+    post:
+      summary: Verify domain DNS state
       responses:
-        '201':
-          description: Webhook created with signing secret
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Webhook'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /webhooks/{id}:
-    get:
-      tags: [Webhooks]
-      summary: Get a webhook
-      operationId: getWebhook
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: Webhook details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Webhook'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Webhooks]
-      summary: Update a webhook
-      operationId: updateWebhook
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
+        "200":
+          description: Domain
+  /domains/{domain_id}/zone-file:
+    parameters:
+      - name: domain_id
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                url:
-                  type: string
-                  format: uri
-                events:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/WebhookEvent'
-                status:
-                  type: string
-                  enum: [active, paused]
-                filter:
-                  $ref: '#/components/schemas/WebhookFilter'
+        schema:
+          type: string
+    get:
+      summary: Render DNS zone file
       responses:
-        '200':
-          description: Webhook updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Webhook'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          description: Zone file
+  /agents/{agent_id}/slack/workspaces:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: List Slack workspaces
+      responses:
+        "200":
+          description: Workspaces
+  /agents/{agent_id}/slack/workspaces/{team_id}/channels:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/TeamId"
+    get:
+      summary: List Slack channels
+      responses:
+        "200":
+          description: Channels
+  /agents/{agent_id}/slack/workspaces/{team_id}/channels/{channel_id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/TeamId"
+      - $ref: "#/components/parameters/ChannelId"
+    get:
+      summary: List Slack channel messages
+      responses:
+        "200":
+          description: Messages
+    post:
+      summary: Post Slack channel message
+      responses:
+        "200":
+          description: Message
+  /agents/{agent_id}/slack/workspaces/{team_id}/users/{user_id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - $ref: "#/components/parameters/TeamId"
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Send Slack DM
+      responses:
+        "200":
+          description: Message
+  /agents/{agent_id}/telegram/chats:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: List Telegram chats
+      responses:
+        "200":
+          description: Chats
+  /agents/{agent_id}/telegram/chats/{chat_id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: List Telegram messages
+      responses:
+        "200":
+          description: Messages
+    post:
+      summary: Send Telegram message
+      responses:
+        "200":
+          description: Message
+  /agents/{agent_id}/push/devices:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    get:
+      summary: List push devices
+      responses:
+        "200":
+          description: Devices
+    post:
+      summary: Register push device
+      responses:
+        "201":
+          description: Device
+  /agents/{agent_id}/push/devices/{device_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
     delete:
-      tags: [Webhooks]
-      summary: Delete a webhook
-      operationId: deleteWebhook
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
+      summary: Delete push device
       responses:
-        '204':
-          description: Webhook deleted
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Lists ────────────────────────────────────────────────────────
-  /lists:
-    get:
-      tags: [Lists]
-      summary: List mailing lists
-      operationId: listLists
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Order'
-      responses:
-        '200':
-          description: Paginated list of mailing lists
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/PaginatedResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/List'
+        "204":
+          description: Deleted
+  /agents/{agent_id}/push/send:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
     post:
-      tags: [Lists]
-      summary: Create a mailing list
-      operationId: createList
+      summary: Send push notification
+      responses:
+        "200":
+          description: Send result
+  /agents/{agent_id}/ai/categorize:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Categorize a message
+      responses:
+        "200":
+          description: Categories
+  /agents/{agent_id}/ai/extract:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Extract structured data
+      responses:
+        "200":
+          description: Extracted data
+  /agents/{agent_id}/ai/summarize:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
+    post:
+      summary: Summarize text, a message, or a thread
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, inbox_id]
-              properties:
-                name:
-                  type: string
-                  example: Product Updates
-                inbox_id:
-                  $ref: '#/components/schemas/Ulid'
-                members:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/ListMemberInput'
+              $ref: "#/components/schemas/SummarizeRequest"
       responses:
-        '201':
-          description: List created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWithMembers'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /lists/{id}:
-    get:
-      tags: [Lists]
-      summary: Get a mailing list with members
-      operationId: getList
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/PageToken'
-      responses:
-        '200':
-          description: List with paginated members
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListWithMembers'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Lists]
-      summary: Delete a mailing list
-      operationId: deleteList
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '204':
-          description: List and all members deleted
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /lists/{id}/members:
+        "200":
+          description: Summary
+  /agents/{agent_id}/ai/search:
+    parameters:
+      - $ref: "#/components/parameters/AgentId"
     post:
-      tags: [Lists]
-      summary: Add members to a list
-      operationId: addListMembers
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [members]
-              properties:
-                members:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/ListMemberInput'
+      summary: Semantic search
       responses:
-        '200':
-          description: Members added
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  added:
-                    type: integer
-                    example: 3
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /lists/{id}/members/{email}:
-    delete:
-      tags: [Lists]
-      summary: Remove a member from a list
-      operationId: deleteListMember
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-        - name: email
-          in: path
-          required: true
-          schema:
-            type: string
-            format: email
-          description: Member email address
-      responses:
-        '204':
-          description: Member removed
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+        "200":
+          description: Search results
 components:
   securitySchemes:
-    ApiKeyHeader:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+    headerApiKey:
       type: apiKey
       in: header
       name: x-api-key
-    BearerAuth:
-      type: http
-      scheme: bearer
-
   parameters:
-    ResourceId:
-      name: id
+    AgentId:
+      name: agent_id
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/Ulid'
-      description: Resource ID (ULID)
+        type: string
+        example: agt_01JABC
+    ChannelId:
+      name: channel_id
+      in: path
+      required: true
+      schema:
+        type: string
+        example: chan_em_01JABC
     MessageId:
-      name: mid
+      name: message_id
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/Ulid'
-      description: Message ID
-    Limit:
-      name: limit
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 25
-      description: Maximum items to return.
-    PageToken:
-      name: page_token
-      in: query
+        type: string
+        example: msg_01JABC
+    TeamId:
+      name: team_id
+      in: path
+      required: true
       schema:
         type: string
-      description: Opaque cursor from a previous response's next_page_token.
-    Order:
-      name: order
-      in: query
-      schema:
-        type: string
-        enum: [asc, desc]
-        default: desc
-      description: Sort order. Default is descending (newest first).
-
-  responses:
-    BadRequest:
-      description: Invalid request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Unauthorized:
-      description: Missing or invalid credentials
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
+        example: T012ABC
   schemas:
-    Ulid:
-      type: string
-      pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
-      description: 26-character Crockford Base32 ULID
-      example: 01HXYZ1234567890ABCDEFGHJK
-
-    ErrorResponse:
+    AgentCreate:
       type: object
+      required: [name]
       properties:
-        error:
+        name:
+          type: string
+        metadata:
           type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              example: NOT_FOUND
-            message:
-              type: string
-              example: Resource not found
-
-    PaginatedResponse:
+          additionalProperties: true
+        provision:
+          type: object
+          additionalProperties: true
+        bridge:
+          type: object
+          additionalProperties: true
+    Agent:
       type: object
       properties:
-        data:
+        agent_id:
+          type: string
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    AgentsResponse:
+      type: object
+      properties:
+        agents:
           type: array
-          items: {}
-        next_page_token:
-          type: string
-          nullable: true
-          description: Opaque cursor for the next page. Null when no more results.
-        has_more:
-          type: boolean
-
-    Recipient:
-      type: object
-      required: [address]
-      properties:
-        name:
-          type: string
-        address:
-          type: string
-          format: email
-
-    # ── Organization ───────────────────────────────────────────────
-    Organization:
+          items:
+            $ref: "#/components/schemas/Agent"
+    AgentCreateResponse:
       type: object
       properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
+        agent_id:
+          type: string
         name:
           type: string
-          example: Acme Corp
-        email:
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+    ChannelCreate:
+      type: object
+      required: [channel]
+      properties:
+        channel:
           type: string
-          format: email
-        tier:
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
+          description: Built-in channel or external adapter slug.
+        mode:
           type: string
-          enum: [free, pro, enterprise]
-        status:
-          type: string
-          enum: [active, suspended]
-        settings:
+          enum: [provision, bridge]
+          default: provision
+        config:
           type: object
           additionalProperties: true
-        quotas:
-          type: object
-          properties:
-            max_inboxes:
-              type: integer
-            max_messages_per_day:
-              type: integer
-            max_api_keys:
-              type: integer
-            max_pods:
-              type: integer
-            max_domains:
-              type: integer
-            max_webhooks:
-              type: integer
-        usage:
-          type: object
-          additionalProperties:
-            type: integer
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    # ── API Key ────────────────────────────────────────────────────
-    ApiKey:
+    Channel:
       type: object
       properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        name:
+        channel_id:
           type: string
-        key_prefix:
+        agent_id:
           type: string
-          example: am_live_7kB3
-        scope:
+        channel:
           type: string
-          enum: [org, pod, inbox]
-        scope_resource_id:
-          $ref: '#/components/schemas/Ulid'
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
+        mode:
+          type: string
         status:
           type: string
-          enum: [active, revoked]
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ApiKeyCreated:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        name:
-          type: string
-        key:
-          type: string
-          description: Plaintext API key. Shown only at creation time.
-          example: am_live_4tU7wP0qS3xY6zA9bC2dE5fG8hJ1kM
-        key_prefix:
-          type: string
-          example: am_live_4tU7
-        scope:
-          type: string
-          enum: [org, pod, inbox]
-        scope_resource_id:
-          $ref: '#/components/schemas/Ulid'
-        status:
-          type: string
-          example: active
-        created_at:
-          type: string
-          format: date-time
-
-    # ── Pod ────────────────────────────────────────────────────────
-    Pod:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        name:
-          type: string
-          example: Customer Outreach
-        description:
-          type: string
-        org_id:
-          $ref: '#/components/schemas/Ulid'
-        inbox_count:
-          type: integer
-        status:
-          type: string
-          enum: [active]
-        settings:
+        config:
           type: object
           additionalProperties: true
-        created_at:
+    MessageSend:
+      type: object
+      required: [to]
+      properties:
+        to:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        body:
           type: string
-          format: date-time
-        updated_at:
+        body_text:
           type: string
-          format: date-time
-
-    # ── Inbox ──────────────────────────────────────────────────────
-    Inbox:
+        body_html:
+          type: string
+        subject:
+          type: string
+        channel:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
+        thread_key:
+          type: string
+    SummarizeRequest:
       type: object
       properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        org_id:
-          $ref: '#/components/schemas/Ulid'
-        pod_id:
+        text:
           type: string
-          description: Pod ID or "default"
-        email:
+        message_id:
           type: string
-          format: email
-          example: agent-47@victorymail.dev
-        display_name:
+        thread_key:
           type: string
-        status:
+        length:
           type: string
-          enum: [active, deleted]
-        message_count:
-          type: integer
-        unread_count:
-          type: integer
-        settings:
-          type: object
-          additionalProperties: true
-        forwarding:
-          type: object
-          additionalProperties: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    # ── Message ────────────────────────────────────────────────────
-    MessageSummary:
+          enum: [short, long]
+      description: "Provide exactly one source field: text, message_id, or thread_key."
+    Message:
       type: object
-      description: Message summary (list view, no body).
       properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        thread_id:
-          $ref: '#/components/schemas/Ulid'
-        inbox_id:
-          $ref: '#/components/schemas/Ulid'
+        message_id:
+          type: string
+        agent_id:
+          type: string
+        channel_id:
+          type: string
+        channel:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
         direction:
           type: string
           enum: [inbound, outbound]
-        from_addr:
+        status:
           type: string
-          description: Sender email address
+        from:
+          $ref: "#/components/schemas/Party"
         to:
           type: array
           items:
-            type: string
-        cc:
-          type: array
-          items:
-            type: string
+            $ref: "#/components/schemas/Party"
         subject:
           type: string
-        snippet:
+        body_text:
           type: string
-          description: First ~200 characters of body text
-        is_read:
-          type: boolean
-        is_starred:
-          type: boolean
-        is_spam:
-          type: boolean
-        is_trash:
+        body_html:
+          type: string
+        thread_key:
+          type: string
+        is_dm:
           type: boolean
         labels:
           type: array
           items:
             type: string
-        category:
-          type: string
-        has_attachments:
-          type: boolean
-        attachment_count:
-          type: integer
         received_at:
           type: string
           format: date-time
-        created_at:
-          type: string
-          format: date-time
-
-    MessageDetail:
-      type: object
-      description: Full message including body content.
-      allOf:
-        - $ref: '#/components/schemas/MessageSummary'
-        - type: object
-          properties:
-            bcc:
-              type: array
-              items:
-                type: string
-            reply_to:
-              type: string
-            body_text:
-              type: string
-            body_html:
-              type: string
-            headers:
-              type: object
-              additionalProperties:
-                type: string
-            ses_message_id:
-              type: string
-            status:
-              type: string
-              enum: [queued, sent, delivered, bounced, failed]
-
-    SendMessageRequest:
-      type: object
-      required: [to, subject]
-      properties:
-        to:
-          type: array
-          items:
-            oneOf:
-              - type: string
-                format: email
-              - $ref: '#/components/schemas/Recipient'
-        cc:
-          type: array
-          items:
-            oneOf:
-              - type: string
-                format: email
-              - $ref: '#/components/schemas/Recipient'
-        bcc:
-          type: array
-          items:
-            oneOf:
-              - type: string
-                format: email
-              - $ref: '#/components/schemas/Recipient'
-        reply_to:
-          type: string
-        subject:
-          type: string
-        body_text:
-          type: string
-          description: Plain text body. At least one of body_text or body_html required.
-        body_html:
-          type: string
-          description: HTML body.
-        labels:
-          type: array
-          items:
-            type: string
-        category:
-          type: string
-        headers:
+        channel_native:
           type: object
-          additionalProperties:
-            type: string
-
-    ReplyRequest:
-      type: object
-      properties:
-        to:
-          type: array
-          items:
-            oneOf:
-              - type: string
-                format: email
-              - $ref: '#/components/schemas/Recipient'
-          description: Override recipients (defaults to original sender).
-        body_text:
-          type: string
-        body_html:
-          type: string
-        attachments:
-          type: array
-          items:
-            type: object
-
-    # ── Thread ─────────────────────────────────────────────────────
-    Thread:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        inbox_id:
-          $ref: '#/components/schemas/Ulid'
-        subject:
-          type: string
-        snippet:
-          type: string
-        message_count:
-          type: integer
-        is_read:
-          type: boolean
-        is_starred:
-          type: boolean
-        is_trash:
-          type: boolean
-        labels:
-          type: array
-          items:
-            type: string
-        last_message_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ThreadDetail:
-      allOf:
-        - $ref: '#/components/schemas/Thread'
-        - type: object
-          properties:
-            messages:
-              type: array
-              items:
-                $ref: '#/components/schemas/MessageSummary'
-
-    # ── Draft ──────────────────────────────────────────────────────
-    Draft:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        inbox_id:
-          $ref: '#/components/schemas/Ulid'
-        thread_id:
-          type: string
-        in_reply_to_message_id:
-          type: string
-        to:
-          type: array
-          items:
-            type: string
-        cc:
-          type: array
-          items:
-            type: string
-        bcc:
-          type: array
-          items:
-            type: string
-        subject:
-          type: string
-        body_text:
-          type: string
-        body_html:
-          type: string
-        attachments:
-          type: array
-          items:
-            type: object
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    DraftRequest:
-      type: object
-      properties:
-        to:
-          type: array
-          items:
-            oneOf:
-              - type: string
-                format: email
-              - $ref: '#/components/schemas/Recipient'
-        cc:
-          type: array
-          items:
-            type: string
-        bcc:
-          type: array
-          items:
-            type: string
-        subject:
-          type: string
-        body_text:
-          type: string
-        body_html:
-          type: string
-        attachments:
-          type: array
-          items:
-            type: object
-        thread_id:
-          type: string
-        in_reply_to_message_id:
-          type: string
-
-    # ── Attachment ─────────────────────────────────────────────────
-    Attachment:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        filename:
-          type: string
-          example: requirements.pdf
-        content_type:
-          type: string
-          example: application/pdf
-        size:
-          type: integer
-          description: File size in bytes
-        is_inline:
-          type: boolean
-        content_id:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-
-    # ── Domain ─────────────────────────────────────────────────────
-    Domain:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        domain:
-          type: string
-          example: mail.acme.com
-        status:
-          type: string
-          enum: [pending, verifying, verified, failed]
-        mx_verified:
-          type: boolean
-        spf_verified:
-          type: boolean
-        dkim_verified:
-          type: boolean
-        dmarc_verified:
-          type: boolean
-        dns_records:
-          $ref: '#/components/schemas/DnsRecords'
-        catch_all_inbox_id:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        verified_at:
-          type: string
-          format: date-time
-          nullable: true
-        updated_at:
-          type: string
-          format: date-time
-
-    DnsRecords:
-      type: object
-      properties:
-        mx:
-          $ref: '#/components/schemas/DnsRecord'
-        spf:
-          $ref: '#/components/schemas/DnsRecord'
-        dkim:
-          type: array
-          items:
-            $ref: '#/components/schemas/DnsRecord'
-        dmarc:
-          $ref: '#/components/schemas/DnsRecord'
-
-    DnsRecord:
-      type: object
-      properties:
-        type:
-          type: string
-          enum: [MX, TXT, CNAME]
-        name:
-          type: string
-        value:
-          type: string
-        ttl:
-          type: integer
-          example: 3600
-
-    # ── Webhook ────────────────────────────────────────────────────
-    Webhook:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        url:
-          type: string
-          format: uri
-        events:
-          type: array
-          items:
-            $ref: '#/components/schemas/WebhookEvent'
-        status:
-          type: string
-          enum: [active, paused]
-        secret:
-          type: string
-          description: HMAC signing secret (whsec_ prefixed)
-          example: whsec_abc123def456
-        filter:
-          $ref: '#/components/schemas/WebhookFilter'
-        delivery_stats:
-          type: object
-          properties:
-            total:
-              type: integer
-            success:
-              type: integer
-            failed:
-              type: integer
-            last_delivered_at:
-              type: string
-              format: date-time
-              nullable: true
-            last_failed_at:
-              type: string
-              format: date-time
-              nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    WebhookEvent:
-      type: string
-      enum:
-        - message.received
-        - message.sent
-        - message.bounced
-        - message.complained
-        - message.delayed
-        - inbox.created
-        - inbox.deleted
-        - domain.verified
-        - domain.failed
-        - subscription.updated
-
-    WebhookFilter:
-      type: object
-      properties:
-        pod_ids:
-          type: array
-          items:
-            $ref: '#/components/schemas/Ulid'
-        inbox_ids:
-          type: array
-          items:
-            $ref: '#/components/schemas/Ulid'
-
-    # ── Mailing List ───────────────────────────────────────────────
-    List:
-      type: object
-      properties:
-        id:
-          $ref: '#/components/schemas/Ulid'
-        name:
-          type: string
-          example: Product Updates
-        inbox_id:
-          $ref: '#/components/schemas/Ulid'
-        member_count:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ListWithMembers:
-      allOf:
-        - $ref: '#/components/schemas/List'
-        - type: object
-          properties:
-            members:
-              type: array
-              items:
-                $ref: '#/components/schemas/ListMember'
-            next_page_token:
-              type: string
-              nullable: true
-            has_more:
-              type: boolean
-
-    ListMember:
-      type: object
-      properties:
-        address:
-          type: string
-          format: email
-        name:
-          type: string
-        subscribed_at:
-          type: string
-          format: date-time
-
-    ListMemberInput:
+          additionalProperties: true
+    Party:
       type: object
       required: [address]
       properties:
         address:
           type: string
-          format: email
+        display_name:
+          type: string
+        platform_user_id:
+          type: string
+    MessagesResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        next_cursor:
+          type: string
+    WaitRequest:
+      type: object
+      properties:
+        timeout_sec:
+          type: integer
+          default: 25
+        from:
+          type: string
+        subject_contains:
+          type: string
+        channel:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
+        channels:
+          type: array
+          items:
+            type: string
+            pattern: "^[a-z][a-z0-9_-]{0,62}$"
+    OtpRequest:
+      type: object
+      properties:
+        max_age_sec:
+          type: integer
+          default: 300
+        from:
+          type: string
+        channel:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{0,62}$"
+        channels:
+          type: array
+          items:
+            type: string
+            pattern: "^[a-z][a-z0-9_-]{0,62}$"
+    ApiKeyCreate:
+      type: object
+      required: [name, scope]
+      properties:
         name:
           type: string
+        scope:
+          type: string
+          enum: [org, agent, channel]
+        agent_id:
+          type: string
+        channel_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time

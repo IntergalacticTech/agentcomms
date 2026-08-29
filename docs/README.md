@@ -1,67 +1,65 @@
-# FreeMail Documentation
+# AgentComms Documentation
 
-FreeMail is an email-as-a-service API platform built for AI agents. It provides programmatic inbox creation, message sending and receiving, OTP extraction, custom domains, webhooks, and more -- all through a simple REST API.
+AgentComms is an open-source communications hub for AI agents. It gives agents durable identities across email, SMS, Slack, Telegram, push, and future adapter channels, then normalizes direct messages and explicit mentions into one agent-scoped inbox.
 
-**Base URL:** `https://api.victorymail.dev/v1`
+## Start Here
 
-**Developer Console:** `https://console.victorymail.dev`
+- [AGENT.md](../AGENT.md) - deploy AgentComms into your AWS account with the CLI
+- [quickstart.md](./quickstart.md) - create an agent, provision channels, send, read, wait, and reply
+- [architecture.md](./architecture.md) - current system design
+- [adapter-authoring.md](./adapter-authoring.md) - adapter package contract and testing checklist
+- [adapter-roadmap.md](./adapter-roadmap.md) - how new communication channels should plug in
+- [api-reference.md](./api-reference.md) - REST API overview
+- [openapi.yaml](./openapi.yaml) - compact OpenAPI contract
+- [sdks.md](./sdks.md) - Python and Node SDK usage
+- [mcp-server.md](./mcp-server.md) - MCP tools for coding agents
+- [licensing.md](./licensing.md) - Apache-2.0 permissions and obligations
 
----
+## Base URL
 
-## 5-Minute Quickstart
+Hosted default:
 
-```bash
-# 1. Sign up (no credit card required)
-curl -X POST https://api.victorymail.dev/v1/agent/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com"}'
-
-# 2. Verify with the code sent to your email
-curl -X POST https://api.victorymail.dev/v1/agent/verify \
-  -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "code": "123456"}'
-# Response includes your API key (am_live_...) -- save it!
-
-# 3. Create an inbox
-curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name": "My Agent"}'
-
-# 4. Send an email
-curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/messages \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": [{"address": "user@example.com"}],
-    "subject": "Hello from FreeMail!",
-    "body_text": "This email was sent by an AI agent."
-  }'
-
-# 5. Wait for a reply and extract an OTP
-curl -X POST https://api.victorymail.dev/v1/inboxes/INBOX_ID/extract-otp \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"sender": "noreply@example.com", "timeout": 25}'
+```text
+https://api.agentcomms.dev/v1
 ```
 
----
+Self-hosted deployments use the API URL emitted by `agentcomms bootstrap`.
 
-## Documentation
+## Authentication
 
-| Page | Description |
-|------|-------------|
-| [Quickstart Guide](quickstart.md) | Step-by-step getting started tutorial with Python and Node.js examples |
-| [API Reference](api-reference.md) | Complete endpoint documentation with request/response schemas and curl examples |
-| [Webhooks](webhooks.md) | Setting up webhooks, available events, signature verification, retry behavior |
-| [Custom Domains](custom-domains.md) | Adding and verifying custom domains, DNS configuration |
-| [SDKs](sdks.md) | Python and Node.js SDK installation, usage, and full API reference |
-| [MCP Server](mcp-server.md) | Using FreeMail with AI agents via Model Context Protocol |
-| [Architecture](architecture.md) | System design, AWS services, data flow, and security model |
-| [Billing & Plans](billing.md) | Free and Pro tier limits, upgrading, managing subscriptions |
+Send an API key with either header:
 
-## Additional Resources
+```bash
+curl https://api.agentcomms.dev/v1/agents \
+  -H "Authorization: Bearer ak_live_YOUR_KEY"
+```
 
-- [OpenAPI Spec](openapi.yaml) -- machine-readable API specification (OpenAPI 3.0)
-- [Python SDK](https://github.com/IntergalacticTech/freemail/tree/main/sdks/python)
-- [Node.js SDK](https://github.com/IntergalacticTech/freemail/tree/main/sdks/node)
+```bash
+curl https://api.agentcomms.dev/v1/agents \
+  -H "x-api-key: ak_live_YOUR_KEY"
+```
+
+## Core Objects
+
+| Object | Purpose |
+|---|---|
+| `Agent` | The durable actor that owns channels, messages, threads, drafts, webhooks, and native surfaces |
+| `Channel` | One communication identity or bridge, such as an email address, SMS number, Slack workspace app, Telegram bot, or push target |
+| `UnifiedMessage` | The normalized message shape across every channel |
+| `Thread` | Cross-channel or channel-native conversation grouping |
+| `Webhook` | Event delivery subscription under an agent |
+| `ApiKey` | Org, agent, or channel scoped API credential |
+
+## Current Channels
+
+| Channel | Status |
+|---|---|
+| Email | Working through AWS SES |
+| SMS | Working through AWS End User Messaging setup |
+| Push | Working through APNs/FCM via SNS platform endpoints |
+| Slack | Working for bridge/native routes with app credentials |
+| Telegram | Working for bot-based channels |
+| Discord | Scaffolded for contribution |
+| External adapters | Supported through `agentcomms.adapters` Python entry points |
+
+Historical FreeMail/VictoryMail docs and migration notes remain in the repository where they are useful for cutover context, but new integrations should use the AgentComms agent-centric API.

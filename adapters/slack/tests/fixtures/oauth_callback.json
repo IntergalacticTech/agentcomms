@@ -1,0 +1,23 @@
+{
+  "resource": "/webhooks/slack/oauth/callback",
+  "path": "/webhooks/slack/oauth/callback",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "text/html,application/xhtml+xml",
+    "Host": "api.agentcomms.dev"
+  },
+  "queryStringParameters": {
+    "code": "123456789.987654321.abc123def456",
+    "state": "a1b2c3d4e5f60011223344556677889900"
+  },
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourcePath": "/webhooks/slack/oauth/callback",
+    "httpMethod": "GET",
+    "path": "/prod/webhooks/slack/oauth/callback",
+    "stage": "prod"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

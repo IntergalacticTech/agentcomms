@@ -86,7 +86,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">FreeMail</h1>
+          <h1 className="text-3xl font-bold text-gray-900">AgentComms</h1>
           <p className="text-gray-500 mt-1">Create your account</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">

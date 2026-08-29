@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: cdk/package-lock.json
 
@@ -40,8 +40,12 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::732770059798:role/GitHubActionsDeployRole
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AGENTCOMMS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: CDK Deploy
-        run: cd cdk && npx cdk deploy --all --require-approval never
+        # Deploy only the AgentComms stacks (AgentCommsData, AgentCommsEvents,
+        # AgentCommsApi, AgentCommsAdapters, and its AgentCommsAdapters-* adapter
+        # sub-stacks). The retired victorymail/legacy stacks are intentionally
+        # excluded so they are not re-synthed or re-deployed.
+        run: cd cdk && npx cdk deploy 'AgentComms*' --require-approval never

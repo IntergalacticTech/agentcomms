@@ -209,7 +209,7 @@ GET /v1/inboxes/inb_01HXYZ.../messages?limit=50&page_token=eyJsYXN0X2tleSI6eyJQS
 ```python
 import agentmail
 
-client = agentmail.Client(api_key="am_live_xxx")
+client = agentmail.Client(api_key="ak_live_xxx")
 
 # Iterate through all messages in an inbox
 all_messages = []
@@ -243,7 +243,7 @@ for message in client.inboxes.messages.list_auto(inbox_id="inb_01HXYZ...", limit
 ```javascript
 const AgentMail = require("agentmail");
 
-const client = new AgentMail({ apiKey: "am_live_xxx" });
+const client = new AgentMail({ apiKey: "ak_live_xxx" });
 
 // Manual pagination
 async function getAllMessages(inboxId) {
@@ -276,12 +276,12 @@ for await (const message of client.inboxes.messages.listAuto(inboxId, { limit: 1
 
 ```bash
 # First page
-curl -s -H "x-api-key: am_live_xxx" \
+curl -s -H "x-api-key: ak_live_xxx" \
   "https://api.agentmail.aws/v1/inboxes/inb_01HXYZ.../messages?limit=50" \
   | jq '.next_page_token'
 
 # Next page (using the token from the previous response)
-curl -s -H "x-api-key: am_live_xxx" \
+curl -s -H "x-api-key: ak_live_xxx" \
   "https://api.agentmail.aws/v1/inboxes/inb_01HXYZ.../messages?limit=50&page_token=eyJsYXN0..."
 ```
 
@@ -513,13 +513,13 @@ The SDKs pin to a specific API version in their configuration:
 
 ```python
 # Python
-client = agentmail.Client(api_key="am_live_xxx")
+client = agentmail.Client(api_key="ak_live_xxx")
 # The SDK internally uses v1. When v2 is available, a new major SDK version will be released.
 ```
 
 ```javascript
 // Node.js
-const client = new AgentMail({ apiKey: "am_live_xxx" });
+const client = new AgentMail({ apiKey: "ak_live_xxx" });
 // Same -- API version is embedded in the SDK. Major SDK version bump = major API version bump.
 ```
 
@@ -1081,7 +1081,7 @@ AgentMailError (base)
 import agentmail
 from agentmail.errors import AgentMailError, RateLimitError, NotFoundError
 
-client = agentmail.Client(api_key="am_live_xxx")
+client = agentmail.Client(api_key="ak_live_xxx")
 
 try:
     inbox = client.inboxes.create(display_name="Support")
@@ -1168,7 +1168,7 @@ const {
   ValidationError,
 } = AgentMail.errors;
 
-const client = new AgentMail({ apiKey: "am_live_xxx" });
+const client = new AgentMail({ apiKey: "ak_live_xxx" });
 
 try {
   const inbox = await client.inboxes.create({ displayName: "Support" });
@@ -1235,7 +1235,7 @@ Both SDKs include built-in retry logic with exponential backoff. Retries are **e
 
 ```python
 client = agentmail.Client(
-    api_key="am_live_xxx",
+    api_key="ak_live_xxx",
     max_retries=3,           # Default: 3. Set to 0 to disable retries.
     retry_backoff_factor=0.5, # Default: 0.5. Base delay multiplier.
     retry_backoff_max=30,     # Default: 30. Maximum delay in seconds.
@@ -1252,7 +1252,7 @@ client = agentmail.Client(
 
 ```javascript
 const client = new AgentMail({
-  apiKey: "am_live_xxx",
+  apiKey: "ak_live_xxx",
   maxRetries: 3, // Default: 3. Set to 0 to disable.
   retryBackoffFactor: 0.5, // Default: 0.5.
   retryBackoffMax: 30, // Default: 30 seconds.
@@ -1292,7 +1292,7 @@ Both SDKs allow configuring request timeouts:
 ```python
 # Python
 client = agentmail.Client(
-    api_key="am_live_xxx",
+    api_key="ak_live_xxx",
     timeout=30.0,  # Default: 60 seconds. Per-request timeout.
 )
 ```
@@ -1300,7 +1300,7 @@ client = agentmail.Client(
 ```javascript
 // Node.js
 const client = new AgentMail({
-  apiKey: "am_live_xxx",
+  apiKey: "ak_live_xxx",
   timeout: 30000, // Default: 60000ms. Per-request timeout.
 });
 ```

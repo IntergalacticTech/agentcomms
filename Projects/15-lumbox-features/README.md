@@ -373,21 +373,21 @@ Lumbox ships with a large MCP surface. AgentMail.to also has an MCP server. This
 
 ### Package Design
 
-**Package name**: `@freemail/mcp-server`
+**Package name**: `@agentcomms/mcp-server`
 
 **Installation**:
 ```bash
 # npx (no install required)
-npx @freemail/mcp-server
+npx @agentcomms/mcp-server
 
 # Global install
-npm install -g @freemail/mcp-server
+npm install -g @agentcomms/mcp-server
 
 # Run with API key
-FREEMAIL_API_KEY=fm_xxx npx @freemail/mcp-server
+AGENTCOMMS_API_KEY=ak_live_YOUR_KEY npx @agentcomms/mcp-server
 ```
 
-**Architecture**: Thin wrapper over our REST API. The MCP server translates MCP tool calls into HTTP requests against the FreeMail API. No business logic in the MCP server itself -- it is a translation layer.
+**Architecture**: Thin wrapper over our REST API. The MCP server translates MCP tool calls into HTTP requests against the AgentComms API. No business logic in the MCP server itself -- it is a translation layer.
 
 ```
 AI Tool (Claude Code, Cursor, etc.)
@@ -496,11 +496,11 @@ HTTPS -> current FreeMail API endpoint
 ```json
 {
   "mcpServers": {
-    "freemail": {
+    "agentcomms": {
       "command": "npx",
-      "args": ["@freemail/mcp-server"],
+      "args": ["@agentcomms/mcp-server"],
       "env": {
-        "FREEMAIL_API_KEY": "fm_your_api_key_here"
+        "AGENTCOMMS_API_KEY": "ak_live_YOUR_KEY"
       }
     }
   }
@@ -511,11 +511,11 @@ HTTPS -> current FreeMail API endpoint
 ```json
 {
   "mcpServers": {
-    "freemail": {
+    "agentcomms": {
       "command": "npx",
-      "args": ["@freemail/mcp-server"],
+      "args": ["@agentcomms/mcp-server"],
       "env": {
-        "FREEMAIL_API_KEY": "fm_your_api_key_here"
+        "AGENTCOMMS_API_KEY": "ak_live_YOUR_KEY"
       }
     }
   }
@@ -525,7 +525,7 @@ HTTPS -> current FreeMail API endpoint
 **SSE Transport** (for remote/hosted MCP):
 ```bash
 # Hosted MCP endpoint (future)
-https://mcp.freemail.dev/sse?api_key=fm_xxx
+https://mcp.agentcomms.dev/sse?api_key=ak_live_YOUR_KEY
 ```
 
 ### Implementation Notes

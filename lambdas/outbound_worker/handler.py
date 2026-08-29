@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 
 import boto3
 
+from shared.domains import DEFAULT_PLATFORM_DOMAIN, split_address
 from shared.dynamo import get_item, update_item
 from shared.models import message_keys, now_iso
 from shared.s3 import get_body
@@ -100,25 +101,34 @@ def process_message(message_id: str, inbox_id: str) -> None:
         raise
 
 
+def _from_address(msg: dict) -> tuple[str, str]:
+    """Return (display_name, address) for the sender, normalizing legacy
+    string-shaped from_addr records alongside the canonical object shape."""
+    raw = msg.get("from_addr")
+    if isinstance(raw, dict):
+        return raw.get("name", ""), raw.get("address", "")
+    if isinstance(raw, str):
+        return "", raw
+    return "", ""
+
+
 def build_mime_message(msg: dict, body_data: dict) -> MIMEMultipart:
     """Build a MIME message from message record and body data."""
     mime = MIMEMultipart("alternative")
 
-    # Set our own Message-ID so we can match it on inbound replies.
-    # SES would generate one if we don't, but its format differs from the
-    # SendEmail API response and we'd have no way to correlate them.
+    from_name, from_address = _from_address(msg)
+
+    # Stamp our own Message-ID so we can match it on inbound replies. Uses
+    # the sender's actual domain so every platform domain threads correctly.
+    _, sender_domain = split_address(from_address)
+    if not sender_domain:
+        sender_domain = DEFAULT_PLATFORM_DOMAIN
     message_id = msg.get("id", "")
     if message_id:
-        mime["Message-ID"] = f"<{message_id}@victorymail.dev>"
+        mime["Message-ID"] = f"<{message_id}@{sender_domain}>"
 
-    # Set From header from from_addr dict
-    from_addr = msg.get("from_addr", {})
-    if isinstance(from_addr, dict):
-        name = from_addr.get("name", "")
-        address = from_addr.get("address", "")
-        mime["From"] = f"{name} <{address}>" if name else address
-    else:
-        mime["From"] = str(from_addr)
+    if from_address:
+        mime["From"] = f"{from_name} <{from_address}>" if from_name else from_address
 
     mime["Subject"] = msg.get("subject", "")
 

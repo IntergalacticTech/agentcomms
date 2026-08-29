@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentcomms-adapter-echo"
+version = "0.1.0"
+description = "Example external channel adapter for AgentComms."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "AgentComms Contributors", email = "hello@agentcomms.dev" }]
+dependencies = [
+  "agentcomms-hub>=1.0.0",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.entry-points."agentcomms.adapters"]
+echo = "agentcomms_adapter_echo.adapter:EchoAdapter"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agentcomms_adapter_echo*"]

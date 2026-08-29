@@ -52,11 +52,11 @@ The API supports both authentication methods:
 | Method | Header | Source | Use Case |
 |--------|--------|--------|----------|
 | **JWT** | `Authorization: Bearer <id_token>` | Console sessions | Web console UI, interactive use |
-| **API Key** | `x-api-key: am_live_...` or `Authorization: Bearer am_live_...` | Programmatic clients | SDKs, scripts, agent integrations |
+| **API Key** | `x-api-key: ak_live_...` or `Authorization: Bearer ak_live_...` | Programmatic clients | SDKs, scripts, agent integrations |
 
 The Lambda authorizer handles both methods:
 
-1. If the token starts with `am_live_` or `am_test_`, it is treated as an API key (existing flow).
+1. If the token starts with `ak_live_` or `ak_test_`, it is treated as an API key.
 2. Otherwise, the token is validated as a Cognito JWT:
    - Verify signature against Cognito JWKS endpoint (cached)
    - Check `iss` matches the User Pool URL
@@ -70,27 +70,27 @@ This means downstream Lambda handlers receive an identical auth context regardle
 
 ## API Key Format
 
-AgentMail uses prefixed API keys that encode environment and provide a recognizable format:
+AgentComms uses prefixed API keys that encode environment and provide a recognizable format:
 
 ```
-am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL
+ak_live_EXAMPLE
 |  |    |
 |  |    +-- 32 random bytes, base62 encoded (43 chars)
-|  +------- environment: "live" (production) or "test" (sandbox)
-+---------- prefix: "am" (AgentMail)
+|  +------- environment: "live" production key
++---------- prefix: "ak" (AgentComms API key)
 ```
 
 | Environment | Prefix | Example |
 |-------------|--------|---------|
-| Production | `am_live_` | `am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL` |
-| Test/Sandbox | `am_test_` | `am_test_9xR2tU4wP0qS3yZ6aB8cD1eF5gH7jK` |
+| Production | `ak_live_` | `ak_live_EXAMPLE` |
+| Test/Sandbox | `ak_test_` | `ak_test_9xR2tU4wP0qS3yZ6aB8cD1eF5gH7jK` |
 
 Test keys can only access sandbox resources. Production keys can only access production resources. The prefix allows developers and support teams to immediately identify key type from logs without exposing the secret portion.
 
 The first 4 characters after the prefix are stored as the key `prefix` field in metadata, enabling key identification without exposing the full key:
 
 ```
-am_live_7kB3...
+ak_live_7kB3...
         ^^^^
         stored as "prefix" for display
 ```
@@ -140,7 +140,7 @@ def generate_api_key(environment: str = "live") -> tuple[str, str]:
 |----------|-------|
 | Random entropy | 256 bits (32 bytes) |
 | Encoding | Base62 (alphanumeric only, no special chars) |
-| Total key length | 51 characters (`am_live_` + 43 chars) |
+| Total key length | 51 characters (`ak_live_` + 43 chars) |
 | Hash algorithm | SHA-256 |
 | Collision probability | ~1 in 2^128 (birthday bound for 256-bit space) |
 
@@ -162,7 +162,7 @@ API keys are stored in DynamoDB with the SHA-256 hash as the lookup key. The pla
   "id": "01HXYZ1234567890ABCDEFGHJL",
   "org_id": "01HXYZ1234567890ABCDEFGHJK",
   "name": "Production Key",
-  "prefix": "am_live_7kB3",
+  "prefix": "ak_live_7kB3",
   "key_hash": "a1b2c3d4e5f6...full_sha256_hash",
   "environment": "live",
   "scope": "org",
@@ -631,7 +631,7 @@ def revoke_key(key_id: str, org_id: str):
 - Plaintext keys are never stored. Only SHA-256 hashes are persisted.
 - Keys are transmitted only at creation time (once) and in request headers (over TLS).
 - Keys never appear in server-side logs. API Gateway access logging masks the `x-api-key` header.
-- The key `prefix` (first 4 chars after `am_live_`) is stored for identification without exposing the secret.
+- The key `prefix` (first 4 chars after `ak_live_`) is stored for identification without exposing the secret.
 
 ### Timing Attacks
 

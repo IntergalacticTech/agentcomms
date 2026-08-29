@@ -1,0 +1,537 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
+
+# core/data/repo.py
+"""
+Single-table repository for AgentComms DynamoDB.
+
+Encapsulates all DynamoDB access so handlers never build PK/SK strings or touch
+boto3 directly. Use this in Lambda handlers by instantiating with a real
+DynamoDB Table; use in tests with a moto-backed Table fixture.
+"""
+from __future__ import annotations
+
+import base64
+import json
+from typing import Any
+
+from boto3.dynamodb.conditions import Key, Attr
+
+from core.data.models import (
+    Agent, ApiKey, Channel, Domain, DomainStatus, Draft, Organization,
+    Persona, Thread, UnifiedMessage, VaultItem, VaultType, Webhook,
+)
+
+
+def encode_cursor(last_evaluated_key: dict | None) -> str | None:
+    """Encode a DynamoDB ``LastEvaluatedKey`` into an opaque pagination cursor.
+
+    Returns ``None`` when there is no further page.
+    """
+    if not last_evaluated_key:
+        return None
+    raw = json.dumps(last_evaluated_key, default=str, sort_keys=True)
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def decode_cursor(cursor: str | None) -> dict | None:
+    """Decode an opaque pagination cursor back into a DynamoDB start key.
+
+    Returns ``None`` for a falsy/invalid cursor (treated as "start from top").
+    """
+    if not cursor:
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        key = json.loads(raw)
+        return key if isinstance(key, dict) else None
+    except (ValueError, TypeError):
+        return None
+
+
+class Repo:
+    def __init__(self, table):
+        self.table = table
+
+    # ─── Organizations ──────────────────────────────────────────────
+    def put_organization(self, org: Organization) -> None:
+        self.table.put_item(Item=org.to_dynamodb_item())
+
+    def get_organization(self, org_id: str) -> Organization | None:
+        resp = self.table.get_item(Key={"PK": f"ORG#{org_id}", "SK": "META"})
+        item = resp.get("Item")
+        return Organization.from_dynamodb_item(item) if item else None
+
+    # ─── API keys ────────────────────────────────────────────────────
+    def put_api_key(self, key: ApiKey) -> None:
+        self.table.put_item(Item=key.to_dynamodb_item())
+
+    def list_api_keys(self, *, org_id: str, include_revoked: bool = False) -> list[ApiKey]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("APIKEY#"),
+        )
+        keys = [ApiKey.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        if not include_revoked:
+            keys = [k for k in keys if not k.revoked]
+        return keys
+
+    def get_api_key_by_id(self, *, org_id: str, key_id: str) -> ApiKey | None:
+        for key in self.list_api_keys(org_id=org_id, include_revoked=True):
+            if key.key_id == key_id:
+                return key
+        return None
+
+    def revoke_api_key(self, *, org_id: str, key_id: str) -> ApiKey | None:
+        key = self.get_api_key_by_id(org_id=org_id, key_id=key_id)
+        if key is None:
+            return None
+        updated = key.model_copy(update={"revoked": True})
+        self.put_api_key(updated)
+        return updated
+
+    # ─── Agents ──────────────────────────────────────────────────────
+    def put_agent(self, agent: Agent) -> None:
+        self.table.put_item(Item=agent.to_dynamodb_item())
+
+    def get_agent(self, *, org_id: str, agent_id: str) -> Agent | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"AGT#{agent_id}"}
+        )
+        item = resp.get("Item")
+        return Agent.from_dynamodb_item(item) if item else None
+
+    def list_agents(self, *, org_id: str, limit: int = 100) -> list[Agent]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("AGT#"),
+            Limit=limit,
+        )
+        return [Agent.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    # ─── Channels ────────────────────────────────────────────────────
+    def put_channel(self, channel: Channel) -> None:
+        self.table.put_item(Item=channel.to_dynamodb_item())
+
+    def get_channel(self, *, agent_id: str, channel: str, channel_id: str) -> Channel | None:
+        resp = self.table.get_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"CHAN#{channel}#{channel_id}"}
+        )
+        item = resp.get("Item")
+        return Channel.from_dynamodb_item(item) if item else None
+
+    def list_channels(self, *, agent_id: str) -> list[Channel]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("CHAN#"),
+        )
+        return [Channel.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def lookup_channel_by_address(self, *, channel: str, address: str) -> Channel | None:
+        """GSI2 lookup: resolve a channel address (email, phone, slack user) → Channel.
+        This is the hot path for inbound routing."""
+        resp = self.table.query(
+            IndexName="GSI2",
+            KeyConditionExpression=Key("gsi2_pk").eq(f"ADDR#{channel}#{address}"),
+            Limit=1,
+        )
+        items = resp.get("Items", [])
+        if not items:
+            return None
+        # GSI2 SK is CHAN#{channel_id}; need the full item, so re-fetch by PK/SK
+        channel_id = items[0]["channel_id"]
+        agent_id = items[0]["agent_id"]
+        return self.get_channel(agent_id=agent_id, channel=channel, channel_id=channel_id)
+
+    # ─── Messages ────────────────────────────────────────────────────
+    def put_message(self, msg: UnifiedMessage) -> None:
+        self.table.put_item(Item=msg.to_dynamodb_item())
+
+    def get_message(self, *, agent_id: str, received_at_ms: int, message_id: str) -> UnifiedMessage | None:
+        resp = self.table.get_item(
+            Key={
+                "PK": f"AGT#{agent_id}",
+                "SK": f"MSG#{received_at_ms}#{message_id}",
+            }
+        )
+        item = resp.get("Item")
+        return UnifiedMessage.from_dynamodb_item(item) if item else None
+
+    def find_message_by_id(self, *, agent_id: str, message_id: str) -> UnifiedMessage | None:
+        """Scan-like query to find a message by message_id without knowing its timestamp.
+
+        Queries PK=AGT#{agent_id} with SK begins_with "MSG#" and a FilterExpression
+        on message_id. Suitable for low-frequency AI/admin operations.
+
+        A ``FilterExpression`` is applied *after* the per-page item scan, so a
+        single page can be exhausted without the target ever appearing. We
+        therefore follow ``LastEvaluatedKey`` until the message is found or the
+        agent's messages are exhausted — otherwise messages on agents with more
+        than one page of history would be silently missed.
+        """
+        last_key = None
+        while True:
+            kwargs: dict[str, Any] = {
+                "KeyConditionExpression": (
+                    Key("PK").eq(f"AGT#{agent_id}")
+                    & Key("SK").begins_with("MSG#")
+                ),
+                "FilterExpression": Attr("message_id").eq(message_id),
+            }
+            if last_key:
+                kwargs["ExclusiveStartKey"] = last_key
+            resp = self.table.query(**kwargs)
+            items = resp.get("Items", [])
+            if items:
+                return UnifiedMessage.from_dynamodb_item(items[0])
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                return None
+
+    def update_message_labels(
+        self, *, agent_id: str, received_at_ms: int, message_id: str, labels: list[str],
+    ) -> None:
+        """Add *labels* to a message item in-place (atomic list append replacement)."""
+        self.table.update_item(
+            Key={
+                "PK": f"AGT#{agent_id}",
+                "SK": f"MSG#{received_at_ms}#{message_id}",
+            },
+            UpdateExpression="SET labels = :l",
+            ExpressionAttributeValues={":l": labels},
+        )
+
+    def delete_message(self, *, agent_id: str, received_at_ms: int, message_id: str) -> None:
+        self.table.delete_item(
+            Key={
+                "PK": f"AGT#{agent_id}",
+                "SK": f"MSG#{received_at_ms}#{message_id}",
+            }
+        )
+
+    def query_unified_inbox(
+        self, *, agent_id: str, since=None, until=None,
+        channel_filter: list[str] | None = None, limit: int = 50,
+        cursor: str | None = None,
+    ) -> tuple[list[UnifiedMessage], str | None]:
+        """
+        Query GSI3 (sparse) for all is_dm=True messages, newest first.
+
+        Returns a ``(messages, next_cursor)`` tuple. ``next_cursor`` is an opaque
+        pagination token (or ``None`` when the last page has been reached); pass
+        it back as ``cursor`` to fetch the following page.
+
+        Optional filters:
+          - since / until: datetimes
+          - channel_filter: list of channel names; post-query filter
+        """
+        key_cond = Key("gsi3_pk").eq(f"AGT_DM#{agent_id}")
+        if since and until:
+            since_ms = int(since.timestamp() * 1000)
+            until_ms = int(until.timestamp() * 1000)
+            key_cond = key_cond & Key("gsi3_sk").between(f"MSG#{since_ms}", f"MSG#{until_ms}z")
+        elif since:
+            since_ms = int(since.timestamp() * 1000)
+            key_cond = key_cond & Key("gsi3_sk").gte(f"MSG#{since_ms}")
+        # Page through GSI3 accumulating up to ``limit`` matching rows. When a
+        # channel_filter is set we cannot rely on a single DynamoDB page (the
+        # filter is applied client-side), and — critically — the page's
+        # LastEvaluatedKey points *past* every fetched row, so using it as the
+        # next cursor would silently skip matching rows that fell beyond the
+        # page. Instead we resume from the keys of the last row we actually
+        # return, so no matching message is ever dropped between pages.
+        collected: list[tuple[UnifiedMessage, dict]] = []
+        start_key = decode_cursor(cursor)
+        hit_limit = False
+        for _ in range(50):  # safety bound on internal pagination
+            kwargs: dict[str, Any] = {
+                "IndexName": "GSI3",
+                "KeyConditionExpression": key_cond,
+                "ScanIndexForward": False,  # newest first
+                "Limit": max(limit, 1) * (3 if channel_filter else 1),
+            }
+            if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+            resp = self.table.query(**kwargs)
+            for item in resp.get("Items", []):
+                m = UnifiedMessage.from_dynamodb_item(item)
+                if channel_filter and m.channel.value not in channel_filter:
+                    continue
+                collected.append((m, item))
+                if len(collected) >= limit:
+                    hit_limit = True
+                    break
+            start_key = resp.get("LastEvaluatedKey")
+            if hit_limit or not start_key:
+                break
+
+        page = collected[:limit]
+        msgs = [m for m, _ in page]
+        if hit_limit:
+            # We stopped at ``limit`` and there may be more matching rows — in
+            # this over-fetched page beyond what we consumed, or in later pages.
+            # Resume exclusively after the last row we actually returned, using
+            # its own GSI3 + base-table keys (never a raw page LastEvaluatedKey,
+            # which could sit past unconsumed matches). A boundary that turns out
+            # to be the true end just yields one final empty page.
+            last_item = page[-1][1]
+            resume = {
+                k: last_item[k]
+                for k in ("PK", "SK", "gsi3_pk", "gsi3_sk")
+                if k in last_item
+            }
+            next_cursor = encode_cursor(resume or None)
+        else:
+            next_cursor = None  # drained every page with room to spare
+        return msgs, next_cursor
+
+    def list_unified_inbox(
+        self, *, agent_id: str, since=None, until=None,
+        channel_filter: list[str] | None = None, limit: int = 50,
+    ) -> list[UnifiedMessage]:
+        """Backward-compatible wrapper returning just the message list.
+
+        New callers that need pagination should use :meth:`query_unified_inbox`.
+        """
+        msgs, _ = self.query_unified_inbox(
+            agent_id=agent_id, since=since, until=until,
+            channel_filter=channel_filter, limit=limit,
+        )
+        return msgs
+
+    def list_channel_messages(
+        self, *, channel_id: str, limit: int = 50,
+    ) -> list[UnifiedMessage]:
+        """GSI4 — list ALL messages (DM or not) on a single channel. Use for
+        channel-native sub-surfaces like Slack workspace channel listings."""
+        resp = self.table.query(
+            IndexName="GSI4",
+            KeyConditionExpression=Key("gsi4_pk").eq(f"CHAN#{channel_id}"),
+            ScanIndexForward=False,
+            Limit=limit,
+        )
+        return [UnifiedMessage.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def query_thread_messages(
+        self, *, thread_key: str, agent_id: str, max_pages: int = 50,
+    ) -> list[UnifiedMessage]:
+        """GSI5 — return the messages in a thread that belong to ``agent_id``,
+        oldest first.
+
+        GSI5 is a *global* index keyed only on the thread, so a given
+        ``thread_key`` can appear under more than one agent (thread keys derive
+        from attacker-influenced email Message-ID/References headers). We
+        therefore page the whole thread server-side and return ONLY this agent's
+        messages, and we deliberately never surface a DynamoDB
+        ``LastEvaluatedKey`` to the caller: a GSI cursor embeds the base-table
+        primary key, so returning it would leak another agent's ``agent_id`` /
+        ``message_id`` / timestamps for a shared ``thread_key``. Callers MUST
+        pass the authenticated ``agent_id``.
+        """
+        owned: list[UnifiedMessage] = []
+        start_key: dict | None = None
+        for _ in range(max_pages):
+            kwargs: dict[str, Any] = {
+                "IndexName": "GSI5",
+                "KeyConditionExpression": Key("gsi5_pk").eq(f"THR#{thread_key}"),
+                "ScanIndexForward": True,  # chronological order
+            }
+            if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+            resp = self.table.query(**kwargs)
+            for item in resp.get("Items", []):
+                m = UnifiedMessage.from_dynamodb_item(item)
+                if m.agent_id == agent_id:
+                    owned.append(m)
+            start_key = resp.get("LastEvaluatedKey")
+            if not start_key:
+                break
+        return owned
+
+    def list_thread_messages(
+        self, *, thread_key: str, agent_id: str, limit: int = 100,
+    ) -> list[UnifiedMessage]:
+        """GSI5 — list this agent's messages in a thread, oldest first.
+
+        Wrapper around :meth:`query_thread_messages`; ``agent_id`` is required
+        so results are scoped to the caller (see that method's docstring).
+        """
+        return self.query_thread_messages(thread_key=thread_key, agent_id=agent_id)[:limit]
+
+    # ─── Drafts ──────────────────────────────────────────────────────
+    def put_draft(self, draft: Draft) -> None:
+        self.table.put_item(Item=draft.to_dynamodb_item())
+
+    def get_draft(self, *, agent_id: str, channel: str, draft_id: str) -> Draft | None:
+        resp = self.table.get_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"DRF#{channel}#{draft_id}"}
+        )
+        item = resp.get("Item")
+        return Draft.from_dynamodb_item(item) if item else None
+
+    def list_drafts(self, *, agent_id: str) -> list[Draft]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("DRF#"),
+        )
+        return [Draft.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_draft(self, *, agent_id: str, channel: str, draft_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"DRF#{channel}#{draft_id}"}
+        )
+
+    # ─── Webhooks ────────────────────────────────────────────────────
+    def put_webhook(self, webhook: Webhook) -> None:
+        self.table.put_item(Item=webhook.to_dynamodb_item())
+
+    def get_webhook(self, *, agent_id: str, webhook_id: str) -> Webhook | None:
+        resp = self.table.get_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"WHK#{webhook_id}"}
+        )
+        item = resp.get("Item")
+        return Webhook.from_dynamodb_item(item) if item else None
+
+    def list_webhooks(self, *, agent_id: str) -> list[Webhook]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"AGT#{agent_id}")
+                & Key("SK").begins_with("WHK#"),
+        )
+        return [Webhook.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_webhook(self, *, agent_id: str, webhook_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"AGT#{agent_id}", "SK": f"WHK#{webhook_id}"}
+        )
+
+    def lookup_message_by_external_id(
+        self, *, channel: str, external_id: str,
+    ) -> UnifiedMessage | None:
+        """GSI6 — idempotency lookup. Used by adapters to dedupe inbound events."""
+        resp = self.table.query(
+            IndexName="GSI6",
+            KeyConditionExpression=Key("gsi6_pk").eq(f"EXTID#{channel}#{external_id}"),
+            Limit=1,
+        )
+        items = resp.get("Items", [])
+        if not items:
+            return None
+        item = items[0]
+        # GSI6 item is the message itself (projection=ALL), return directly
+        return UnifiedMessage.from_dynamodb_item(item)
+
+    # ─── Vault ───────────────────────────────────────────────────────
+    def put_vault(self, item: VaultItem) -> None:
+        self.table.put_item(Item=item.to_dynamodb_item())
+
+    def get_vault(self, *, org_id: str, vault_id: str) -> VaultItem | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"VLT#{vault_id}"}
+        )
+        raw = resp.get("Item")
+        return VaultItem.from_dynamodb_item(raw) if raw else None
+
+    def list_vault(
+        self,
+        *,
+        org_id: str,
+        type: VaultType | None = None,
+        tag: str | None = None,
+        limit: int = 100,
+    ) -> list[VaultItem]:
+        """List vault items for an org, optionally filtered by type or tag.
+
+        ``tag`` should be a ``key:value`` string, e.g. ``agent_id:agt_1``.
+        """
+        if type is not None:
+            # GSI1: ORG#{org_id}#VAULT / TYPE#{type}#VLT#{…}
+            resp = self.table.query(
+                IndexName="GSI1",
+                KeyConditionExpression=(
+                    Key("gsi1_pk").eq(f"ORG#{org_id}#VAULT")
+                    & Key("gsi1_sk").begins_with(f"TYPE#{type.value}#")
+                ),
+                Limit=limit,
+            )
+        else:
+            resp = self.table.query(
+                KeyConditionExpression=(
+                    Key("PK").eq(f"ORG#{org_id}")
+                    & Key("SK").begins_with("VLT#")
+                ),
+                Limit=limit,
+            )
+        items = [VaultItem.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        if tag:
+            key, _, value = tag.partition(":")
+            items = [i for i in items if i.tags.get(key) == value]
+        return items
+
+    def delete_vault(self, *, org_id: str, vault_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"VLT#{vault_id}"}
+        )
+
+    # ─── Personas ────────────────────────────────────────────────────
+    def put_persona(self, persona: Persona) -> None:
+        self.table.put_item(Item=persona.to_dynamodb_item())
+
+    def get_persona(self, *, org_id: str, persona_id: str) -> Persona | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"PER#{persona_id}"}
+        )
+        raw = resp.get("Item")
+        return Persona.from_dynamodb_item(raw) if raw else None
+
+    def list_personas(self, *, org_id: str, limit: int = 100) -> list[Persona]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("PER#"),
+            Limit=limit,
+        )
+        return [Persona.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_persona(self, *, org_id: str, persona_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"PER#{persona_id}"}
+        )
+
+    # ─── Domains ─────────────────────────────────────────────────────
+    def put_domain(self, domain: Domain) -> None:
+        self.table.put_item(Item=domain.to_dynamodb_item())
+
+    def get_domain(self, *, org_id: str, domain_id: str) -> Domain | None:
+        resp = self.table.get_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"DOM#{domain_id}"}
+        )
+        raw = resp.get("Item")
+        return Domain.from_dynamodb_item(raw) if raw else None
+
+    def list_domains(self, *, org_id: str, limit: int = 100) -> list[Domain]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("DOM#"),
+            Limit=limit,
+        )
+        return [Domain.from_dynamodb_item(i) for i in resp.get("Items", [])]
+
+    def delete_domain(self, *, org_id: str, domain_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": f"ORG#{org_id}", "SK": f"DOM#{domain_id}"}
+        )
+
+    def lookup_domain_ownership(self, domain_name: str) -> Domain | None:
+        """GSI7 lookup: find which org (if any) owns *domain_name*.
+
+        Returns the first matching Domain or None if unclaimed.
+        """
+        resp = self.table.query(
+            IndexName="GSI7",
+            KeyConditionExpression=Key("gsi7_pk").eq(f"DOMAIN#{domain_name}"),
+            Limit=1,
+        )
+        items = resp.get("Items", [])
+        if not items:
+            return None
+        return Domain.from_dynamodb_item(items[0])
