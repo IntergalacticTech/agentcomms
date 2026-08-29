@@ -61,7 +61,7 @@ export class SmsAdapterStack extends Stack {
               execSync(`cp -r ${repoRoot}/adapters ${tmpStage}/`);
               execSync(`cp ${repoRoot}/requirements-lambda.txt ${tmpStage}/`);
               execSync(
-                `docker run --rm --platform linux/amd64 \
+                `docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" \
                   -v "${tmpStage}:/stage" \
                   public.ecr.aws/sam/build-python3.12 \
                   pip3 install -r /stage/requirements-lambda.txt -t /stage/ --no-cache-dir --disable-pip-version-check`,
