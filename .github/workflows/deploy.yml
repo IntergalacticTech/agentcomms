@@ -9,10 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  deploy-staging:
+  deploy-production:
     runs-on: ubuntu-latest
     needs: []  # Could depend on CI workflow via workflow_call
-    environment: staging
+    environment: production
+    env:
+      AGENTCOMMS_DEPLOY_STAGE: ${{ vars.AGENTCOMMS_DEPLOY_STAGE || 'prod' }}
+      AGENTCOMMS_DEPLOY_ENV_NAME: ${{ vars.AGENTCOMMS_DEPLOY_ENV_NAME || 'prod' }}
+      AGENTCOMMS_DOMAIN: ${{ vars.AGENTCOMMS_DOMAIN || 'agentcomms.dev' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +41,16 @@ jobs:
       - name: Install Lambda dependencies
         run: cd lambdas && pip install stripe -t . --quiet
 
+      - name: Validate deploy configuration
+        env:
+          ROLE_ARN: ${{ secrets.AGENTCOMMS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::error::Set AGENTCOMMS_DEPLOY_ROLE_ARN on the production GitHub environment before deploying from main."
+            exit 1
+          fi
+          echo "Deploying AgentComms with stage=$AGENTCOMMS_DEPLOY_STAGE envName=$AGENTCOMMS_DEPLOY_ENV_NAME domain=$AGENTCOMMS_DOMAIN"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -48,4 +62,10 @@ jobs:
         # AgentCommsApi, AgentCommsAdapters, and its AgentCommsAdapters-* adapter
         # sub-stacks). The retired victorymail/legacy stacks are intentionally
         # excluded so they are not re-synthed or re-deployed.
-        run: cd cdk && npx cdk deploy 'AgentComms*' --require-approval never
+        run: |
+          cd cdk
+          npx cdk deploy 'AgentComms*' \
+            --context stage="$AGENTCOMMS_DEPLOY_STAGE" \
+            --context envName="$AGENTCOMMS_DEPLOY_ENV_NAME" \
+            --context domain="$AGENTCOMMS_DOMAIN" \
+            --require-approval never

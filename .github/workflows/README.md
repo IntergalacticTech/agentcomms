@@ -112,15 +112,85 @@ Set the resulting role ARN as the `AWS_BOOTSTRAP_SMOKE_ROLE` secret on the `boot
 
 ---
 
+### `deploy.yml` — Production CDK deploy from `main`
+
+Triggers on pushes to `main` and deploys only stacks whose names start with
+`AgentComms`. Legacy `VictoryMail-*` stacks are intentionally excluded.
+
+The workflow uses the `production` GitHub environment and deploys with these
+CDK context values by default:
+
+| Context | Default | Override with |
+|---------|---------|---------------|
+| `stage` | `prod` | `AGENTCOMMS_DEPLOY_STAGE` environment variable |
+| `envName` | `prod` | `AGENTCOMMS_DEPLOY_ENV_NAME` environment variable |
+| `domain` | `agentcomms.dev` | `AGENTCOMMS_DOMAIN` environment variable |
+| AWS region | `us-east-1` | `AWS_REGION` environment variable |
+
+#### Required production environment secret
+
+| Secret | Description |
+|--------|-------------|
+| `AGENTCOMMS_DEPLOY_ROLE_ARN` | ARN of the IAM role GitHub Actions assumes to run `cdk deploy`, e.g. `arn:aws:iam::ACCOUNT_ID:role/AgentCommsGitHubDeployRole` |
+
+#### One-time AWS/GitHub OIDC setup
+
+Create the GitHub OIDC provider once per AWS account if it does not already
+exist:
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+```
+
+Create a deploy role with a trust policy scoped to the production environment:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/FreeMail.ai:environment:production"
+      }
+    }
+  }]
+}
+```
+
+Attach the permissions needed for CDK deployment. The current internal
+prototype uses `AdministratorAccess`; before treating the hosted service as
+production-grade, replace that with a least-privilege deploy policy covering
+CloudFormation, IAM, Lambda, API Gateway, DynamoDB, S3, Kinesis, SQS, SNS, SES,
+Route 53, CloudWatch, and SSM resources owned by AgentComms.
+
+Set the role ARN on the GitHub environment:
+
+```bash
+gh secret set AGENTCOMMS_DEPLOY_ROLE_ARN --env production
+```
+
+Optional environment variables:
+
+```bash
+gh variable set AWS_REGION --env production --body us-east-1
+gh variable set AGENTCOMMS_DEPLOY_STAGE --env production --body prod
+gh variable set AGENTCOMMS_DEPLOY_ENV_NAME --env production --body prod
+gh variable set AGENTCOMMS_DOMAIN --env production --body agentcomms.dev
+```
+
+---
+
 ## Skipping workflows on forks
 
 The `bootstrap-smoke` workflow already contains `if: github.repository == 'IntergalacticTech/FreeMail.ai'`. Fork contributors will never accidentally run the smoke test or spend AWS resources.
 
 The `publish-sdks` workflow is implicitly safe on forks because forked repos do not have access to the `pypi`/`npm` environment secrets.
-
-## Pre-existing workflows (do not modify)
-
-| File | Purpose |
-|------|---------|
-| `ci.yml` | Legacy FreeMail lint + CDK synth |
-| `deploy.yml` | AgentComms CDK deploy via OIDC using the `AGENTCOMMS_DEPLOY_ROLE_ARN` secret |
