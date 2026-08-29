@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for FreeMail tests."""
+"""Shared pytest fixtures for AgentComms tests."""
 
 import os
 

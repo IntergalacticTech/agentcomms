@@ -9,7 +9,7 @@ git clone https://github.com/IntergalacticTech/FreeMail.ai
 cd FreeMail.ai
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-python -m pytest tests/core tests/api tests/e2e adapters
+python -m pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template
 ```
 
 For CDK/infrastructure work you also need Node 20+, AWS CDK v2, and Docker.
@@ -27,7 +27,7 @@ The best place to look for work:
 1. **Open an issue first** for any non-trivial change. For bug fixes and small improvements, a PR is fine without an issue.
 2. **Fork** the repo and create a branch: `git checkout -b feat/my-change`.
 3. **Write tests** for your change. All new functionality should have unit tests. Integration tests are required for new adapters.
-4. **Run the relevant tests**. The core suite is `python -m pytest tests/core tests/api tests/e2e adapters`; SDK and CLI changes have package-local test commands.
+4. **Run the relevant tests**. The core suite is `python -m pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template`; SDK and CLI changes have package-local test commands.
 5. **Open a PR** against `main`. Fill in the PR template. Link any related issues.
 
 ## Adding a channel adapter

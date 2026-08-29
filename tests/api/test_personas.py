@@ -175,7 +175,11 @@ def test_associate_persona_with_agent(seeded):
 
 # Test 6: generate=true but no bedrock_client → 501
 def test_generate_without_bedrock_returns_501(seeded):
-    resp = handler(_event("POST", "/v1/personas", body={"generate": True}), None)
+    with patch(
+        "core.api.personas_handler._generate_persona_fields",
+        side_effect=ImportError("generation not enabled - missing Bedrock"),
+    ):
+        resp = handler(_event("POST", "/v1/personas", body={"generate": True}), None)
     assert resp["statusCode"] == 501
     assert "generation not enabled" in json.loads(resp["body"])["error"].lower()
 

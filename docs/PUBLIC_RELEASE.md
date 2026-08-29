@@ -148,7 +148,7 @@ From `docs/superpowers/plans/2026-04-17-agentcomms-phase6-launch.md`:
 - [ ] `cd cli && npm run build && npm test` — all green
 - [ ] `cd sdks/python && pytest tests/` — all green
 - [ ] `cd sdks/node && npm test` — all green
-- [ ] `pytest tests/core tests/api tests/e2e adapters -q` — all green
+- [ ] `pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template -q` — all green
 - [ ] `cd cdk && npx cdk synth --all` — no errors
 - [ ] `agentcomms doctor --domain $TEST_DOMAIN --json` — runs cleanly against a fresh AWS sub-account
 - [ ] `agentcomms bootstrap ... --json` succeeds end-to-end on a fresh account (see `docs/TESTING.md`)

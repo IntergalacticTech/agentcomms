@@ -17,7 +17,7 @@ pip install -r requirements-dev.txt
 ## Core Python Tests
 
 ```bash
-python -m pytest tests/core tests/api tests/e2e adapters -q
+python -m pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template -q
 ```
 
 Use focused suites while developing:
@@ -25,7 +25,7 @@ Use focused suites while developing:
 ```bash
 python -m pytest tests/api/test_messages.py tests/api/test_api_keys.py -q
 python -m pytest tests/core/test_authorizer.py tests/e2e/test_email_roundtrip.py -q
-python -m pytest tests/adapters -q
+python -m pytest tests/adapters examples/adapter-template -q
 ```
 
 ## CDK

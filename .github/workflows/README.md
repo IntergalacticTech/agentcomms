@@ -12,7 +12,7 @@ Triggers on pull requests and pushes to `main`, `develop`, and `phase1-foundatio
 
 | Job | What it does |
 |-----|-------------|
-| `python` | Creates a venv, installs runtime + test deps, runs `tests/core`, `tests/api`, `tests/e2e`, `adapters`, and the Python SDK's own test suite |
+| `python` | Creates a venv, installs runtime + test deps, runs `tests/core`, `tests/api`, `tests/e2e`, `adapters`, runnable Python examples, the adapter template, and the Python SDK's own test suite |
 | `cdk` | `npm ci`, CDK TypeScript tests, `tsc --noEmit`, and a basic `cdk synth` (no AWS credentials required) |
 | `cli` | Builds and tests the `cli/` package |
 | `sdk-node` | Builds and tests `sdks/node/` |
