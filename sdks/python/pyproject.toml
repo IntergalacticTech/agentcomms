@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -9,7 +9,7 @@ version = "1.0.0"
 description = "Official Python SDK for AgentComms — the agent communications hub."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "FSL-1.1-Apache-2.0" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "Victory", email = "sdks@agentcomms.dev" }]
 dependencies = [
   "requests>=2.31",
@@ -17,7 +17,7 @@ dependencies = [
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: Other/Proprietary License",
+  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
 ]
 

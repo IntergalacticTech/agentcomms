@@ -36,7 +36,8 @@ Before running bootstrap, verify:
 | `agentcomms bootstrap` | Deploy AgentComms into your AWS account (headline command) |
 | `agentcomms doctor` | Run preflight checks only — no deployment |
 | `agentcomms status` | Show stack status, SES identity, and channel health |
-| `agentcomms channels list\|enable\|disable` | Manage channel adapters |
+| `agentcomms channels list` | Show known adapter types and setup status |
+| `agentcomms channels enable\|disable` | Explain deployment-time adapter changes; live toggling is not supported yet |
 | `agentcomms keys create\|list\|revoke` | Manage API keys |
 | `agentcomms agents create\|list\|delete` | Manage agent records |
 | `agentcomms destroy` | Tear down all CloudFormation stacks |
@@ -71,6 +72,6 @@ agentcomms status --json  # reads from config
 
 ## License
 
-FSL-1.1-Apache-2.0. See [LICENSE](./LICENSE).
+Apache-2.0. See [LICENSE](./LICENSE).
 
 Full deployment guide: [AGENT.md](https://github.com/IntergalacticTech/FreeMail.ai/blob/main/AGENT.md)

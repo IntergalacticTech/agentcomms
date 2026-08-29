@@ -108,14 +108,13 @@ aws s3api put-bucket-policy --bucket agentcomms-dev-landing --policy '{
 # point Route 53 ALIAS A record at the S3 website endpoint
 ```
 
-Or deploy via the existing victorymail-landing-stack as a stop-gap (changes the content of `victorymail.dev` landing).
+Or deploy the static landing content through the AgentComms landing stack for your hosted domain.
 
 ## 6. Update email addresses referenced in docs
 
 Several docs and the landing page reference these email addresses:
 
 - `hello@agentcomms.dev` — general inquiries
-- `commercial@agentcomms.dev` — commercial license requests
 - `security@agentcomms.dev` — security disclosures
 - `conduct@agentcomms.dev` — CoC violations
 - `sdks@agentcomms.dev` — SDK maintainer contact

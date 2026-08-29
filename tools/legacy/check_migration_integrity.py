@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """
 Post-migration integrity verifier.
 

@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 import type { Client } from "../client.js";
 import type { Message, PaginatedMessages } from "../types.js";
 
@@ -39,6 +39,16 @@ export class MessagesResource {
     return data.messages ?? [];
   }
 
+  async listPage(params: ListMessagesParams = {}): Promise<PaginatedMessages> {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.since) qs.set("since", params.since);
+    if (params.channels?.length) qs.set("channels", params.channels.join(","));
+    if (params.cursor) qs.set("cursor", params.cursor);
+    const query = qs.toString() ? `?${qs}` : "";
+    return this.client.request<PaginatedMessages>("GET", `${this.path()}${query}`);
+  }
+
   async get(messageId: string): Promise<Message> {
     return this.client.request<Message>("GET", this.path(`/${messageId}`));
   }
@@ -56,10 +66,18 @@ export class MessagesResource {
   }
 
   async wait(params: { timeout?: number; sender?: string; subject_contains?: string; channels?: string[] } = {}): Promise<Message> {
-    return this.client.request<Message>("POST", `/agents/${this.agentId}/wait`, params);
+    return this.client.request<Message>("POST", `/agents/${this.agentId}/wait`, {
+      timeout_sec: params.timeout,
+      from: params.sender,
+      subject_contains: params.subject_contains,
+      channels: params.channels,
+    });
   }
 
   async extractOtp(params: { timeout?: number; sender?: string } = {}): Promise<{ code: string; message_id: string }> {
-    return this.client.request("POST", `/agents/${this.agentId}/extract-otp`, params);
+    return this.client.request("POST", `/agents/${this.agentId}/extract-otp`, {
+      max_age_sec: params.timeout,
+      from: params.sender,
+    });
   }
 }

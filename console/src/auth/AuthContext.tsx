@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { api } from "../api/client";
+import { API_BASE, api } from "../api/client";
 
 interface AuthState {
   idToken: string | null;
@@ -29,6 +29,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
@@ -51,9 +52,11 @@ const EMPTY_AUTH: AuthState = {
 // One-time migration: clear any tokens left in localStorage by older builds.
 function purgeLegacyPersistedAuth() {
   try {
-    localStorage.removeItem("fm_id_token");
-    localStorage.removeItem("fm_refresh_token");
-    localStorage.removeItem("fm_email");
+    for (const prefix of ["fm", "agentcomms"]) {
+      for (const key of ["id_token", "refresh_token", "email"]) {
+        localStorage.removeItem(`${prefix}_${key}`);
+      }
+    }
   } catch {
     // Ignore storage access errors (e.g. privacy mode).
   }
@@ -80,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const interval = setInterval(async () => {
       try {
         const data = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/refresh`,
+          `${API_BASE}/console/refresh`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -101,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const loginResp = await fetch(
-        `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/login`,
+        `${API_BASE}/console/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -128,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       try {
         const resp = await fetch(
-          `${import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/signup`,
+          `${API_BASE}/console/signup`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

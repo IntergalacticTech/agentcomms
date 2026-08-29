@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 // cdk/test/sunset-redirect-stack.test.ts
 //
@@ -15,7 +15,7 @@ const STACK_PROPS = {
   sunsetDate:    '2026-07-17T00:00:00Z',
   hostedZoneId:  'Z1ABCDEFG12345',
   legacyHostname: 'api.victorymail.dev',
-  env: { region: 'us-east-1', account: '732770059798' },
+  env: { region: 'us-east-1', account: '123456789012' },
 };
 
 function buildTemplate() {

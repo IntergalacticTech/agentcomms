@@ -1,11 +1,11 @@
-# OpenClaw Plugin for FreeMail
+# OpenClaw Plugin for AgentComms
 
-This directory contains the ClawHub skill definition for FreeMail, making it available as a skill in OpenClaw agents.
+This directory contains the ClawHub skill definition for AgentComms, making it available as a skill in OpenClaw agents.
 
 ## Contents
 
 - `SKILL.md` - The main skill file with YAML frontmatter and markdown instructions
-- `_meta.json` - Package metadata (owner, slug, version)
+- `_meta.json` - Package metadata
 - `README.md` - This file
 
 ## Publishing
@@ -21,8 +21,8 @@ clawhub skill publish openclaw/
 To test the skill locally, copy `SKILL.md` to your local OpenClaw skills directory:
 
 ```bash
-mkdir -p ~/.openclaw/skills/freemail
-cp openclaw/SKILL.md ~/.openclaw/skills/freemail/SKILL.md
+mkdir -p ~/.openclaw/skills/agentcomms
+cp openclaw/SKILL.md ~/.openclaw/skills/agentcomms/SKILL.md
 ```
 
 Then restart your OpenClaw agent to pick up the new skill.

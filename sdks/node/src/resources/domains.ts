@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 import type { Client } from "../client.js";
 import type { Domain } from "../types.js";
 
@@ -16,8 +16,12 @@ export class DomainsResource {
     return this.client.request<Domain>("GET", `/domains/${domainId}`);
   }
 
-  async create(params: { domain: string; metadata?: Record<string, unknown> }): Promise<Domain> {
-    return this.client.request<Domain>("POST", "/domains", params);
+  async create(params: { domain_name?: string; domain?: string; metadata?: Record<string, unknown> }): Promise<Domain> {
+    return this.client.request<Domain>("POST", "/domains", {
+      ...params,
+      domain_name: params.domain_name ?? params.domain,
+      domain: undefined,
+    });
   }
 
   async delete(domainId: string): Promise<void> {

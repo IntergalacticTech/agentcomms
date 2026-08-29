@@ -123,4 +123,4 @@ The `publish-sdks` workflow is implicitly safe on forks because forked repos do 
 | File | Purpose |
 |------|---------|
 | `ci.yml` | Legacy FreeMail lint + CDK synth |
-| `deploy.yml` | Legacy FreeMail CDK deploy to prod account `732770059798` via OIDC |
+| `deploy.yml` | AgentComms CDK deploy via OIDC using the `AGENTCOMMS_DEPLOY_ROLE_ARN` secret |

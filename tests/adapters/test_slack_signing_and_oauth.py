@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for Slack signing (raw-bytes HMAC) and OAuth redirect handling."""
 from __future__ import annotations
 

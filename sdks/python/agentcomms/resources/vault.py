@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """Vault resource — org-scoped secret storage and TOTP."""
 from __future__ import annotations
 
@@ -19,14 +19,26 @@ class VaultResource:
     def create(
         self,
         *,
-        name: str,
-        value: str,
+        label: str | None = None,
+        value: str | None = None,
+        name: str | None = None,
+        seed: str | None = None,
         type: str = "secret",
+        tags: Optional[dict[str, Any]] = None,
         metadata: Optional[dict[str, Any]] = None,
     ) -> VaultItem:
-        body: dict[str, Any] = {"name": name, "value": value, "type": type}
-        if metadata:
-            body["metadata"] = metadata
+        item_label = label or name
+        if not item_label:
+            raise ValueError("label is required")
+        body: dict[str, Any] = {"label": item_label, "type": type}
+        if type == "totp":
+            body["seed"] = seed if seed is not None else value
+        elif value is not None:
+            body["value"] = value
+        if tags is not None:
+            body["tags"] = tags
+        elif metadata:
+            body["tags"] = metadata
         data = self._client._request("POST", "/vault", json=body)
         return VaultItem.model_validate(data)
 
@@ -40,7 +52,7 @@ class VaultResource:
 
     def get_totp(self, vault_id: str) -> dict[str, Any]:
         """Generate a TOTP code from a stored TOTP secret."""
-        return self._client._request("POST", f"/vault/{vault_id}/totp")
+        return self._client._request("GET", f"/vault/{vault_id}/totp")
 
     def delete(self, vault_id: str) -> None:
         self._client._request("DELETE", f"/vault/{vault_id}")

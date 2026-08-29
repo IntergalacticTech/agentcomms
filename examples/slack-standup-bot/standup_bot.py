@@ -3,14 +3,14 @@ standup_bot.py — AgentComms Slack standup bot example.
 
 At 09:00 local time each day:
   1. DMs each member of STANDUP_TEAM asking for their standup.
-  2. Polls the unified inbox every 2 minutes for 60 minutes collecting Slack DM replies.
+  2. Polls the unified message stream every 2 minutes for 60 minutes collecting Slack DM replies.
   3. At 10:00, summarizes the replies with /ai/summarize.
   4. Posts the summary to STANDUP_POST_CHANNEL.
 
 Required env vars:
-  AGENTCOMMS_API_KEY     — API key (ac_live_...)
+  AGENTCOMMS_API_KEY     — API key (ak_live_...)
   AGENTCOMMS_BASE_URL    — e.g. https://api.agentcomms.dev/v1
-  STANDUP_INBOX_ID       — inbox ID connected to your Slack workspace
+  STANDUP_AGENT_ID       — agent ID connected to your Slack workspace
   STANDUP_SLACK_TEAM     — Slack workspace/team ID (T...)
   STANDUP_TEAM           — comma-separated Slack user IDs to prompt
   STANDUP_POST_CHANNEL   — Slack channel ID for the summary post
@@ -39,7 +39,7 @@ import requests
 
 API_KEY = os.environ.get("AGENTCOMMS_API_KEY", "")
 BASE_URL = os.environ.get("AGENTCOMMS_BASE_URL", "https://api.agentcomms.dev/v1").rstrip("/")
-INBOX_ID = os.environ.get("STANDUP_INBOX_ID", "")
+AGENT_ID = os.environ.get("STANDUP_AGENT_ID", "")
 SLACK_TEAM = os.environ.get("STANDUP_SLACK_TEAM", "")
 STANDUP_TEAM_RAW = os.environ.get("STANDUP_TEAM", "")
 POST_CHANNEL = os.environ.get("STANDUP_POST_CHANNEL", "")
@@ -111,8 +111,8 @@ def send_standup_prompts(team_members: list[str]) -> None:
     for user_id in team_members:
         try:
             _post(
-                f"/inboxes/{INBOX_ID}/slack/workspaces/{SLACK_TEAM}"
-                f"/channels/@{user_id}/messages",
+                f"/agents/{AGENT_ID}/slack/workspaces/{SLACK_TEAM}"
+                f"/users/{user_id}/messages",
                 {"text": STANDUP_QUESTION},
             )
             log("prompt_sent", user_id=user_id)
@@ -122,7 +122,7 @@ def send_standup_prompts(team_members: list[str]) -> None:
 
 def collect_replies(start_time: datetime, team_members: list[str]) -> dict[str, str]:
     """
-    Poll the unified inbox every POLL_INTERVAL seconds for COLLECTION_MINUTES,
+    Poll the unified message stream every POLL_INTERVAL seconds for COLLECTION_MINUTES,
     collecting Slack DM replies from team members.
 
     Returns a dict of {user_id: reply_text}.
@@ -136,13 +136,11 @@ def collect_replies(start_time: datetime, team_members: list[str]) -> dict[str, 
 
         try:
             page = _get(
-                f"/inboxes/{INBOX_ID}/messages",
-                channel="slack",
-                is_dm=True,
-                order="asc",
+                f"/agents/{AGENT_ID}/messages",
+                channels="slack",
                 limit=100,
             )
-            messages = page.get("data", [])
+            messages = page.get("messages", page.get("data", []))
         except Exception as exc:  # noqa: BLE001
             log("collect_poll_error", error=str(exc))
             continue
@@ -152,9 +150,11 @@ def collect_replies(start_time: datetime, team_members: list[str]) -> dict[str, 
                 continue
             if msg.get("direction") != "inbound":
                 continue
+            if not msg.get("is_dm", False):
+                continue
 
             # Identify sender by Slack user ID stored in from_addr metadata
-            from_addr = msg.get("from_addr", {})
+            from_addr = msg.get("from") or msg.get("from_addr") or {}
             slack_user_id = from_addr.get("slack_user_id") or _extract_slack_user_id(from_addr)
             if slack_user_id not in team_members:
                 continue
@@ -193,28 +193,16 @@ def summarize_replies(replies: dict[str, str]) -> str:
     if not replies:
         return "No standup replies received today."
 
-    # Build a synthetic combined message and send it as a temp inbox message
-    # then summarize it. The simplest approach: post a combined message to our
-    # own inbox and call /ai/summarize on it.
     combined_text = "\n\n".join(
         f"**{user_id}:** {text}" for user_id, text in replies.items()
     )
 
-    # Create a synthetic message in our inbox to summarize
-    sent = _post(f"/inboxes/{INBOX_ID}/messages", {
-        "to": [{"address": "standup-summary@agentcomms.internal"}],
-        "subject": f"Standup replies — {datetime.now().strftime('%Y-%m-%d')}",
-        "body_text": combined_text,
-    })
-    message_id = sent["id"]
-    log("summary_message_created", message_id=message_id)
-
-    result = _post("/ai/summarize", {
-        "inbox_id": INBOX_ID,
-        "message_id": message_id,
+    result = _post(f"/agents/{AGENT_ID}/ai/summarize", {
+        "text": combined_text,
+        "length": "short",
     })
     summary = result.get("summary", combined_text)
-    log("summarized", message_id=message_id, summary_length=len(summary))
+    log("summarized", summary_length=len(summary))
     return summary
 
 
@@ -222,7 +210,7 @@ def post_summary_to_channel(summary: str, date_str: str) -> None:
     """Post the standup summary to the public Slack channel."""
     text = f":memo: *Team Standup — {date_str}*\n\n{summary}"
     _post(
-        f"/inboxes/{INBOX_ID}/slack/workspaces/{SLACK_TEAM}"
+        f"/agents/{AGENT_ID}/slack/workspaces/{SLACK_TEAM}"
         f"/channels/{POST_CHANNEL}/messages",
         {"text": text},
     )
@@ -247,8 +235,8 @@ def validate_config() -> list[str]:
     missing = []
     if not API_KEY:
         missing.append("AGENTCOMMS_API_KEY")
-    if not INBOX_ID:
-        missing.append("STANDUP_INBOX_ID")
+    if not AGENT_ID:
+        missing.append("STANDUP_AGENT_ID")
     if not SLACK_TEAM:
         missing.append("STANDUP_SLACK_TEAM")
     if not STANDUP_TEAM_RAW:

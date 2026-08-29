@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """Push notifications resource."""
 from __future__ import annotations
 
@@ -31,15 +31,26 @@ class PushResource:
     def send(
         self,
         *,
-        title: str,
-        body: str,
+        device_id: str | None = None,
+        body_text: str | None = None,
+        title: Optional[str] = None,
+        body: str | None = None,
         device_ids: Optional[list[str]] = None,
+        badge: int | None = None,
         data: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Send a push notification to registered devices."""
-        payload: dict[str, Any] = {"title": title, "body": body}
-        if device_ids:
-            payload["device_ids"] = device_ids
+        selected_device_id = device_id or (device_ids[0] if device_ids else None)
+        if not selected_device_id:
+            raise ValueError("device_id is required")
+        payload: dict[str, Any] = {
+            "device_id": selected_device_id,
+            "body_text": body_text if body_text is not None else body,
+        }
+        if title:
+            payload["title"] = title
+        if badge is not None:
+            payload["badge"] = badge
         if data:
             payload["data"] = data
         return self._client._request("POST", f"/agents/{self._agent_id}/push/send", json=payload)

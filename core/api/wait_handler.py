@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/api/wait_handler.py
 """
@@ -66,12 +66,13 @@ def handler(event: dict, context) -> dict:
 
     body = parse_body(event)
     timeout_sec = min(
-        float(body.get("timeout_sec") or _DEFAULT_TIMEOUT_SEC),
+        float(body.get("timeout_sec") or body.get("timeout") or _DEFAULT_TIMEOUT_SEC),
         _MAX_TIMEOUT_SEC,
     )
     poll_interval = float(body.get("poll_interval") or _DEFAULT_POLL_INTERVAL)
     channel_filter = body.get("channel")      # e.g. "email"
-    from_filter = body.get("from")             # sender address substring
+    channels_filter = body.get("channels") if isinstance(body.get("channels"), list) else None
+    from_filter = body.get("from") or body.get("sender")  # sender address substring
     subject_filter = body.get("subject_contains")  # subject substring
 
     start = _clock["now"]()
@@ -82,7 +83,7 @@ def handler(event: dict, context) -> dict:
         msgs = repo.list_unified_inbox(
             agent_id=agent_id,
             since=since,
-            channel_filter=[channel_filter] if channel_filter else None,
+            channel_filter=channels_filter or ([channel_filter] if channel_filter else None),
             limit=50,
         )
         # Apply remaining filters

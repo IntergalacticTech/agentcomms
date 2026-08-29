@@ -121,6 +121,36 @@ def test_channel_roundtrip():
     assert restored == ch
 
 
+def test_channel_type_accepts_external_adapter_slugs():
+    channel_type = ChannelType("smoke_signal")
+    assert channel_type.value == "smoke_signal"
+    assert ChannelType("smoke_signal") is channel_type
+
+
+@pytest.mark.parametrize("slug", ["", "Smoke", "../email", "email/slack", "a" * 64])
+def test_channel_type_rejects_unsafe_external_adapter_slugs(slug):
+    with pytest.raises(ValueError):
+        ChannelType(slug)
+
+
+def test_external_adapter_channel_roundtrip():
+    ch = Channel(
+        channel_id="chan_al_01HABC",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=ChannelType("alien-transmission"),
+        mode=ChannelMode.BRIDGE,
+        config={"beam": "narrowband"},
+        address_index_value="sector-7g",
+        status=ChannelStatus.ACTIVE,
+    )
+    item = ch.to_dynamodb_item()
+    assert item["SK"] == "CHAN#alien-transmission#chan_al_01HABC"
+    assert item["gsi2_pk"] == "ADDR#alien-transmission#sector-7g"
+    restored = Channel.from_dynamodb_item(item)
+    assert restored == ch
+
+
 from core.data.models import (
     UnifiedMessage, MessageDirection, MessageStatus, Party
 )
@@ -196,6 +226,47 @@ def test_unified_message_roundtrip():
 
 
 from core.data.models import ApiKey, ApiKeyScope, Thread, Draft, Webhook
+
+
+def test_external_adapter_message_thread_and_draft_roundtrip():
+    external = ChannelType("ham_radio")
+    msg = UnifiedMessage(
+        message_id="msg_01HXYZ",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel_id="chan_hr_01HJKL",
+        channel=external,
+        direction=MessageDirection.INBOUND,
+        status=MessageStatus.RECEIVED,
+        from_=Party(address="callsign:k1abc"),
+        to=[Party(address="callsign:n0bot")],
+        body_text="cq agentcomms",
+        thread_key="freq:146.520",
+        external_id="packet-123",
+    )
+    msg_item = msg.to_dynamodb_item()
+    assert msg_item["channel"] == "ham_radio"
+    assert msg_item["gsi6_pk"] == "EXTID#ham_radio#packet-123"
+    assert UnifiedMessage.from_dynamodb_item(msg_item) == msg
+
+    thread = Thread(
+        thread_key="thr_hr_01H",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=external,
+        native_thread_id="freq:146.520",
+    )
+    assert Thread.from_dynamodb_item(thread.to_dynamodb_item()) == thread
+
+    draft = Draft(
+        draft_id="drf_hr_01H",
+        agent_id="agt_01HDEF",
+        org_id="org_01HGHI",
+        channel=external,
+        to=[Party(address="callsign:k1abc")],
+        body_text="roger",
+    )
+    assert Draft.from_dynamodb_item(draft.to_dynamodb_item()) == draft
 
 
 def test_api_key_projects_gsi1():

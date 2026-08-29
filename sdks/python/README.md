@@ -1,57 +1,65 @@
-# FreeMail Python SDK
+# AgentComms Python SDK
 
-Python SDK for the FreeMail email-as-a-service platform.
+Python SDK for AgentComms, the agent communications hub.
 
 ## Install
 
 ```bash
-pip install git+https://github.com/IntergalacticTech/freemail.git#subdirectory=sdks/python
+pip install agentcomms
+```
+
+For local development from this repo:
+
+```bash
+cd sdks/python
+pip install -e .
 ```
 
 ## Quickstart
 
 ```python
-from freemail import FreeMail
+from agentcomms import Client
 
-client = FreeMail("am_live_your_api_key")
-
-# Create an inbox
-inbox = client.inboxes.create(display_name="My Agent")
-
-# Send an email
-msg = client.messages.send(
-    inbox["id"],
-    to=[{"address": "user@example.com"}],
-    subject="Hello!",
-    body_text="Sent from FreeMail",
+client = Client(
+    api_key="ak_live_your_key",
+    base_url="https://api.your-domain.com/v1",
 )
 
-# Wait for a reply and extract OTP
-otp = client.inboxes.extract_otp(inbox["id"], sender="noreply@example.com")
-print(f"OTP: {otp['code']}")
+agent = client.agents.create(
+    name="InvoiceBot",
+    provision={"email": {"local_part": "invoice", "domain": "your-domain.com"}},
+)
+
+agent_id = agent["agent_id"]
+hub = client.agents(agent_id)
+
+hub.messages.send(
+    to="person@example.com",
+    subject="Hello",
+    body="Sent through AgentComms",
+)
+
+for msg in hub.messages.list():
+    print(msg.message_id, msg.channel, msg.body_text)
 ```
 
 ## Resources
 
-The client exposes the following resource namespaces:
+| Resource | Methods |
+|---|---|
+| `client.agents` | list, create, get, update, delete |
+| `client.agents("agt_...").messages` | list, list_page, get, send, reply, mark_read, wait, extract_otp |
+| `client.agents("agt_...").channels` | list, get, create, patch, delete |
+| `client.agents("agt_...").threads` | list, get |
+| `client.agents("agt_...").drafts` | list, get, create, patch, delete |
+| `client.agents("agt_...").webhooks` | list, get, create, patch, delete |
+| `client.agents("agt_...").slack` | workspace-native Slack actions |
+| `client.agents("agt_...").telegram` | chat-native Telegram actions |
+| `client.agents("agt_...").push` | device registration and push send |
+| `client.vault` | encrypted org vault and TOTP |
+| `client.personas` | reusable identity profiles |
+| `client.domains` | SES domain lifecycle |
 
-- `client.inboxes` -- create, list, get, update, delete inboxes; wait for messages; extract OTPs
-- `client.messages` -- list, get, send, reply, forward, update messages
-- `client.pods` -- create, list, get, delete pods
-- `client.domains` -- create, list, get, verify, delete domains
-- `client.webhooks` -- create, list, update, delete webhooks
-- `client.api_keys` -- create, list, delete API keys
+## License
 
-## Configuration
-
-```python
-# Custom base URL
-client = FreeMail("am_live_...", base_url="https://your-custom-endpoint.com/v1")
-```
-
-## Context manager
-
-```python
-with FreeMail("am_live_...") as client:
-    inboxes = client.inboxes.list()
-```
+Apache-2.0. See the repository root `LICENSE`.

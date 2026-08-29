@@ -1,14 +1,14 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 // cdk/lib/stacks/agentcomms-api-stack.ts
 //
 // AgentComms REST API:
 //   - API Gateway RestApi named 'agentcomms-api'
 //   - TOKEN Lambda authorizer wrapping core/api/authorizer_lambda.py
-//   - 13 handler Lambdas (agents, channels, messages, threads, drafts, webhooks, wait, otp,
-//                         vault, personas, domains, ai, push_native)
+//   - Handler Lambdas for agents, API keys, channels, messages, threads, drafts,
+//     webhooks, wait, otp, vault, personas, domains, ai, and native channel APIs.
 //   - Routes wired under /v1/agents/*, /v1/vault/*, /v1/personas/*, /v1/domains/*
 //
 import * as path from 'path';
@@ -172,7 +172,7 @@ export class AgentCommsApiStack extends Stack {
       resources: ['*'],
     });
 
-    // ── 13 Handler Lambdas ──
+    // ── Core Handler Lambdas ──
     // agents, channels, messages publish events → grant Kinesis write
     const agentsFn    = makeHandlerFn('AgentsFn',    'agents_handler',    true);
     // AgentsFn needs SSM read for Slack OAuth URL construction (bridge_start reads client_id)
@@ -181,6 +181,7 @@ export class AgentCommsApiStack extends Stack {
       actions: ['ssm:GetParameter'],
       resources: ['arn:aws:ssm:*:*:parameter/agentcomms/*/adapters/slack/*'],
     }));
+    const apiKeysFn   = makeHandlerFn('ApiKeysFn',   'api_keys_handler',  false);
     const channelsFn  = makeHandlerFn('ChannelsFn',  'channels_handler',  true);
     const messagesFn  = makeHandlerFn('MessagesFn',  'messages_handler',  true);
     // MessagesFn is the sender: POST /messages invokes EmailAdapter.send() (router picks
@@ -272,6 +273,15 @@ export class AgentCommsApiStack extends Stack {
     agents.addMethod('GET',  new LambdaIntegration(agentsFn), authMethodOptions);
     agents.addMethod('POST', new LambdaIntegration(agentsFn), authMethodOptions);
 
+    // /v1/api-keys  →  GET, POST
+    const apiKeys = v1.addResource('api-keys');
+    apiKeys.addMethod('GET',  new LambdaIntegration(apiKeysFn), authMethodOptions);
+    apiKeys.addMethod('POST', new LambdaIntegration(apiKeysFn), authMethodOptions);
+
+    // /v1/api-keys/{key_id}  →  DELETE
+    const apiKey = apiKeys.addResource('{key_id}');
+    apiKey.addMethod('DELETE', new LambdaIntegration(apiKeysFn), authMethodOptions);
+
     // /v1/agents/{agent_id}
     const agent = agents.addResource('{agent_id}');
     agent.addMethod('GET',    new LambdaIntegration(agentsFn), authMethodOptions);
@@ -290,7 +300,7 @@ export class AgentCommsApiStack extends Stack {
     // /v1/agents/{agent_id}/channels/{channel_id}
     const channel = channels.addResource('{channel_id}');
     channel.addMethod('GET',    new LambdaIntegration(channelsFn), authMethodOptions);
-    channel.addMethod('PUT',    new LambdaIntegration(channelsFn), authMethodOptions);
+    channel.addMethod('PATCH',  new LambdaIntegration(channelsFn), authMethodOptions);
     channel.addMethod('DELETE', new LambdaIntegration(channelsFn), authMethodOptions);
 
     // /v1/agents/{agent_id}/messages
@@ -302,6 +312,12 @@ export class AgentCommsApiStack extends Stack {
     const message = messages.addResource('{message_id}');
     message.addMethod('GET',    new LambdaIntegration(messagesFn), authMethodOptions);
     message.addMethod('DELETE', new LambdaIntegration(messagesFn), authMethodOptions);
+
+    const messageReply = message.addResource('reply');
+    messageReply.addMethod('POST', new LambdaIntegration(messagesFn), authMethodOptions);
+
+    const messageRead = message.addResource('read');
+    messageRead.addMethod('POST', new LambdaIntegration(messagesFn), authMethodOptions);
 
     // /v1/agents/{agent_id}/threads
     const threads = agent.addResource('threads');
@@ -319,7 +335,7 @@ export class AgentCommsApiStack extends Stack {
     // /v1/agents/{agent_id}/drafts/{draft_id}
     const draft = drafts.addResource('{draft_id}');
     draft.addMethod('GET',    new LambdaIntegration(draftsFn), authMethodOptions);
-    draft.addMethod('PUT',    new LambdaIntegration(draftsFn), authMethodOptions);
+    draft.addMethod('PATCH',  new LambdaIntegration(draftsFn), authMethodOptions);
     draft.addMethod('DELETE', new LambdaIntegration(draftsFn), authMethodOptions);
 
     // /v1/agents/{agent_id}/webhooks
@@ -330,7 +346,7 @@ export class AgentCommsApiStack extends Stack {
     // /v1/agents/{agent_id}/webhooks/{webhook_id}
     const webhook = webhooks.addResource('{webhook_id}');
     webhook.addMethod('GET',    new LambdaIntegration(webhooksFn), authMethodOptions);
-    webhook.addMethod('PUT',    new LambdaIntegration(webhooksFn), authMethodOptions);
+    webhook.addMethod('PATCH',  new LambdaIntegration(webhooksFn), authMethodOptions);
     webhook.addMethod('DELETE', new LambdaIntegration(webhooksFn), authMethodOptions);
 
     // /v1/agents/{agent_id}/wait

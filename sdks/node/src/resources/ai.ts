@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 import type { Client } from "../client.js";
 
 export class AiResource {
@@ -10,16 +10,36 @@ export class AiResource {
     return `/agents/${this.agentId}/ai/${op}`;
   }
 
-  async categorize(params: { message_id: string; categories?: string[] }): Promise<Record<string, unknown>> {
-    return this.client.request("POST", this.path("categorize"), params);
+  async categorize(params: { message_id: string; labels?: string[]; categories?: string[] }): Promise<Record<string, unknown>> {
+    return this.client.request("POST", this.path("categorize"), {
+      message_id: params.message_id,
+      labels: params.labels ?? params.categories,
+    });
   }
 
-  async extract(params: { message_id: string; fields: string[] }): Promise<Record<string, unknown>> {
-    return this.client.request("POST", this.path("extract"), params);
+  async extract(params: { message_id: string; schema?: Record<string, unknown>; fields?: string[] }): Promise<Record<string, unknown>> {
+    const schema =
+      params.schema ??
+      (params.fields
+        ? {
+            type: "object",
+            properties: Object.fromEntries(params.fields.map((field) => [field, { type: "string" }])),
+          }
+        : undefined);
+    if (!schema) throw new Error("schema is required");
+    return this.client.request("POST", this.path("extract"), {
+      message_id: params.message_id,
+      schema,
+    });
   }
 
-  async summarize(params: { message_id: string; max_length?: number }): Promise<{ summary: string }> {
-    return this.client.request("POST", this.path("summarize"), params);
+  async summarize(params: { text?: string; message_id?: string; thread_key?: string; length?: "short" | "long"; max_length?: number }): Promise<{ summary: string }> {
+    return this.client.request("POST", this.path("summarize"), {
+      text: params.text,
+      message_id: params.message_id,
+      thread_key: params.thread_key,
+      length: params.length ?? (params.max_length && params.max_length > 500 ? "long" : undefined),
+    });
   }
 
   async search(params: { query: string; limit?: number }): Promise<{ results: unknown[] }> {

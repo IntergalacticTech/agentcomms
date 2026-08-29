@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";

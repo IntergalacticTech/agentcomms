@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 // Tests config read/write round-trip using the actual fs functions
 // but with a temp path via env override.
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";

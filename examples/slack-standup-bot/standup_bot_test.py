@@ -14,7 +14,7 @@ import standup_bot as bot
 
 
 TEAM = ["U001", "U002", "U003"]
-INBOX_ID = "inbox-standup"
+AGENT_ID = "agt_standup"
 SLACK_TEAM = "T012AB3CD"
 POST_CHANNEL = "C012AB3CG"
 
@@ -26,7 +26,7 @@ POST_CHANNEL = "C012AB3CG"
 def test_prompts_sent_to_all_members():
     """send_standup_prompts calls POST for each team member."""
     with patch.object(bot, "_post") as mock_post, \
-         patch.object(bot, "INBOX_ID", INBOX_ID), \
+         patch.object(bot, "AGENT_ID", AGENT_ID), \
          patch.object(bot, "SLACK_TEAM", SLACK_TEAM):
 
         mock_post.return_value = {"id": "msg-ok"}
@@ -38,8 +38,8 @@ def test_prompts_sent_to_all_members():
 
     for user_id in TEAM:
         expected_path = (
-            f"/inboxes/{INBOX_ID}/slack/workspaces/{SLACK_TEAM}"
-            f"/channels/@{user_id}/messages"
+            f"/agents/{AGENT_ID}/slack/workspaces/{SLACK_TEAM}"
+            f"/users/{user_id}/messages"
         )
         matching = [
             c for c in mock_post.call_args_list
@@ -56,36 +56,27 @@ def test_prompts_sent_to_all_members():
 # ---------------------------------------------------------------------------
 
 def test_summary_composed_from_replies():
-    """summarize_replies posts a combined message and calls /ai/summarize."""
+    """summarize_replies sends raw text to /ai/summarize."""
     replies = {
         "U001": "Yesterday: deployed feature X. Today: fixing bug Y. No blockers.",
         "U002": "Yesterday: code review. Today: writing tests. Blocker: waiting on design.",
     }
 
     with patch.object(bot, "_post") as mock_post, \
-         patch.object(bot, "INBOX_ID", INBOX_ID):
+         patch.object(bot, "AGENT_ID", AGENT_ID):
 
-        mock_post.side_effect = [
-            # First call: create combined message
-            {"id": "msg-combined-001"},
-            # Second call: /ai/summarize
-            {"message_id": "msg-combined-001",
-             "summary": "The team deployed feature X and is working on bug Y and tests."},
-        ]
+        mock_post.return_value = {
+            "summary": "The team deployed feature X and is working on bug Y and tests.",
+        }
 
         summary = bot.summarize_replies(replies)
 
     assert summary == "The team deployed feature X and is working on bug Y and tests."
 
-    # Verify /ai/summarize was called with the right message_id
-    summarize_call = mock_post.call_args_list[1]
-    assert "/ai/summarize" in summarize_call.args[0]
-    assert summarize_call.args[1]["message_id"] == "msg-combined-001"
-    assert summarize_call.args[1]["inbox_id"] == INBOX_ID
-
-    # Verify combined message included both replies
-    create_call = mock_post.call_args_list[0]
-    combined_body = create_call.args[1]["body_text"]
+    summarize_call = mock_post.call_args_list[0]
+    assert summarize_call.args[0] == f"/agents/{AGENT_ID}/ai/summarize"
+    assert summarize_call.args[1]["length"] == "short"
+    combined_body = summarize_call.args[1]["text"]
     assert "U001" in combined_body
     assert "U002" in combined_body
     assert "feature X" in combined_body
@@ -98,7 +89,7 @@ def test_summary_composed_from_replies():
 def test_summary_posted_to_channel():
     """post_summary_to_channel calls POST on the correct channel endpoint."""
     with patch.object(bot, "_post") as mock_post, \
-         patch.object(bot, "INBOX_ID", INBOX_ID), \
+         patch.object(bot, "AGENT_ID", AGENT_ID), \
          patch.object(bot, "SLACK_TEAM", SLACK_TEAM), \
          patch.object(bot, "POST_CHANNEL", POST_CHANNEL):
 
@@ -110,7 +101,7 @@ def test_summary_posted_to_channel():
     call_body = mock_post.call_args.args[1]
 
     expected_path = (
-        f"/inboxes/{INBOX_ID}/slack/workspaces/{SLACK_TEAM}"
+        f"/agents/{AGENT_ID}/slack/workspaces/{SLACK_TEAM}"
         f"/channels/{POST_CHANNEL}/messages"
     )
     assert call_path == expected_path, f"Expected {expected_path!r}, got {call_path!r}"
@@ -138,7 +129,7 @@ def test_no_replies_fallback():
 def test_validate_config_missing_vars():
     """validate_config returns a list of all missing required env var names."""
     with patch.object(bot, "API_KEY", ""), \
-         patch.object(bot, "INBOX_ID", ""), \
+         patch.object(bot, "AGENT_ID", ""), \
          patch.object(bot, "SLACK_TEAM", ""), \
          patch.object(bot, "STANDUP_TEAM_RAW", ""), \
          patch.object(bot, "POST_CHANNEL", ""):
@@ -146,7 +137,7 @@ def test_validate_config_missing_vars():
         missing = bot.validate_config()
 
     assert "AGENTCOMMS_API_KEY" in missing
-    assert "STANDUP_INBOX_ID" in missing
+    assert "STANDUP_AGENT_ID" in missing
     assert "STANDUP_SLACK_TEAM" in missing
     assert "STANDUP_TEAM" in missing
     assert "STANDUP_POST_CHANNEL" in missing

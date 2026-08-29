@@ -91,7 +91,7 @@ entity_type:     ApiKey
 id:              {key_id}                        # ULID
 org_id:          {org_id}
 name:            "Production Key"
-prefix:          "am_live_7kB3"                  # First 4 chars for identification
+prefix:          "ak_live_7kB3"                  # First 4 chars for identification
 key_hash:        "a1b2c3d4...sha256"             # SHA-256 of plaintext key
 environment:     "live"                          # live | test
 scope:           "org"                           # org | pod | inbox

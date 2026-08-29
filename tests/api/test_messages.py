@@ -135,3 +135,81 @@ def test_get_single_message(fixture):
     resp = handler(ev, None)
     assert resp["statusCode"] == 200
     assert json.loads(resp["body"])["message_id"] == "msg_0"
+
+
+def test_get_single_message_without_timestamp(fixture):
+    resp = handler(_event(
+        "GET", "/v1/agents/agt_1/messages/msg_0",
+        path_params={"agent_id": "agt_1", "message_id": "msg_0"},
+    ), None)
+    assert resp["statusCode"] == 200
+    assert json.loads(resp["body"])["message_id"] == "msg_0"
+
+
+def test_reply_to_message_sends_to_original_sender_with_threading(fixture, monkeypatch):
+    from adapters.email.adapter import EmailAdapter
+    from core.adapters.base import SendResult
+
+    repo = fixture
+    original = UnifiedMessage(
+        message_id="msg_threaded",
+        agent_id="agt_1",
+        org_id="org_X",
+        channel_id="chan_em_1",
+        channel=ChannelType.EMAIL,
+        direction=MessageDirection.INBOUND,
+        status=MessageStatus.RECEIVED,
+        from_=Party(address="alice@example.com"),
+        to=[Party(address="bot@agentcomms.dev")],
+        subject="Question",
+        body_text="can you help?",
+        thread_key="<root@example.com>",
+        is_dm=True,
+        received_at=datetime(2026, 4, 17, 13, tzinfo=timezone.utc),
+        channel_native={"message_id_header": "<root@example.com>", "references": ["<prev@example.com>"]},
+        external_id="<root@example.com>",
+    )
+    repo.put_message(original)
+
+    sent = {}
+
+    def fake_send(self, *, channel, message):
+        sent["to"] = message.to
+        sent["subject"] = message.subject
+        sent["thread_key"] = message.thread_key
+        sent["overrides"] = message.channel_native_overrides
+        return SendResult(channel_native_id="ses-reply-123", status="sent")
+
+    monkeypatch.setattr(EmailAdapter, "send", fake_send)
+
+    resp = handler(_event(
+        "POST", "/v1/agents/agt_1/messages/msg_threaded/reply",
+        path_params={"agent_id": "agt_1", "message_id": "msg_threaded"},
+        body={"body": "yes"},
+    ), None)
+    assert resp["statusCode"] == 201
+    assert sent["to"] == "alice@example.com"
+    assert sent["subject"] == "Re: Question"
+    assert sent["thread_key"] == "<root@example.com>"
+    assert sent["overrides"]["in_reply_to"] == "<root@example.com>"
+    assert sent["overrides"]["references"] == ["<prev@example.com>", "<root@example.com>"]
+
+
+def test_mark_read_adds_read_label(fixture):
+    resp = handler(_event(
+        "POST", "/v1/agents/agt_1/messages/msg_0/read",
+        path_params={"agent_id": "agt_1", "message_id": "msg_0"},
+    ), None)
+    assert resp["statusCode"] == 204
+    msg = fixture.find_message_by_id(agent_id="agt_1", message_id="msg_0")
+    assert msg is not None
+    assert "read" in msg.labels
+
+
+def test_delete_single_message_by_id(fixture):
+    resp = handler(_event(
+        "DELETE", "/v1/agents/agt_1/messages/msg_0",
+        path_params={"agent_id": "agt_1", "message_id": "msg_0"},
+    ), None)
+    assert resp["statusCode"] == 204
+    assert fixture.find_message_by_id(agent_id="agt_1", message_id="msg_0") is None

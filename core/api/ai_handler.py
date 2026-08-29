@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/api/ai_handler.py
 """AI feature routes for agents.
@@ -9,7 +9,7 @@ Routes (all require org or agent scope):
 
   POST /v1/agents/{agent_id}/ai/categorize  — classify a message
   POST /v1/agents/{agent_id}/ai/extract     — extract structured data
-  POST /v1/agents/{agent_id}/ai/summarize   — summarize message or thread
+  POST /v1/agents/{agent_id}/ai/summarize   — summarize text, message, or thread
   POST /v1/agents/{agent_id}/ai/search      — keyword search
 """
 from __future__ import annotations
@@ -103,20 +103,23 @@ def _handle_extract(caller: Caller, agent_id: str, body: dict, repo) -> dict:
 def _handle_summarize(caller: Caller, agent_id: str, body: dict, repo) -> dict:
     """POST /v1/agents/{id}/ai/summarize
 
-    Body: { message_id?, thread_key?, length? }
+    Body: { text?, message_id?, thread_key?, length? }
 
-    Either message_id or thread_key must be provided.
+    One of text, message_id, or thread_key must be provided.
     """
+    text_input = (body.get("text") or "").strip()
     message_id = (body.get("message_id") or "").strip()
     thread_key = (body.get("thread_key") or "").strip()
     length = body.get("length", "short")
     if length not in ("short", "long"):
         length = "short"
 
-    if not message_id and not thread_key:
-        return err("'message_id' or 'thread_key' is required")
+    if not text_input and not message_id and not thread_key:
+        return err("'text', 'message_id', or 'thread_key' is required")
 
-    if message_id:
+    if text_input:
+        text = text_input
+    elif message_id:
         msg = repo.find_message_by_id(agent_id=agent_id, message_id=message_id)
         if not msg:
             return err("message not found", status=404)

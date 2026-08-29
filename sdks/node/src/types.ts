@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 /**
  * TypeScript interfaces mirroring AgentComms API response shapes.
  */
@@ -98,9 +98,14 @@ export interface Webhook {
 export interface VaultItem {
   vault_id: string;
   org_id: string;
-  name: string;
+  label?: string;
+  name?: string;
   type: string;
+  value?: string;
+  tags?: Record<string, unknown>;
+  kms_key_id?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Persona {
@@ -116,10 +121,18 @@ export interface Persona {
 export interface Domain {
   domain_id: string;
   org_id: string;
-  domain: string;
+  domain_name?: string;
+  domain?: string;
   status?: string;
+  dkim_tokens?: string[];
   dkim_verified?: boolean;
+  spf_verified?: boolean;
+  mx_verified?: boolean;
+  dmarc_verified?: boolean;
+  dns_records?: Record<string, unknown>;
+  verified_at?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface PaginatedMessages {

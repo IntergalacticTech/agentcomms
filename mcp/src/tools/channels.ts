@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { apiRequest } from "../client.js";
 import type { Tool } from "./agents.js";
 
 export const channelTools: Tool[] = [
   {
     name: "channels_list",
-    description: "List all channels (email addresses, phone numbers) assigned to an agent.",
+    description: "List all communication channels assigned to an agent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -19,27 +19,34 @@ export const channelTools: Tool[] = [
   },
   {
     name: "channel_create",
-    description: "Provision a new channel (e.g. an email address) for an agent.",
+    description: "Provision or bridge a new channel for an agent.",
     inputSchema: {
       type: "object",
       properties: {
         agent_id: { type: "string", description: "The agent ID" },
-        type: {
+        channel: {
           type: "string",
-          enum: ["email", "sms"],
-          description: "Channel type to provision",
+          pattern: "^[a-z][a-z0-9_-]{0,62}$",
+          description: "Built-in channel or external adapter slug to provision or bridge",
         },
-        address: {
+        mode: {
           type: "string",
-          description: "Preferred address or prefix (optional; auto-generated if omitted)",
+          enum: ["provision", "bridge"],
+          description: "Use provision for owned identities, bridge for OAuth/imported identities",
+        },
+        config: {
+          type: "object",
+          description: "Channel-specific config, such as email local_part/domain",
         },
       },
-      required: ["agent_id"],
+      required: ["agent_id", "channel"],
     },
     handler: async (args) => {
-      const body: Record<string, unknown> = {};
-      if (args.type) body.type = args.type;
-      if (args.address) body.address = args.address;
+      const body: Record<string, unknown> = {
+        channel: args.channel,
+        mode: args.mode ?? "provision",
+        config: args.config ?? {},
+      };
       return apiRequest("POST", `/agents/${args.agent_id}/channels`, body);
     },
   },

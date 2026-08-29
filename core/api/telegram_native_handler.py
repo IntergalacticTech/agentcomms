@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/api/telegram_native_handler.py
 """
@@ -144,7 +144,7 @@ def _send_to_chat(repo: Repo, agent_id: str, chat_id: str, body: dict) -> dict:
     if channel is None:
         return {"statusCode": 404, "body": json.dumps({"error": "telegram channel not found"})}
 
-    text = body.get("text", body.get("body_text", ""))
+    text = body.get("text") or body.get("body_text") or body.get("body") or ""
     if not text:
         return {"statusCode": 400, "body": json.dumps({"error": "text is required"})}
 

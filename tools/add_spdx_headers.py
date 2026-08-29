@@ -2,7 +2,7 @@
 """
 add_spdx_headers.py
 -------------------
-Prepend FSL-1.1-Apache-2.0 SPDX headers to all source files under the
+Prepend Apache-2.0 SPDX headers to all source files under the
 target directories.
 
 Safe to re-run — idempotent (skips files that already have the header).
@@ -41,15 +41,15 @@ SOURCE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 FIXTURE_EXTENSIONS = {".json", ".eml", ".toml", ".xml", ".yaml", ".yml", ".csv", ".txt"}
 
 PY_HEADER = """\
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """
 
 TS_HEADER = """\
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """
 
 

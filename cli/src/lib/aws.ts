@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import {
   Route53Client,

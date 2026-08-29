@@ -1,6 +1,6 @@
 # FreeMail Build Plan
 
-> ⚠️ **SUPERSEDED / PRE-PIVOT** — describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md](./docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md) and [docs/platform-review-2026-07-19.md](./docs/platform-review-2026-07-19.md).
+> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](./docs/architecture.md), [docs/adapter-roadmap.md](./docs/adapter-roadmap.md), and [docs/platform-review.md](./docs/platform-review.md).
 
 ## Project Context
 

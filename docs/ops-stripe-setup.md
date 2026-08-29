@@ -1,70 +1,53 @@
-# Stripe Setup (Ops)
+# Stripe Setup (Hosted Ops)
 
-This doc is **for operators**, not customers. It walks through creating Stripe products/prices and wiring them into the CDK deploy so `/billing/checkout` can issue real checkout sessions.
+This doc is for operators of a hosted AgentComms service. Self-hosted Apache-2.0 deployments do not need Stripe billing.
 
-## Step 1: Create Stripe products and prices
+## Products
 
-In the Stripe Dashboard, create two products with recurring monthly prices:
+Create products and recurring prices in Stripe for your hosted tiers. Example hosted tiers:
 
-| Product name | Price | Nickname | Notes |
-|---|---|---|---|
-| FreeMail Starter | $5.00 USD / month | `starter` | Used for `POST /billing/checkout {"tier":"starter"}` |
-| FreeMail Pro | $25.00 USD / month | `pro` | Used for `POST /billing/checkout {"tier":"pro"}` |
+| Product name | Nickname |
+|---|---|
+| AgentComms Developer | `developer` |
+| AgentComms Team | `team` |
+| AgentComms Business | `business` |
 
-Copy the **Price ID** (starts with `price_`) from each — you'll need it below.
+Store Stripe price IDs in your hosted deployment's secret/config system.
 
-## Step 2: Create a webhook endpoint
+## Webhook Endpoint
 
-In Stripe Dashboard → Developers → Webhooks → Add endpoint:
+Register a Stripe webhook endpoint for your hosted API:
 
-- **Endpoint URL**: `https://api.victorymail.dev/v1/billing/webhook`
-- **Events to send**:
-  - `checkout.session.completed`
-  - `customer.subscription.updated`
-  - `customer.subscription.deleted`
-  - `invoice.payment_failed`
-
-After creating the endpoint, copy its **Signing Secret** (starts with `whsec_`). This verifies webhook authenticity.
-
-## Step 3: Deploy with CDK context
-
-The CDK `ApiStack` reads Stripe config from context values. Deploy with all four set:
-
-```bash
-cd cdk
-npx cdk deploy VictoryMail-Api-dev \
-  -c stripeSecretKey=sk_live_... \
-  -c stripeWebhookSecret=whsec_... \
-  -c stripePriceIdStarter=price_... \
-  -c stripePriceIdPro=price_... \
-  --require-approval never
+```text
+https://api.agentcomms.dev/v1/billing/webhook
 ```
 
-Or persist them in `cdk/cdk.json` under the `context` key (don't commit secrets — use environment substitution or AWS Secrets Manager for production).
+Events:
 
-## Step 4: Verify end-to-end
+- `checkout.session.completed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
 
-With a real API key:
+Store the webhook signing secret securely and pass it only to the hosted billing handler.
+
+## Deploy
+
+Billing is not part of the core self-host contract. If your hosted deployment includes billing routes, wire the Stripe secret key, webhook secret, and price IDs through Secrets Manager or another secret store rather than committed CDK context.
+
+## Verify
+
+With a hosted org API key:
 
 ```bash
-# Should return a live checkout URL (not NOT_CONFIGURED)
-curl -X POST https://api.victorymail.dev/v1/billing/checkout \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST https://api.agentcomms.dev/v1/billing/checkout \
+  -H "Authorization: Bearer ak_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"tier": "starter"}'
+  -d '{"tier": "developer"}'
 ```
 
-Expected response:
+Expected: a Stripe Checkout URL for the hosted service.
 
-```json
-{
-  "checkout_url": "https://checkout.stripe.com/c/pay/cs_live_...",
-  "tier": "starter"
-}
-```
+## License
 
-Paying a $5 Stripe test transaction and watching the webhook fire is the full loop.
-
-## Future: move secrets to AWS Secrets Manager
-
-CDK context is fine for dev deploys but should not hold production Stripe secrets long-term. When we ship, swap the `tryGetContext` calls in `cdk/lib/stacks/api-stack.ts` for `secretsmanager.Secret.fromSecretNameV2(...)` references and grant the billing Lambda `secretsmanager:GetSecretValue`. Rotate secrets with `stripe.CLI --rotate`.
+Hosted billing does not limit OSS rights. The repository remains Apache-2.0 for self-hosted, commercial, and hosted use.

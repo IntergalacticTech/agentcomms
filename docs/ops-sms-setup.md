@@ -1,10 +1,10 @@
 # SMS Production Setup (Ops Runbook)
 
-This doc walks an operator through everything required to take FreeMail SMS from "code shipped" (current state) to "customers can buy a phone number and start sending."
+This doc walks an operator through everything required to take AgentComms SMS from "code shipped" (current state) to "customers can buy a phone number and start sending."
 
 The Lambdas are already deployed:
 
-- `SmsFn` — handles `POST /inboxes/{id}/sms`, currently returns `503 NOT_CONFIGURED` because no platform phone number is wired up
+- `SmsFn` — handles SMS channel provisioning through `POST /agents/{agent_id}/channels`, currently dependent on provider setup before end-to-end SMS works
 - `SmsProcessorFn` — handles inbound SMS via SNS, currently has no SNS subscription so it's idle
 - IAM permissions for `sms-voice:SendTextMessage` are in place
 
@@ -21,7 +21,7 @@ What's missing is **AWS account state and 10DLC registration** — this is proce
 5. **Buy initial phone numbers** and link them to the campaign
 6. **Wire the inbound SNS topic** to `SmsProcessorFn`
 
-After all six, FreeMail can sell SMS as a paid feature.
+After all six, AgentComms can sell SMS as a paid feature.
 
 ---
 
@@ -32,7 +32,7 @@ After all six, FreeMail can sell SMS as a paid feature.
 **How:**
 - Open AWS Support Center → Create case → Service limit increase → Service: "End User Messaging SMS"
 - Request type: **Move out of SMS sandbox**
-- Justify the request: "FreeMail is an API platform for AI agents. We need to send transactional A2P SMS for OTP delivery and notifications. Volume estimates: ~1,000 messages/day initially, ramping to ~50,000/day at scale. All sends are agent-initiated and we will register every campaign with TCR."
+- Justify the request: "AgentComms is an API platform for AI agents. We need to send transactional A2P SMS for OTP delivery and notifications. Volume estimates: ~1,000 messages/day initially, ramping to ~50,000/day at scale. All sends are agent-initiated and we will register every campaign with TCR."
 - AWS typically approves within 24 hours.
 
 **Verify:** Once approved, AWS Support ticket closes and `aws sms-voice describe-account-attributes` shows `AccountTier: STANDARD` (no longer `SANDBOX`).
@@ -41,14 +41,14 @@ After all six, FreeMail can sell SMS as a paid feature.
 
 ## 2. Decide: Shared Brand or Per-Customer Brands
 
-This is the **biggest architectural decision** for SMS at FreeMail. You have two options:
+This is the **biggest architectural decision** for SMS at AgentComms. You have two options:
 
 ### Option A: Shared Brand (recommended)
 
-We register **one** 10DLC brand with The Campaign Registry under "FreeMail / IntergalacticTech." Every customer's phone number falls under our single brand and one or more umbrella campaigns. Customers don't need to do any registration — they just buy a phone number from us.
+We register **one** 10DLC brand with The Campaign Registry under "AgentComms / IntergalacticTech." Every customer's phone number falls under our single brand and one or more umbrella campaigns. Customers don't need to do any registration — they just buy a phone number from us.
 
 **Pros:**
-- Customer onboarding is one API call: `POST /inboxes/{id}/sms-number`
+- Customer onboarding is one API call: `POST /agents/{agent_id}/channels` with `{"channel":"sms"}`
 - Lower total cost (one brand fee vs. one per customer)
 - No customer-side TCR vetting delays
 - Faster time to revenue
@@ -60,7 +60,7 @@ We register **one** 10DLC brand with The Campaign Registry under "FreeMail / Int
 
 **Mitigations:**
 - Aggressive content filtering (forbidden keywords list, spam classifier on outbound)
-- Per-customer rate limits at the FreeMail layer (already shipped via `shared/abuse.py`)
+- Per-customer rate limits at the AgentComms layer (already shipped via `shared/abuse.py`)
 - Auto-suspend on bounce/complaint signals (already shipped via the bounce processor)
 - Require customers to attest to opt-in compliance in our ToS
 
@@ -90,7 +90,7 @@ We register as a **Campaign Service Provider** (CSP) with TCR. Each customer reg
 Open the AWS End User Messaging console → SMS → Phone numbers → Origination identities → Register a brand.
 
 **Brand details to provide:**
-- Brand name: `FreeMail`
+- Brand name: `AgentComms`
 - Legal entity: `IntergalacticTech, LLC` (or whatever the legal name is)
 - Tax ID (EIN): _your EIN_
 - Address: company HQ
@@ -110,11 +110,11 @@ Open the AWS End User Messaging console → SMS → Phone numbers → Originatio
 Same console: Phone numbers → Origination identities → Register a campaign under the brand you just created.
 
 **Campaign details:**
-- Campaign name: `FreeMail Agent SMS`
+- Campaign name: `AgentComms Agent SMS`
 - Use case: `2FA / OTP` (most permissive vetting outcome)
-- Description: "Transactional SMS for AI agents — delivers OTP codes and notifications to end users who have signed up for FreeMail customer applications. Each end user has explicitly opted in via the customer's signup flow."
+- Description: "Transactional SMS for AI agents — delivers OTP codes and notifications to end users who have signed up for AgentComms customer applications. Each end user has explicitly opted in via the customer's signup flow."
 - Sample message 1: "Your verification code is 482917. It expires in 10 minutes."
-- Sample message 2: "FreeMail: a new device signed in to your account. If this wasn't you, reply STOP."
+- Sample message 2: "AgentComms: a new device signed in to your account. If this wasn't you, reply STOP."
 - Opt-in workflow: link to a public page describing how end users opt in
 - Embedded link: NO (links increase carrier filtering)
 - Embedded phone: NO
@@ -148,7 +148,7 @@ Once the campaign is approved, request 10DLC long codes from AWS End User Messag
 
 **Cost:** $1/month per number.
 
-**After purchase:** Each number must be linked to the campaign you registered in step 4. Console: select the number → Configurations → Associated campaign → pick the FreeMail campaign.
+**After purchase:** Each number must be linked to the campaign you registered in step 4. Console: select the number → Configurations → Associated campaign → pick the AgentComms campaign.
 
 **Verify:** `aws sms-voice describe-phone-numbers` returns the numbers with `Status: ACTIVE` and the campaign ID populated.
 
@@ -162,8 +162,8 @@ This is the only **code change** in this runbook (a small CDK update — the Lam
 
 End User Messaging delivers inbound SMS to an SNS topic that you configure on each phone number. We need to:
 
-1. Create a single SNS topic `victorymail-sms-inbound`
-2. Configure each FreeMail-owned phone number to publish inbound messages to that topic
+1. Create a single SNS topic `agentcomms-sms-inbound`
+2. Configure each AgentComms-owned phone number to publish inbound messages to that topic
 3. Subscribe `SmsProcessorFn` to the topic
 
 ### CDK changes
@@ -172,7 +172,7 @@ In `cdk/lib/stacks/email-stack.ts` (or a new `sms-stack.ts`):
 
 ```typescript
 this.smsInboundTopic = new sns.Topic(this, "SmsInboundTopic", {
-  topicName: `victorymail-sms-inbound-${props.stage}`,
+  topicName: `agentcomms-sms-inbound-${props.stage}`,
 });
 ```
 
@@ -188,17 +188,17 @@ In `cdk/bin/app.ts`, pipe the topic from EmailStack into ApiStack like the exist
 
 ### Console-side wiring (one-time per phone number)
 
-End User Messaging console → Phone numbers → select number → Two-way → Enable → SNS topic ARN: `arn:aws:sns:us-east-1:732770059798:victorymail-sms-inbound-prod`.
+End User Messaging console → Phone numbers → select number → Two-way → Enable → SNS topic ARN: `arn:aws:sns:us-east-1:<AWS_ACCOUNT_ID>:agentcomms-sms-inbound-prod`.
 
-### Customer-side wiring (per inbox)
+### Customer-side wiring (per agent)
 
-When a customer adds a phone number to an inbox, we need to:
+When a customer adds a phone number channel to an agent, we need to:
 1. Allocate a number from our pool (or pull a free one from `aws sms-voice describe-phone-numbers`)
-2. Store the number on the inbox record under `phone_number`
-3. Add a second GSI2 entry: `EMAIL#+1XXXXXXXXXX` → wait, actually `PHONE#+1XXXXXXXXXX` — see `lambdas/sms_processor/handler.py:64` which already queries `GSI2 PHONE#{destination}`
+2. Store the number on the channel record under `config.phone_number`
+3. Add an address index entry for inbound routing: `ADDR#sms#+1XXXXXXXXXX`
 4. Charge the customer $1/month for the number lease
 
-This is a future feature endpoint: `POST /inboxes/{id}/phone-number` — we haven't built it yet because there's no point shipping it before steps 1-5 are done.
+This is handled through `POST /agents/{agent_id}/channels` once provider setup is complete.
 
 ---
 
@@ -224,7 +224,7 @@ This is a future feature endpoint: `POST /inboxes/{id}/phone-number` — we have
 
 ---
 
-## What FreeMail Charges Customers for SMS
+## What AgentComms Charges Customers for SMS
 
 Recommended pricing (subject to your input):
 
@@ -254,7 +254,7 @@ When you're ready, the order is:
 4. **Day 6-10:** Campaign approved → buy 5 phone numbers (Step 5).
 5. **Day 10:** Wire the SNS topic into CDK (Step 6) and deploy `VictoryMail-Api-dev`.
 6. **Day 11:** Manual smoke test — send an SMS from one of the phone numbers using `aws sms-voice send-text-message`, then send one to it from your personal phone and verify `SmsProcessorFn` writes it to DynamoDB.
-7. **Day 12+:** Build the `POST /inboxes/{id}/phone-number` endpoint and ship SMS as a paid feature.
+7. **Day 12+:** Harden SMS channel provisioning and ship SMS as a production hosted feature.
 
 Total wall-clock from "ready to start" to "first customer can buy SMS": **~2 weeks**, almost all waiting on TCR. Active engineering time is ~1 day.
 

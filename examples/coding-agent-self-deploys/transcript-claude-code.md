@@ -90,7 +90,7 @@ $ agentcomms bootstrap \
 {"event":"smoke","check":"list_messages","status":"ok","count":1}
 {"event":"smoke","check":"delete_inbox","status":"ok"}
 {"event":"phase","phase":"smoke_test","status":"complete","elapsed_ms":6800}
-{"event":"complete","api_key":"ac_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL9nP2qR5sT8uV1wX4yZ","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":435560,"message":"AgentComms is live. Save your API key — it is shown only once."}
+{"event":"complete","api_key":"ak_live_REDACTED_EXAMPLE","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":435560,"message":"AgentComms is live. Save your API key — it is shown only once."}
 ```
 
 ## Turn 4 — Claude Code reports back
@@ -105,14 +105,14 @@ Claude: Bootstrap complete! Here is a summary of what was deployed:
 
 Your API key (shown once — save it now):
 
-  ac_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL9nP2qR5sT8uV1wX4yZ
+  ak_live_REDACTED_EXAMPLE
 
 The full NDJSON event stream has been captured to /tmp/bootstrap.log.
 
 Next steps:
-  export AGENTCOMMS_API_KEY="ac_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL9nP2qR5sT8uV1wX4yZ"
+  export AGENTCOMMS_API_KEY="ak_live_REDACTED_EXAMPLE"
   export AGENTCOMMS_BASE_URL="https://api.agentcomms-test-demo.com/v1"
-  curl "$AGENTCOMMS_BASE_URL/inboxes" -H "x-api-key: $AGENTCOMMS_API_KEY"
+  curl "$AGENTCOMMS_BASE_URL/agents" -H "x-api-key: $AGENTCOMMS_API_KEY"
 ```
 
 ---

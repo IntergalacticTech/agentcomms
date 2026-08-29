@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/data/models.py
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -122,6 +123,24 @@ class ChannelType(str, Enum):
     POSTAL = "postal"
     FAX = "fax"
     VOICE = "voice"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ChannelType | None:
+        """Accept external adapter channel slugs without a core release.
+
+        Known channels remain real enum members. Third-party adapters can add
+        names like ``matrix``, ``smoke_signal``, or ``alien-transmission`` as
+        long as the value is safe for API payloads and DynamoDB key segments.
+        """
+        if not isinstance(value, str):
+            return None
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,62}", value):
+            return None
+        member = str.__new__(cls, value)
+        member._name_ = f"EXTERNAL_{value.upper().replace('-', '_')}"
+        member._value_ = value
+        cls._value2member_map_[value] = member
+        return member
 
 
 class ChannelMode(str, Enum):
@@ -345,6 +364,7 @@ class ApiKey(BaseModel):
 
     key_id: str
     key_hash: str  # sha256 hex; plaintext shown once at creation
+    key_prefix: str | None = None
     org_id: str
     scope: ApiKeyScope
     name: str
@@ -382,6 +402,7 @@ class ApiKey(BaseModel):
             "entity": "api_key",
             "key_id": self.key_id,
             "key_hash": self.key_hash,
+            "key_prefix": self.key_prefix,
             "org_id": self.org_id,
             "scope": self.scope.value,
             "name": self.name,
@@ -401,6 +422,7 @@ class ApiKey(BaseModel):
         return cls(
             key_id=item["key_id"],
             key_hash=item["key_hash"],
+            key_prefix=item.get("key_prefix"),
             org_id=item["org_id"],
             scope=ApiKeyScope(item["scope"]),
             name=item["name"],

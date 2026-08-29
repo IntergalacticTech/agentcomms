@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { apiRequest } from "../client.js";
 import type { Tool } from "./agents.js";
 
@@ -9,18 +9,14 @@ export const vaultTools: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Filter by tags",
-        },
+        tag: { type: "string", description: "Filter by a single key:value tag" },
+        type: { type: "string", enum: ["totp", "password", "secret", "api_key"] },
       },
     },
     handler: async (args) => {
       const params = new URLSearchParams();
-      if (Array.isArray(args.tags)) {
-        (args.tags as string[]).forEach((t) => params.append("tags", t));
-      }
+      if (args.tag) params.set("tag", String(args.tag));
+      if (args.type) params.set("type", String(args.type));
       const qs = params.toString();
       return apiRequest("GET", `/vault${qs ? `?${qs}` : ""}`);
     },
@@ -33,16 +29,15 @@ export const vaultTools: Tool[] = [
       properties: {
         type: {
           type: "string",
-          enum: ["totp", "password", "api_key", "note"],
+          enum: ["totp", "password", "secret", "api_key"],
           description: "Secret type",
         },
         label: { type: "string", description: "Human-readable label" },
         seed: { type: "string", description: "TOTP seed (base32 encoded, for type=totp)" },
         value: { type: "string", description: "Secret value (for password/api_key/note)" },
         tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Optional tags for organization",
+          type: "object",
+          description: "Optional tags for organization, for example {\"agent_id\":\"agt_...\"}",
         },
       },
       required: ["type", "label"],

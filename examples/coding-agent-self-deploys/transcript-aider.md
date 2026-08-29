@@ -87,7 +87,7 @@ Running: agentcomms bootstrap --profile agentcomms-test --region us-east-1 \
 {"event":"smoke","check":"list_messages","status":"ok","count":1}
 {"event":"smoke","check":"delete_inbox","status":"ok"}
 {"event":"phase","phase":"smoke_test","status":"complete","elapsed_ms":7100}
-{"event":"complete","api_key":"ac_live_2bD5eF8gH1jK4mN7pQ0rS3tU6vW9xY2zA5cB8dE1fG4hJ7kL","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":429840,"message":"AgentComms is live. Save your API key — it is shown only once."}
+{"event":"complete","api_key":"ak_live_REDACTED_EXAMPLE","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":429840,"message":"AgentComms is live. Save your API key — it is shown only once."}
 ```
 
 ## Aider final output
@@ -103,7 +103,7 @@ Bootstrap completed successfully. Summary:
   Total time:   ~7 minutes 10 seconds
 
 Your API key (shown only once — save it now):
-  ac_live_2bD5eF8gH1jK4mN7pQ0rS3tU6vW9xY2zA5cB8dE1fG4hJ7kL
+  ak_live_REDACTED_EXAMPLE
 
 Full NDJSON event log saved to /tmp/bootstrap.log.
 

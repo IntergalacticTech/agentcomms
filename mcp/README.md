@@ -92,4 +92,4 @@ npm test
 
 ## License
 
-FSL-1.1-Apache-2.0 — see repo root LICENSE.
+Apache-2.0 — see repo root LICENSE.

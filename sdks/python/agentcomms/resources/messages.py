@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """Messages resource — unified inbox and send operations."""
 from __future__ import annotations
 
@@ -38,6 +38,28 @@ class MessagesResource:
             params["cursor"] = cursor
         data = self._client._request("GET", self._path(), params=params)
         return [Message.model_validate(m) for m in data.get("messages", [])]
+
+    def list_page(
+        self,
+        *,
+        since: Optional[str] = None,
+        channels: Optional[list[str]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """List one page and keep the API's opaque ``next_cursor``."""
+        params: dict[str, Any] = {"limit": limit}
+        if since:
+            params["since"] = since
+        if channels:
+            params["channels"] = ",".join(channels)
+        if cursor:
+            params["cursor"] = cursor
+        data = self._client._request("GET", self._path(), params=params)
+        return {
+            "messages": [Message.model_validate(m) for m in data.get("messages", [])],
+            "next_cursor": data.get("next_cursor"),
+        }
 
     def get(self, message_id: str) -> Message:
         data = self._client._request("GET", self._path(f"/{message_id}"))
@@ -88,13 +110,16 @@ class MessagesResource:
         channels: Optional[list[str]] = None,
     ) -> Message:
         """Long-poll for the next incoming message matching the given filters."""
-        payload: dict[str, Any] = {"timeout": timeout}
+        payload: dict[str, Any] = {"timeout_sec": timeout}
         if sender:
-            payload["sender"] = sender
+            payload["from"] = sender
         if subject_contains:
             payload["subject_contains"] = subject_contains
         if channels:
-            payload["channels"] = channels
+            if len(channels) == 1:
+                payload["channel"] = channels[0]
+            else:
+                payload["channels"] = channels
         data = self._client._request("POST", f"/agents/{self._agent_id}/wait", json=payload)
         return Message.model_validate(data)
 
@@ -105,7 +130,7 @@ class MessagesResource:
         sender: Optional[str] = None,
     ) -> dict[str, Any]:
         """Wait for a message containing a numeric OTP code and extract it."""
-        payload: dict[str, Any] = {"timeout": timeout}
+        payload: dict[str, Any] = {"max_age_sec": timeout}
         if sender:
-            payload["sender"] = sender
+            payload["from"] = sender
         return self._client._request("POST", f"/agents/{self._agent_id}/extract-otp", json=payload)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { Command } from "commander";
 import { setMode } from "../lib/ndjson.js";
 import { runPreflight } from "../lib/preflight.js";

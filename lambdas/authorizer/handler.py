@@ -1,6 +1,6 @@
 """Lambda authorizer for API Gateway TOKEN type.
 
-Supports both API key authentication (am_live_* / am_test_*) and
+Supports both API key authentication (ak_live_* / ak_test_*) and
 Cognito JWT authentication for the developer console.
 """
 
@@ -26,7 +26,7 @@ def _extract_token(event: dict) -> str | None:
     token = event.get("authorizationToken", "")
     if token.startswith("Bearer "):
         return token[7:]
-    if token.startswith("am_live_") or token.startswith("am_test_"):
+    if token.startswith("ak_live_") or token.startswith("ak_test_"):
         return token
     if token.startswith("eyJ"):
         return token  # JWT token passed directly via identity source header
@@ -168,7 +168,7 @@ def handler(event, context):
     """Lambda authorizer handler.
 
     Supports two authentication methods:
-    1. API key: tokens starting with am_live_ or am_test_
+    1. API key: tokens starting with ak_live_ or ak_test_
     2. Cognito JWT: all other Bearer tokens
     """
     token = _extract_token(event)
@@ -178,7 +178,7 @@ def handler(event, context):
     wildcard_arn = _get_wildcard_arn(event)
 
     # Route to appropriate auth method
-    if token.startswith("am_live_") or token.startswith("am_test_"):
+    if token.startswith("ak_live_") or token.startswith("ak_test_"):
         # API key authentication
         key_item = _validate_api_key(token)
 

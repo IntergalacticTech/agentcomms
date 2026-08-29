@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """
 Finalize agentcomms.dev DNS setup once the ACM cert is ISSUED.
 
@@ -23,28 +23,33 @@ Exits non-zero if ACM is not ISSUED or any step fails.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from typing import Any
 
 import boto3
 
-ZONE_ID = "Z0370999MWHX8OSTHZPR"
-ZONE_DOMAIN = "agentcomms.dev"
-CERT_ARN = "arn:aws:acm:us-east-1:732770059798:certificate/3b0a4bb3-2daa-47a2-87b5-5d880d06718e"
-API_REST_API_ID = "0xztg5asi6"
-API_STAGE = "prod"
-REGION = "us-east-1"
-ACCOUNT = "732770059798"
-
-LANDING_DISTRIBUTION_ID = "E9787GLOP9GSN"   # VictoryMail-Landing-dev CloudFront
-CONSOLE_DISTRIBUTION_ID = "E1PG2DM90218AR"  # VictoryMail-Console-dev CloudFront
-COMBINED_CERT_ARN = "arn:aws:acm:us-east-1:732770059798:certificate/3bd1b3a6-a843-4804-9e0e-069550fd6aec"
+ZONE_ID = os.environ.get("AGENTCOMMS_ZONE_ID", "")
+ZONE_DOMAIN = os.environ.get("AGENTCOMMS_DOMAIN", "agentcomms.dev")
+CERT_ARN = os.environ.get("AGENTCOMMS_API_CERT_ARN", "")
+API_REST_API_ID = os.environ.get("AGENTCOMMS_API_REST_API_ID", "")
+API_STAGE = os.environ.get("AGENTCOMMS_API_STAGE", "prod")
+REGION = os.environ.get("AWS_REGION", "us-east-1")
+LANDING_DISTRIBUTION_ID = os.environ.get("AGENTCOMMS_LANDING_DISTRIBUTION_ID", "")
+CONSOLE_DISTRIBUTION_ID = os.environ.get("AGENTCOMMS_CONSOLE_DISTRIBUTION_ID", "")
+COMBINED_CERT_ARN = os.environ.get("AGENTCOMMS_COMBINED_CERT_ARN", CERT_ARN)
 
 _acm = boto3.client("acm", region_name=REGION)
 _apigw = boto3.client("apigateway", region_name=REGION)
 _route53 = boto3.client("route53")
 _cloudfront = boto3.client("cloudfront")
+
+
+def require_env(name: str, value: str) -> None:
+    if not value:
+        emit("config", "fail", missing=name)
+        raise SystemExit(2)
 
 
 def emit(phase: str, _status: str, **fields: Any) -> None:
@@ -185,6 +190,12 @@ def step_8_smoke_test() -> None:
 
 
 def main() -> int:
+    require_env("AGENTCOMMS_ZONE_ID", ZONE_ID)
+    require_env("AGENTCOMMS_API_CERT_ARN", CERT_ARN)
+    require_env("AGENTCOMMS_API_REST_API_ID", API_REST_API_ID)
+    require_env("AGENTCOMMS_LANDING_DISTRIBUTION_ID", LANDING_DISTRIBUTION_ID)
+    require_env("AGENTCOMMS_CONSOLE_DISTRIBUTION_ID", CONSOLE_DISTRIBUTION_ID)
+    require_env("AGENTCOMMS_COMBINED_CERT_ARN or AGENTCOMMS_API_CERT_ARN", COMBINED_CERT_ARN)
     step_1_verify_cert()
     step_2_api_gw_custom_domain()
     step_3_base_path_mapping()

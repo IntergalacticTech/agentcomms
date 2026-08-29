@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 #
 # One-command smoke test of the live AgentComms deployment.
 # Exercises all the Phase 1-3 endpoints against either the clean
@@ -10,13 +10,13 @@
 #
 # Env overrides:
 #   AGENTCOMMS_BASE_URL    — defaults to https://api.agentcomms.dev/v1
-#   DOMAIN_FOR_PROVISION   — defaults to victorymail.dev (the platform pool)
+#   DOMAIN_FOR_PROVISION   — defaults to agentcomms.dev (the platform pool)
 
 set -uo pipefail
 
 API="${AGENTCOMMS_BASE_URL:-https://api.agentcomms.dev/v1}"
 KEY="${AGENTCOMMS_API_KEY:?Set AGENTCOMMS_API_KEY}"
-DOMAIN="${DOMAIN_FOR_PROVISION:-victorymail.dev}"
+DOMAIN="${DOMAIN_FOR_PROVISION:-agentcomms.dev}"
 AUTH=( -H "Authorization: Bearer $KEY" )
 
 green() { printf "\033[32m%s\033[0m\n" "$1"; }

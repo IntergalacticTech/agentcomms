@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """AI resource — Bedrock-backed operations on messages."""
 from __future__ import annotations
 
@@ -18,19 +18,55 @@ class AiResource:
     def _path(self, op: str) -> str:
         return f"/agents/{self._agent_id}/ai/{op}"
 
-    def categorize(self, *, message_id: str, categories: Optional[list[str]] = None) -> dict[str, Any]:
+    def categorize(
+        self,
+        *,
+        message_id: str,
+        labels: Optional[list[str]] = None,
+        categories: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {"message_id": message_id}
-        if categories:
-            body["categories"] = categories
+        selected_labels = labels or categories
+        if selected_labels:
+            body["labels"] = selected_labels
         return self._client._request("POST", self._path("categorize"), json=body)
 
-    def extract(self, *, message_id: str, fields: list[str]) -> dict[str, Any]:
-        return self._client._request("POST", self._path("extract"), json={"message_id": message_id, "fields": fields})
+    def extract(
+        self,
+        *,
+        message_id: str,
+        schema: dict[str, Any] | None = None,
+        fields: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
+        if schema is None:
+            if not fields:
+                raise ValueError("schema is required")
+            schema = {
+                "type": "object",
+                "properties": {field: {"type": "string"} for field in fields},
+            }
+        return self._client._request("POST", self._path("extract"), json={"message_id": message_id, "schema": schema})
 
-    def summarize(self, *, message_id: str, max_length: Optional[int] = None) -> dict[str, Any]:
-        body: dict[str, Any] = {"message_id": message_id}
-        if max_length:
-            body["max_length"] = max_length
+    def summarize(
+        self,
+        *,
+        text: str | None = None,
+        message_id: str | None = None,
+        thread_key: str | None = None,
+        length: str | None = None,
+        max_length: Optional[int] = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if text:
+            body["text"] = text
+        if message_id:
+            body["message_id"] = message_id
+        if thread_key:
+            body["thread_key"] = thread_key
+        if length:
+            body["length"] = length
+        elif max_length:
+            body["length"] = "long" if max_length > 500 else "short"
         return self._client._request("POST", self._path("summarize"), json=body)
 
     def search(self, *, query: str, limit: int = 10) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for EmailAdapter S3 offload and outbound threading headers."""
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
-// © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-// with Apache 2.0 Future License. See LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Victory (Intergalactic Tech).
+// Licensed under the Apache License, Version 2.0. See LICENSE for details.
 import { jest } from "@jest/globals";
 import { Client } from "../src/client.js";
 import {
@@ -99,7 +99,7 @@ describe("agents.agent().messages.list()", () => {
 
 describe("agents.agent().messages.send()", () => {
   test("issues POST with body", async () => {
-    const spy = mockFetch(202, { message_id: "msg_out_1" });
+    const spy = mockFetch(201, { message_id: "msg_out_1" });
     const client = new Client({ apiKey: "k" });
     const result = await client.agents.agent("agt_1").messages.send({
       to: "alice@example.com",
@@ -107,6 +107,31 @@ describe("agents.agent().messages.send()", () => {
     });
     expect(spy.mock.calls[0][1]?.method).toBe("POST");
     expect((result as { message_id: string }).message_id).toBe("msg_out_1");
+  });
+});
+
+describe("agents.agent().ai.summarize()", () => {
+  test("sends raw text payload", async () => {
+    const spy = mockFetch(200, { summary: "Short summary" });
+    const client = new Client({ apiKey: "k" });
+    const result = await client.agents.agent("agt_1").ai.summarize({
+      text: "Long body",
+      length: "short",
+    });
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/agents/agt_1/ai/summarize");
+    expect(JSON.parse(String(init.body))).toEqual({ text: "Long body", length: "short" });
+    expect(result.summary).toBe("Short summary");
+  });
+});
+
+describe("agents.agent().messages.wait()", () => {
+  test("sends canonical channels array for multi-channel filters", async () => {
+    const spy = mockFetch(200, { message_id: "msg_1", agent_id: "agt_1", channel: "email" });
+    const client = new Client({ apiKey: "k" });
+    await client.agents.agent("agt_1").messages.wait({ channels: ["email", "slack"] });
+    const init = spy.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toMatchObject({ channels: ["email", "slack"] });
   });
 });
 

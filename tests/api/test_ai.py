@@ -266,6 +266,19 @@ def test_summarize_message_short(message_in_db, seeded):
     assert "Invoice" in body["summary"] or "invoice" in body["summary"].lower()
 
 
+def test_summarize_raw_text(seeded):
+    with patch("core.ai.summarize.invoke_model", side_effect=_fake_summarize_invoke):
+        resp = handler(_event(
+            "/v1/agents/agt_AI1/ai/summarize",
+            body={"text": "Invoice INV-1001 for $500 is due tomorrow.", "length": "short"},
+        ), None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "summary" in body
+    assert "invoice" in body["summary"].lower()
+
+
 # Test 6: Search keyword returns matching messages
 def test_search_keyword_returns_messages(seeded, agentcomms_table):
     repo, _ = seeded

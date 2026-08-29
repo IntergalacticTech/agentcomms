@@ -160,10 +160,10 @@ docs/
 4. The new thesis: one hub for all agent comms — email, SMS, Slack, Telegram, Discord, WhatsApp, postal, fax, voice.
 5. The architectural bet: agent-centric data model, ChannelAdapter plugin contract, AWS-native.
 6. The differentiator Cloudflare can't touch: "your coding agent deploys the whole thing into your AWS account in 20 minutes."
-7. The license choice (FSL), why not Apache (defensibility), why not AGPL (reach).
+7. The license choice (Apache-2.0), why real OSS instead of copyleft, restricted-source, or delayed-open licensing.
 8. What customers need to do (link to MIGRATION.md).
 9. What's next (Discord, WhatsApp, postal mail).
-10. Call to action: try the bootstrap; contribute an adapter; grab a commercial license if you want to host.
+10. Call to action: try the bootstrap; contribute an adapter; run it yourself or build on it.
 
 **Length target:** 1,800–2,500 words.
 
@@ -176,12 +176,12 @@ docs/
 **File:** `landing/blog/2026-05-XX-hn-post.md`
 
 **Structure:**
-- **Title:** `Show HN: AgentComms – the agent-comms hub your coding agent deploys for you (source-available, AWS-native)`
+- **Title:** `Show HN: AgentComms - the open-source agent-comms hub your coding agent deploys for you`
 - **Body (~200 words):**
   - One-sentence hook.
   - What it does (unified inbox across email/SMS/Slack/Telegram; your coding agent deploys it into your AWS in 20 min).
   - Why you built it (pivot from FreeMail, market commoditization).
-  - What's unique (FSL license, agent-deployable, AWS-native).
+  - What's unique (Apache-2.0 license, agent-deployable, AWS-native).
   - Link to repo + AGENT.md + screencast.
   - Invitation to ask questions in comments; you'll be around for 24h.
 - **First-comment plant:** immediate HN-style technical deep-dive comment explaining a subtle architectural trade-off. Shows you actually built it. Seeds quality discussion.

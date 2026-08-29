@@ -8,7 +8,7 @@
 
 **Tech Stack:** AWS CDK v2 (TypeScript), Python 3.12 (Lambda), DynamoDB, S3, SES, SQS, SNS, API Gateway REST
 
-**Domain:** `victorymail.dev` (temporary), AWS Account `732770059798`, Region `us-east-1`
+**Domain:** `victorymail.dev` (temporary), AWS Account `<AWS_ACCOUNT_ID>`, Region `us-east-1`
 
 ---
 
@@ -166,7 +166,7 @@ Create `cdk/cdk.json`:
 {
   "app": "npx ts-node bin/app.ts",
   "context": {
-    "account": "732770059798",
+    "account": "<AWS_ACCOUNT_ID>",
     "region": "us-east-1",
     "domain": "victorymail.dev",
     "stage": "dev"
@@ -1108,7 +1108,7 @@ def handler(event, context):
     if not token:
         raise Exception("Unauthorized")
 
-    if not token.startswith(("am_live_", "am_test_")):
+    if not token.startswith(("ak_live_", "ak_test_")):
         raise Exception("Unauthorized")
 
     key_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -1181,7 +1181,7 @@ from shared.models import api_key_keys, api_key_gsi1, org_keys
 from shared.dynamo import put_item
 
 
-def _seed_org_and_key(aws_env, org_id="org_01", key_id="key_01", api_key="am_live_testkey1234567890abcdefghijklmnopqrst"):
+def _seed_org_and_key(aws_env, org_id="org_01", key_id="key_01", api_key="ak_live_EXAMPLE"):
     key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     put_item({
         **org_keys(org_id),
@@ -1219,7 +1219,7 @@ def test_authorizer_valid_key(aws_env):
 def test_authorizer_invalid_key(aws_env):
     from authorizer.handler import handler
     event = {
-        "headers": {"x-api-key": "am_live_invalidkey"},
+        "headers": {"x-api-key": "ak_live_invalidkey"},
         "methodArn": "arn:aws:execute-api:us-east-1:123:api/stage/GET/test",
     }
     with pytest.raises(Exception, match="Unauthorized"):
@@ -1239,7 +1239,7 @@ def test_authorizer_bearer_token(aws_env):
 
 def test_authorizer_revoked_key(aws_env):
     from authorizer.handler import handler
-    api_key = "am_live_revokedkeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    api_key = "ak_live_EXAMPLE"
     key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     put_item({
         **api_key_keys("org_01", "key_revoked"),
@@ -1465,7 +1465,7 @@ def test_verify_creates_org_and_key(aws_env):
     assert result["statusCode"] == 200
     body = json.loads(result["body"])
     assert body["organization"]["name"] == "Test Org"
-    assert body["api_key"]["key"].startswith("am_live_")
+    assert body["api_key"]["key"].startswith("ak_live_")
 
 
 def test_verify_invalid_code(aws_env):
@@ -1724,14 +1724,14 @@ def test_create_api_key(aws_env):
     result = handler(event, None)
     assert result["statusCode"] == 201
     body = json.loads(result["body"])
-    assert body["key"].startswith("am_live_")
+    assert body["key"].startswith("ak_live_")
     assert body["scope"] == "org"
 
 
 def test_list_api_keys(aws_env):
     from api_keys.handler import handler
     import hashlib
-    key_hash = hashlib.sha256(b"am_live_test").hexdigest()
+    key_hash = hashlib.sha256(b"ak_live_test").hexdigest()
     put_item({
         **api_key_keys("org_01", "key_01"),
         **api_key_gsi1(key_hash, "key_01"),
@@ -1739,7 +1739,7 @@ def test_list_api_keys(aws_env):
         "id": "key_01",
         "org_id": "org_01",
         "name": "Key 1",
-        "prefix": "am_live_test",
+        "prefix": "ak_live_test",
         "key_hash": key_hash,
         "status": "active",
         "scope": "org",
@@ -1754,7 +1754,7 @@ def test_list_api_keys(aws_env):
 def test_delete_api_key(aws_env):
     from api_keys.handler import handler
     import hashlib
-    key_hash = hashlib.sha256(b"am_live_test2").hexdigest()
+    key_hash = hashlib.sha256(b"ak_live_test2").hexdigest()
     put_item({
         **api_key_keys("org_01", "key_02"),
         **api_key_gsi1(key_hash, "key_02"),
@@ -4317,7 +4317,7 @@ cd /Users/jwc/code/Victory/FreeMail.ai/cdk
 export AWS_ACCESS_KEY_ID=$(grep AWS_ACCESS_KEY /Users/jwc/code/Victory/FreeMail.ai/.env | cut -d= -f2)
 export AWS_SECRET_ACCESS_KEY=$(grep AWS_SECRET_KEY /Users/jwc/code/Victory/FreeMail.ai/.env | cut -d= -f2)
 export AWS_DEFAULT_REGION=us-east-1
-npx cdk bootstrap aws://732770059798/us-east-1
+npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/us-east-1
 ```
 
 - [ ] **Step 3: CDK deploy**

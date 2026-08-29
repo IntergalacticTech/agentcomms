@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Ingest Lambdas must publish message.received through the shared
 core.providers KinesisEventPublisher (not hand-rolled boto3 kinesis)."""
 from __future__ import annotations

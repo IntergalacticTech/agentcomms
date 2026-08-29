@@ -379,7 +379,7 @@ from agentcomms.models import Agent, UnifiedMessage
 client = FreemailClient(api_key="fm_live_...")
 
 # New
-client = AgentCommsClient(api_key="ac_live_...")
+client = AgentCommsClient(api_key="ak_live_...")
 # Note: existing fm_live_ keys continue to work; the key prefix is cosmetic
 ```
 
@@ -546,13 +546,13 @@ your webhook secret). No changes to verification logic.
 
 | Legacy | New | Notes |
 |--------|-----|-------|
-| `fm_live_...` prefix | `ac_live_...` prefix | Existing `fm_live_` keys continue to work; the prefix is cosmetic |
-| `fm_test_...` prefix | `ac_test_...` prefix | Same — old keys still work |
+| `fm_live_...` prefix | `ak_live_...` prefix | Existing `fm_live_` keys continue to work; the prefix is cosmetic |
+| `fm_test_...` prefix | `ak_test_...` prefix | Same — old keys still work |
 
 **Header — unchanged:**
 ```
 Authorization: Bearer fm_live_abc...
-Authorization: Bearer ac_live_abc...
+Authorization: Bearer ak_live_abc...
 # Both work
 ```
 
@@ -663,13 +663,13 @@ from freemail import FreemailClient   # emits DeprecationWarning but works
 
 ### 8.6 `401 Unauthorized` after API key rotation
 
-**Symptom:** After rotating to a new `ac_live_...` key, requests return 401.
+**Symptom:** After rotating to a new `ak_live_...` key, requests return 401.
 
-**Cause:** The new SDK sends `Bearer ac_live_...` but your code may be reading
-the key from an env var that still has the old `fm_live_...` key cached.
+**Cause:** The new SDK sends `Bearer ak_live_...` but your process may still
+have an old key cached in the environment or secret manager.
 
-**Fix:** Ensure `AGENTCOMMS_API_KEY` (or `FREEMAIL_API_KEY` — both are read)
-is set to the new key value.
+**Fix:** Ensure `AGENTCOMMS_API_KEY` is set to the new key value and restart
+the process that reads it.
 
 ---
 

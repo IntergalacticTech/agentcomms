@@ -1,27 +1,27 @@
 # Slack Standup Bot Example
 
 A working Python agent that DMs each team member at 9 AM asking for their standup,
-collects replies for an hour via AgentComms' unified inbox, summarizes them with AI,
+collects replies for an hour via AgentComms' unified message API, summarizes them with AI,
 and posts the summary to a public Slack channel.
 
 ## What it does
 
 1. **Waits until 09:00 local time** each day (simple sleep-to-next-9am loop).
 2. **DMs each team member** via AgentComms' Slack channel API:
-   `POST /inboxes/{id}/slack/workspaces/{team}/channels/@{user_id}/messages`
-3. **Collects replies** for 60 minutes by polling the unified inbox every 2 minutes,
-   filtering for `channel=slack` and `is_dm=true`.
-4. **Summarizes** the concatenated replies using `POST /ai/summarize`.
+   `POST /agents/{agent_id}/slack/workspaces/{team}/users/{user_id}/messages`
+3. **Collects replies** for 60 minutes by polling the unified message API every 2 minutes,
+   filtering for `channels=slack` and direct messages.
+4. **Summarizes** the concatenated replies using `POST /agents/{agent_id}/ai/summarize`.
 5. **Posts the summary** to a public Slack channel:
-   `POST /inboxes/{id}/slack/workspaces/{team}/channels/{channel_id}/messages`
+   `POST /agents/{agent_id}/slack/workspaces/{team}/channels/{channel_id}/messages`
 
 ## Prerequisites
 
 - Python 3.11+
-- An AgentComms inbox with a Slack workspace connected (see Slack App Setup below).
+- An AgentComms agent with a Slack workspace connected (see Slack App Setup below).
 - `AGENTCOMMS_API_KEY` — your API key.
 - `AGENTCOMMS_BASE_URL` — e.g. `https://api.agentcomms.dev/v1`.
-- `STANDUP_INBOX_ID` — ID of the inbox connected to your Slack workspace.
+- `STANDUP_AGENT_ID` — ID of the agent connected to your Slack workspace.
 - `STANDUP_SLACK_TEAM` — your Slack workspace/team ID (e.g. `T012AB3CD`).
 - `STANDUP_TEAM` — comma-separated Slack user IDs to DM (e.g. `U012AB3CD,U012AB3CE`).
 - `STANDUP_POST_CHANNEL` — Slack channel ID to post the summary to (e.g. `C012AB3CF`).
@@ -35,9 +35,9 @@ and posts the summary to a public Slack channel.
    - `channels:read` — list channels
    - `users:read` — look up user IDs
 3. Install the app to your workspace and copy the **Bot User OAuth Token**.
-4. In the AgentComms dashboard, go to your inbox settings and connect the Slack
+4. In the AgentComms dashboard, go to your agent settings and connect the Slack
    workspace using the Bot Token. AgentComms will register the webhook and start
-   routing Slack DMs to your unified inbox.
+   routing Slack DMs to your agent's unified message stream.
 5. Invite the bot to the summary channel: `/invite @YourBotName` in that channel.
 
 ## Quick start
@@ -47,9 +47,9 @@ cd examples/slack-standup-bot
 
 pip install -e .
 
-export AGENTCOMMS_API_KEY="ac_live_your_key"
+export AGENTCOMMS_API_KEY="ak_live_your_key"
 export AGENTCOMMS_BASE_URL="https://api.agentcomms.dev/v1"
-export STANDUP_INBOX_ID="01HXYZ..."
+export STANDUP_AGENT_ID="agt_01HXYZ..."
 export STANDUP_SLACK_TEAM="T012AB3CD"
 export STANDUP_TEAM="U012AB3CD,U012AB3CE,U012AB3CF"
 export STANDUP_POST_CHANNEL="C012AB3CG"

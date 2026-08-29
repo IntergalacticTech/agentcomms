@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """
 DEPRECATED: The ``freemail`` package is a compatibility shim. Please migrate to ``agentcomms``.
 

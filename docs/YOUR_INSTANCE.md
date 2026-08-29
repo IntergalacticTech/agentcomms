@@ -1,58 +1,39 @@
 # Your AgentComms Instance
 
-Everything you need to connect your AI agents to AgentComms — today.
+Use this template after `agentcomms bootstrap` finishes. Paste only local/private deployment details into an untracked copy. Do not commit live API keys.
 
-## TL;DR
+## Fill In
 
-```
-API base URL (clean):    https://api.agentcomms.dev/v1
-API base URL (direct):   https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1
-API key:                 ak_live_YOUR_ORG_KEY_HERE
-Org:                     <YOUR_ORG_ID>
-Region:                  <region>
-
-Landing:                 https://agentcomms.dev     (live)
-Console:                 https://console.agentcomms.dev  (live)
+```text
+API base URL:     https://<api-id>.execute-api.<region>.amazonaws.com/prod/v1
+Clean API URL:    https://api.<your-domain>/v1
+Console URL:      https://console.<your-domain>
+Org ID:           org_...
+Region:           us-east-1
+Admin API key:    ak_live_...
 ```
 
-> **Generate your own org API key** — the `ak_live_...` value above is a placeholder. Create a real
-> org-scoped key from the console (or `POST /v1/api-keys`) and paste it in. Never commit a live key
-> to a tracked file; treat any key that lands in git history as compromised and rotate it.
-
-Both API URLs accept the same API key. Use the clean `api.agentcomms.dev` URL in SDK configs.
-
-One agent is already provisioned for you — `agt_YOUR_AGENT_ID` (`jwc-first-agent`) with an email channel at `jwc@victorymail.dev`. Use it as a template or delete it and create your own.
-
----
-
-## 1. Verify it's working
+## Verify
 
 ```bash
-curl -s -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
-  "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents" | python3 -m json.tool
+curl -sS "$AGENTCOMMS_BASE_URL/agents" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY"
 ```
 
-Expected: JSON with one agent (`jwc-first-agent`). If you see that, you're good.
+Expected: `{"agents": [...]}`.
 
----
+## MCP
 
-## 2. Connect Claude Desktop (via MCP)
+Build from the repository:
 
-The MCP server gives Claude Desktop 24 tools covering agents, messages, channels, vault, personas, and AI.
-
-### Install
-
-From this repo:
 ```bash
-cd mcp && npm install && npm run build
-npm link            # makes `agentcomms-mcp` available globally
+cd mcp
+npm install
+npm run build
+npm link
 ```
 
-(Once the npm package is public, this becomes `npm i -g @agentcomms/mcp`.)
-
-### Configure Claude Desktop
-
-Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
+Claude Desktop config:
 
 ```json
 {
@@ -60,200 +41,48 @@ Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
     "agentcomms": {
       "command": "agentcomms-mcp",
       "env": {
-        "AGENTCOMMS_API_KEY": "ak_live_YOUR_ORG_KEY_HERE",
-        "AGENTCOMMS_BASE_URL": "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1"
+        "AGENTCOMMS_API_KEY": "ak_live_YOUR_KEY",
+        "AGENTCOMMS_BASE_URL": "https://api.<your-domain>/v1"
       }
     }
   }
 }
 ```
 
-Quit and restart Claude Desktop. You should see 24 new tools prefixed `agent_*`, `message_*`, `vault_*`, `persona_*`, `ai_*`, `channels_*` when you pull up the MCP tool panel.
-
-### Try it in Claude
-
-> "List my agents, then send a test email from the first one to me@example.com saying hello."
-
-Claude will call `agent_list`, pick the first agent, then `message_send` with the body — routing through the email adapter, out via SES.
-
----
-
-## 3. Connect Cursor (same MCP server)
-
-In Cursor, open Settings → MCP → Add new server. Use the same command + env vars as above.
-
-Cursor's chat pane picks up the tools and can call them from agent mode.
-
----
-
-## 4. Connect Claude Code (Python SDK, not MCP)
-
-Claude Code can use the Python SDK directly via tool scripts or by running Python code inline.
-
-### Install the SDK
+## Create an Agent and Email Channel
 
 ```bash
-cd sdks/python && pip install -e .
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "MyAgent"}'
 ```
-
-(Once published: `pip install agentcomms`.)
-
-### Example: agent script
-
-```python
-# save as my_agent.py
-from agentcomms import Client
-
-client = Client(
-    api_key="ak_live_YOUR_ORG_KEY_HERE",
-    base_url="https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1",
-)
-
-# Create a new agent with email + SMS
-result = client._request("POST", "/agents", json={
-    "name": "MyInvoiceBot",
-    "provision": {
-        "email": {"local_part": "invoice", "domain": "victorymail.dev"},
-    },
-})
-print(f"Created agent {result['agent_id']}")
-
-# List all my agents
-agents = client._request("GET", "/agents")["agents"]
-for a in agents:
-    print(f"  {a['agent_id']}: {a['name']}")
-```
-
-Run it:
-```bash
-python my_agent.py
-```
-
----
-
-## 5. Connect any coding agent (raw HTTP)
-
-Any tool that can make authenticated HTTP calls works. The auth is a simple Bearer token.
 
 ```bash
-curl -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
-     -H "Content-Type: application/json" \
-     -X POST \
-     -d '{"name":"MyBot","provision":{"email":{"local_part":"mybot","domain":"victorymail.dev"}}}' \
-     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents"
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../channels" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "email",
+    "mode": "provision",
+    "config": {"local_part": "myagent", "domain": "<your-domain>"}
+  }'
 ```
 
-Full API reference: see `docs/api-reference.md` and `docs/openapi.yaml`.
-
----
-
-## 6. What's live and callable right now
-
-| Category | Endpoints | Status |
-|---|---|---|
-| Agents | `POST /v1/agents`, `GET /v1/agents`, `GET/DELETE /v1/agents/{id}` | ✅ Working — tested live |
-| Channels | `/v1/agents/{id}/channels*` | ✅ Working |
-| Messages | `/v1/agents/{id}/messages*`, `/wait`, `/extract-otp` | ✅ Working |
-| Threads / Drafts / Webhooks | `/v1/agents/{id}/{threads,drafts,webhooks}` | ✅ Working |
-| Vault | `/v1/vault*` + `/v1/vault/{id}/totp` | ✅ Working — KMS encrypted |
-| Personas | `/v1/personas*` + `/v1/agents/{id}/personas` | ✅ Working |
-| Domains | `/v1/domains*` | ✅ Working — issues real SES DKIM tokens |
-| AI | `/v1/agents/{id}/ai/{categorize,extract,summarize,search}` | ⚠️ Live but needs Bedrock model access grants in the AWS account |
-| Email channel | send + receive | ✅ Working — using `victorymail.dev` pool |
-| SMS channel | provision + send + receive | ⚠️ Needs 10DLC brand registration (multi-day carrier process) |
-| Slack bridge | OAuth flow + events webhook | ⚠️ Needs a real Slack app registration (placeholder creds deployed) |
-| Telegram channel | provision + webhook ingest | ⚠️ Needs a BotFather bot token (you provide at provision time) |
-| Push channel | device registration + send | ⚠️ Needs APNs / FCM platform app credentials |
-
-Green is production-ready. Yellow needs one more external step (third-party registration) before end-to-end works — but the routes are live and tested.
-
----
-
-## 7. `agentcomms.dev` DNS — ✅ live
-
-- Route 53 zone: `<YOUR_HOSTED_ZONE_ID>` (in account `<YOUR_ACCOUNT_ID>`)
-- ACM cert: combined cert covering agentcomms.dev + *.agentcomms.dev + victorymail.dev + *.victorymail.dev (`<YOUR_ACM_CERT_ID>`)
-- `api.agentcomms.dev` → API Gateway custom domain → `AgentCommsApi` (stage `prod`)
-- `agentcomms.dev` → CloudFront distribution `<LANDING_CLOUDFRONT_DIST_ID>` (landing page S3 origin)
-- `console.agentcomms.dev` → CloudFront distribution `<CONSOLE_CLOUDFRONT_DIST_ID>` (console React app S3 origin)
-
-All three URLs serve from the same infrastructure as their `victorymail.dev` counterparts — no duplicate stacks.
-
----
-
-## 8. Rotating / creating more API keys
-
-The key you have (`ak_live_YOUR_ORG_KEY_HERE`) is ORG-scoped, which means it can do everything inside your `JWC Personal` org. For production use of a specific agent, you probably want agent-scoped keys.
-
-### Create an agent-scoped key
+## Create a Scoped API Key
 
 ```bash
-curl -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
-     -H "Content-Type: application/json" \
-     -X POST \
-     -d '{"name":"my-invoice-bot-key","scope":"agent","agent_id":"agt_YOUR_AGENT_ID"}' \
-     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/api-keys"
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/api-keys" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-agent-key", "scope": "agent", "agent_id": "agt_..."}'
 ```
 
-The response includes the plaintext key once. Store it.
+The response includes the plaintext key once. Store it in your secret manager.
 
-### Rotate / revoke
+## Troubleshooting
 
-```bash
-curl -H "Authorization: Bearer ak_live_..." \
-     -X DELETE \
-     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/api-keys/key_01H..."
-```
-
----
-
-## 9. Reading inbound email for your agent
-
-The agent `jwc-first-agent` has an email address: `jwc@victorymail.dev`. Anything sent to that address will land in its unified inbox within ~10 seconds.
-
-```bash
-# send yourself a test email to jwc@victorymail.dev from your personal email...
-# then:
-curl -s -H "Authorization: Bearer ak_live_YOUR_ORG_KEY_HERE" \
-     "https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/v1/agents/agt_YOUR_AGENT_ID/messages" | python3 -m json.tool
-```
-
-The `messages` array contains every inbound + outbound message with full MIME metadata.
-
----
-
-## 10. What to try next
-
-- Have Claude send an email to yourself via the MCP `message_send` tool.
-- Reply to the email from your human inbox. Have Claude read the unified inbox via `messages_list` and respond.
-- Create a TOTP vault entry: have Claude call `vault_create` with `type=totp`, seed = one of your actual TOTP secrets. Then ask Claude for the current code via `vault_get_totp`.
-- Create a persona (`persona_create`), associate it with your agent (`persona_associate`), then query the persona to check it stuck.
-- Watch the CloudWatch logs as your agent operates:
-  ```
-  aws logs tail /aws/lambda/AgentCommsApi-AgentsFn* --follow --region us-east-1
-  ```
-
----
-
-## 11. Troubleshooting
-
-**`HTTP 401 Unauthorized`** — bad API key. Copy the key from this doc exactly; `Bearer ` (with a space) goes before it.
-
-**`HTTP 403`** — wrong scope. Check the key's scope vs the path you're calling (org keys can call anything; agent keys only their own agent's paths).
-
-**`HTTP 500` on a new endpoint** — something went wrong server-side. Tail the relevant Lambda log group:
-```bash
-aws logs tail /aws/lambda/AgentCommsApi-<FnName>Fn* --since 3m --region us-east-1
-```
-
-**Email send fails with SES verification error** — the domain `victorymail.dev` is SES-verified, but your account may be in sandbox mode so it can only send to verified recipients. Add your recipient email as an SES identity, or request SES production access.
-
-**MCP tools don't show up in Claude Desktop** — check the config JSON has no trailing commas (Claude's parser is strict), and that `agentcomms-mcp` resolves on your PATH (`which agentcomms-mcp` should return a path).
-
----
-
-## 12. What I'm NOT giving you yet
-
-- **Hosted console login at `console.agentcomms.dev`** — still deferred to when DNS flips. For now, `https://console.victorymail.dev` shows "AgentComms Console" but runs against the legacy victorymail API, not your new agentcomms org.
-- **Automated DNS finalize script** — I'll write `tools/finalize_agentcomms_dns.py` the next session. For now, after you update the registrar, ping me and I'll finish the API GW custom domain mapping + CloudFront alternates manually.
-- **npm-installable CLI** — the `agentcomms` CLI is in `cli/dist/` but not yet published to npm. Install from source: `cd cli && npm install && npm run build && npm link`.
+- `401` means the API key is missing, malformed, revoked, expired, or from the wrong deployment.
+- `403` usually means the key scope does not match the route.
+- SES sandbox accounts can send only to verified recipients.
+- Slack, Telegram, SMS, and push may need provider setup before end-to-end sends work.

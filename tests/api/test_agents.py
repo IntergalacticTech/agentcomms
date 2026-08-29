@@ -1,8 +1,10 @@
 # tests/api/test_agents.py
 import json
 import pytest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
+from core.adapters.base import ProvisionResult
 from core.data.models import Organization, OrgPlan
 from core.data.repo import Repo
 from core.api.agents_handler import handler
@@ -56,6 +58,30 @@ def test_create_agent_no_provision(seeded):
     assert resp["statusCode"] == 201
     body = json.loads(resp["body"])
     assert body["channels"] == []
+
+
+def test_create_agent_can_provision_external_adapter_channel(seeded):
+    adapter = MagicMock()
+    adapter.provision.return_value = ProvisionResult(
+        status="active",
+        channel_id="chan_al_123",
+        details={"address": "alien:relay-1"},
+    )
+    entry = SimpleNamespace(adapter=adapter, modes=["provision"])
+
+    with patch("core.api.agents_handler._registry", return_value={"alien-transmission": entry}):
+        resp = handler(_event("POST", "/v1/agents", body={
+            "name": "RelayBot",
+            "provision": {
+                "alien-transmission": {"beam": "narrowband"}
+            },
+        }), None)
+
+    assert resp["statusCode"] == 201
+    body = json.loads(resp["body"])
+    assert body["channels"][0]["channel"] == "alien-transmission"
+    assert body["channels"][0]["channel_id"] == "chan_al_123"
+    adapter.provision.assert_called_once()
 
 
 def test_list_agents(seeded):

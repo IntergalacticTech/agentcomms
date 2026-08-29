@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { Command } from "commander";
 import { bootstrapCommand } from "./commands/bootstrap.js";
 import { doctorCommand } from "./commands/doctor.js";

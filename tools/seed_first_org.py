@@ -46,6 +46,7 @@ def main() -> int:
     api_key = ApiKey(
         key_id=new_id("key"),
         key_hash=key_hash,
+        key_prefix=plaintext[:12],
         org_id=org_id,
         scope=ApiKeyScope.ORG,
         name="bootstrap-admin",

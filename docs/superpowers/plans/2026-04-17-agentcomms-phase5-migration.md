@@ -5,7 +5,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans.
 
 **Spec:** `docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md` §6
-**Predecessors:** Phases 1–4 complete. `agentcomms-*` CDK stacks are running parallel to `victorymail-*` stacks in production AWS account 732770059798.
+**Predecessors:** Phases 1–4 complete. `agentcomms-*` CDK stacks are running parallel to `victorymail-*` stacks in production AWS account <AWS_ACCOUNT_ID>.
 
 **Goal:** Migrate the live FreeMail data to AgentComms, cut DNS over, rewire Stripe, and run the dual-service window. At Phase 5 exit, `api.agentcomms.dev` is authoritative, all existing customers are migrated with zero data loss, and `api.victorymail.dev` is on a 90-day sunset clock.
 
@@ -142,12 +142,12 @@ For each of the 3 old buckets (`victorymail-raw-email`, `victorymail-bodies`, `v
 # Use a Python re-keying script (bash aws s3 sync can't transform keys)
 python tools/migrate_s3_rekey.py \
   --source-bucket victorymail-raw-email \
-  --dest-bucket agentcomms-raw-inbound-prod-732770059798 \
+  --dest-bucket agentcomms-raw-inbound-prod-<AWS_ACCOUNT_ID> \
   --key-map-script map_raw_email_key.py
 
 # bodies, attachments: keep same key structure (already {org_id}/{msg_id}/...)
-aws s3 sync s3://victorymail-bodies s3://agentcomms-bodies-prod-732770059798
-aws s3 sync s3://victorymail-attachments s3://agentcomms-attachments-prod-732770059798
+aws s3 sync s3://victorymail-bodies s3://agentcomms-bodies-prod-<AWS_ACCOUNT_ID>
+aws s3 sync s3://victorymail-attachments s3://agentcomms-attachments-prod-<AWS_ACCOUNT_ID>
 ```
 
 **Steps:**

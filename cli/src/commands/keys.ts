@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { Command } from "commander";
 import { setMode, emit } from "../lib/ndjson.js";
 import { readConfig } from "../lib/config.js";
@@ -21,6 +21,9 @@ async function apiRequest(
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`HTTP ${resp.status}: ${text}`);
+  }
+  if (resp.status === 204) {
+    return {};
   }
   return resp.json();
 }
@@ -49,8 +52,8 @@ export function keysCommand(): Command {
       if (opts.json) setMode("json");
       const { apiUrl, apiKey } = getApiConfig();
       try {
-        const data = await apiRequest(apiUrl, "/keys", apiKey);
-        emit({ phase: "keys", status: "ok", keys: data });
+        const data = await apiRequest(apiUrl, "/api-keys", apiKey);
+        emit({ phase: "keys", status: "ok", api_keys: data });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         emit({ phase: "keys", status: "fail", msg });
@@ -62,18 +65,31 @@ export function keysCommand(): Command {
     .command("create")
     .description("Create a new API key")
     .requiredOption("--name <name>", "name for the key")
-    .option("--scope <scope>", "permission scope (org, read, write)", "write")
+    .option("--scope <scope>", "permission scope (org, agent, channel)", "org")
+    .option("--agent-id <id>", "required for agent or channel scope")
+    .option("--channel-id <id>", "required for channel scope")
+    .option("--expires-at <iso>", "optional ISO 8601 expiration timestamp")
     .option("--json", "NDJSON output", false)
-    .action(async (opts: { name: string; scope: string; json: boolean }) => {
+    .action(async (opts: {
+      name: string;
+      scope: string;
+      agentId?: string;
+      channelId?: string;
+      expiresAt?: string;
+      json: boolean;
+    }) => {
       if (opts.json) setMode("json");
       const { apiUrl, apiKey } = getApiConfig();
       emit({ phase: "keys", status: "running", msg: `creating key ${opts.name}` });
       try {
-        const data = await apiRequest(apiUrl, "/keys", apiKey, "POST", {
+        const data = await apiRequest(apiUrl, "/api-keys", apiKey, "POST", {
           name: opts.name,
           scope: opts.scope,
+          agent_id: opts.agentId,
+          channel_id: opts.channelId,
+          expires_at: opts.expiresAt,
         });
-        emit({ phase: "keys", status: "ok", key: data, note: "shown once — store securely" });
+        emit({ phase: "keys", status: "ok", key: data, note: "shown once - store securely" });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         emit({ phase: "keys", status: "fail", msg });
@@ -90,7 +106,7 @@ export function keysCommand(): Command {
       const { apiUrl, apiKey } = getApiConfig();
       emit({ phase: "keys", status: "running", msg: `revoking key ${keyId}` });
       try {
-        await apiRequest(apiUrl, `/keys/${keyId}`, apiKey, "DELETE");
+        await apiRequest(apiUrl, `/api-keys/${keyId}`, apiKey, "DELETE");
         emit({ phase: "keys", status: "ok", msg: `key ${keyId} revoked` });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);

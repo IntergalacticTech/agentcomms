@@ -1,6 +1,6 @@
 # Contributing to AgentComms
 
-Thanks for your interest in contributing. AgentComms is source-available under FSL-1.1-Apache-2.0. External contributions are welcome and, once merged, are governed by the same license.
+Thanks for your interest in contributing. AgentComms is open source under Apache-2.0. External contributions are welcome and, once merged, are governed by the same license.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ git clone https://github.com/IntergalacticTech/FreeMail.ai
 cd FreeMail.ai
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest                     # 277 tests should pass
+python -m pytest tests/core tests/api tests/e2e adapters
 ```
 
 For CDK/infrastructure work you also need Node 20+, AWS CDK v2, and Docker.
@@ -19,7 +19,7 @@ For CDK/infrastructure work you also need Node 20+, AWS CDK v2, and Docker.
 The best place to look for work:
 - [GitHub Issues](https://github.com/IntergalacticTech/FreeMail.ai/issues) tagged `good first issue` or `help wanted`
 - New channel adapters (see "Adding a channel adapter" below)
-- Bug fixes in any lambda handler under `lambdas/` or `adapters/`
+- Bug fixes in API handlers under `core/api/` or adapter code under `adapters/`
 - SDK improvements under `sdks/`
 
 ## How to contribute
@@ -27,24 +27,24 @@ The best place to look for work:
 1. **Open an issue first** for any non-trivial change. For bug fixes and small improvements, a PR is fine without an issue.
 2. **Fork** the repo and create a branch: `git checkout -b feat/my-change`.
 3. **Write tests** for your change. All new functionality should have unit tests. Integration tests are required for new adapters.
-4. **Run the test suite**: `pytest`. All 277 existing tests must continue to pass, plus new tests for your change.
+4. **Run the relevant tests**. The core suite is `python -m pytest tests/core tests/api tests/e2e adapters`; SDK and CLI changes have package-local test commands.
 5. **Open a PR** against `main`. Fill in the PR template. Link any related issues.
 
 ## Adding a channel adapter
 
-Channel adapters live in `adapters/<channel>/`. The simplest template is `adapters/telegram/` (~300 lines of Python).
+Channel adapters can live in this repo under `adapters/<channel>/` or in an external package that registers a Python entry point in the `agentcomms.adapters` group. Start with [docs/adapter-authoring.md](./docs/adapter-authoring.md) and [examples/adapter-template/](./examples/adapter-template/) for the external package path. The simplest in-repo reference is `adapters/telegram/`.
 
 Each adapter must implement the `ChannelAdapter` abstract base from `core/adapters/base.py`:
 
 - `provision(agent, config)` — create the channel resource (e.g., register a Telegram bot webhook)
 - `teardown(channel)` — destroy the channel resource
-- `inbound_handler(event)` — Lambda handler for inbound messages from the channel
+- `ingest(payload)` — normalize inbound channel events into `UnifiedMessage`
 - `send(channel, message)` — send an outbound message
 - `health_check(channel)` — return status dict for `agentcomms status`
 
 You also need:
-- A CDK construct in `cdk/lib/adapters/<channel>-adapter.ts` that provisions the Lambda + any channel-specific AWS resources
-- An entry in `core/adapters/registry.py`
+- CDK wiring in `cdk/lib/adapters/<channel>-adapter-stack.ts` or `cdk/lib/stacks/agentcomms-api-stack.ts` when the adapter needs AWS resources
+- An in-repo `manifest.toml` or external package entry point
 - Tests in `tests/adapters/test_<channel>.py`
 - Docs in `docs/adapters/<channel>.md` covering SSM secret names, limits, and setup steps
 
@@ -62,13 +62,13 @@ Discord scaffolding is already at `adapters/discord/` — it's the easiest start
 Every new source file must include an SPDX header. Python:
 
 ```python
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 ```
 
 TypeScript:
 
 ```typescript
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 ```
 
 The `tools/add_spdx_headers.py` script can add headers in bulk if you forget.

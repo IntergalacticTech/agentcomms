@@ -84,7 +84,7 @@ agentcomms bootstrap \
 {"event":"smoke","check":"list_messages","status":"ok","count":1}
 {"event":"smoke","check":"delete_inbox","status":"ok"}
 {"event":"phase","phase":"smoke_test","status":"complete","elapsed_ms":5900}
-{"event":"complete","api_key":"ac_live_9mP4nQ7rS1tU6wX0yA3bC2dE5fG8hJ1kL4mN7pQ0rS3tU6vW","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":422060,"message":"AgentComms is live. Save your API key — it is shown only once."}
+{"event":"complete","api_key":"ak_live_REDACTED_EXAMPLE","base_url":"https://api.agentcomms-test-demo.com/v1","dashboard":"https://dashboard.agentcomms-test-demo.com","elapsed_total_ms":422060,"message":"AgentComms is live. Save your API key — it is shown only once."}
 ```
 
 ## Composer Turn 4 — Cursor summarizes in Composer panel
@@ -98,13 +98,13 @@ API base URL: https://api.agentcomms-test-demo.com/v1
 Dashboard:    https://dashboard.agentcomms-test-demo.com
 
 Your API key (save this now — shown only once):
-  ac_live_9mP4nQ7rS1tU6wX0yA3bC2dE5fG8hJ1kL4mN7pQ0rS3tU6vW
+  ak_live_REDACTED_EXAMPLE
 
 Full log saved to /tmp/bootstrap.log.
 
 To verify the deployment:
-  export AGENTCOMMS_API_KEY="ac_live_9mP4nQ7rS1tU6wX0yA3bC2dE5fG8hJ1kL4mN7pQ0rS3tU6vW"
-  curl https://api.agentcomms-test-demo.com/v1/inboxes \
+  export AGENTCOMMS_API_KEY="ak_live_REDACTED_EXAMPLE"
+  curl https://api.agentcomms-test-demo.com/v1/agents \
     -H "x-api-key: $AGENTCOMMS_API_KEY"
 ```
 

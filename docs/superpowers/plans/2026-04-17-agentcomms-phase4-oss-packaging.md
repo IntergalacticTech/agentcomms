@@ -7,11 +7,11 @@
 **Spec:** `docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md`
 **Predecessors:** Phases 1–3 complete.
 
-**Goal:** Make the repo publicly cloneable, FSL-licensed, and single-command-deployable by a coding agent. Ship the `agentcomms` CLI + `AGENT.md` + bootstrap flow + SDK v1 packages + MCP server rebuild + console rebrand. At Phase 4 exit, anyone can clone the repo, point their coding agent at it + their AWS credentials, and end up with a working hub in ≤ 25 minutes.
+**Goal:** Make the repo publicly cloneable, Apache-2.0 licensed, and single-command-deployable by a coding agent. Ship the `agentcomms` CLI + `AGENT.md` + bootstrap flow + SDK v1 packages + MCP server rebuild + console rebrand. At Phase 4 exit, anyone can clone the repo, point their coding agent at it + their AWS credentials, and end up with a working hub in ≤ 25 minutes.
 
 **Architecture:** The repo is restructured but the content is mostly already there. New top-level `cli/` (TypeScript) provides the `agentcomms` binary. New `AGENT.md` at root is the canonical coding-agent guide. License files + SPDX headers added everywhere. SDK v1 packages replace `freemail-*` package names and hit the new API shape.
 
-**Tech Stack:** + Node/TypeScript CLI (commander.js or yargs + chalk for human output + JSON for machine output), FSL license text.
+**Tech Stack:** + Node/TypeScript CLI (commander.js or yargs + chalk for human output + JSON for machine output), Apache-2.0 license text.
 
 ---
 
@@ -20,8 +20,7 @@
 ### Added
 
 ```
-LICENSE                               # FSL-1.1-Apache-2.0
-LICENSE.commercial                    # commercial-use template
+LICENSE                               # Apache-2.0
 NOTICE                                # third-party attributions
 AGENT.md                              # ⭐ coding-agent deployment guide
 MIGRATION.md                          # Phase 5 users will read this; start filling in Phase 4
@@ -49,7 +48,7 @@ cli/
 │   └── tests/
 
 docs/
-├── licensing.md                      # plain-English FSL explainer
+├── licensing.md                      # plain-English Apache-2.0 explainer
 └── adapters/
     ├── email.md
     ├── sms.md
@@ -74,18 +73,17 @@ docs/
 ## Task 1: License files + SPDX headers
 
 **Files:**
-- Create: `LICENSE` (FSL-1.1-Apache-2.0 canonical text)
-- Create: `LICENSE.commercial`
+- Create: `LICENSE` (Apache-2.0 canonical text)
 - Create: `NOTICE`
 - Modify: every `.py` and `.ts` source file — add SPDX header
 
 **Steps:**
-1. Copy FSL-1.1-Apache-2.0 text verbatim from https://fsl.software. Fill in: `Licensor: Victory [exact legal entity]`, `Software: AgentComms`, `Competing Use: providing the Software as a paid hosted service to third parties`, `Change Date: two years from the date of the commit that introduced each file`, `Change License: Apache 2.0`.
-2. Write `LICENSE.commercial` as a two-page template granting Competing Use rights under negotiated terms (use a standard commercial-software-license boilerplate; leave $fee$ and $term$ as fillable fields).
+1. Use the canonical Apache-2.0 license text.
+2. Remove any separate hosted-use or commercial-license template from the public repo.
 3. Write `NOTICE` listing every upstream dependency + its license (run `pip-licenses --format=markdown` and `license-checker --production` for Node, paste into NOTICE, manually curate).
 4. Script `tools/add_spdx_headers.py`: walks `core/`, `adapters/`, `cli/src/`, `cdk/lib/`, `console/src/`, `sdks/`, `mcp/` and prepends the SPDX header to each source file. Skip files already having one.
 5. Run the script; review the diff; commit.
-6. **Commit:** `chore(phase4): add FSL-1.1-Apache-2.0 LICENSE, LICENSE.commercial, NOTICE, SPDX headers`
+6. **Commit:** `chore(phase4): add Apache-2.0 LICENSE, NOTICE, SPDX headers`
 
 ---
 
@@ -299,7 +297,7 @@ Replace `mcp/` tool names `freemail_*` → `agentcomms_*`. Add new tools for age
 
 `landing/index.html` rebuilt. Lead with the headline from the spec: *"Point your coding agent at this repo and your AWS account. Twenty minutes later, your agent has its own email address, phone number, and Slack identity — running in your cloud, under your control."*
 
-Include: the 3-command block, the AGENT.md link, the full feature list, link to commercial license, GitHub repo link.
+Include: the 3-command block, the AGENT.md link, the full feature list, Apache-2.0 license link, GitHub repo link.
 
 **Commit:** `feat(phase4): new agentcomms.dev landing page`
 
@@ -307,7 +305,7 @@ Include: the 3-command block, the AGENT.md link, the full feature list, link to 
 
 ## Task 11: `docs/licensing.md` + per-adapter docs
 
-- `docs/licensing.md`: plain-English explainer of FSL — what you can do, what you can't, how the Change Date works, how to get a commercial license.
+- `docs/licensing.md`: plain-English explainer of Apache-2.0 — what you can do, notice obligations, patent grant, trademarks, and contribution terms.
 - `docs/adapters/{email,sms,push,slack,telegram}.md`: per-channel setup guides + SSM secret names + known limits.
 
 **Commit:** `docs(phase4): licensing explainer + per-adapter setup guides`
@@ -326,7 +324,7 @@ Include: the 3-command block, the AGENT.md link, the full feature list, link to 
 
 ## Phase 4 exit criteria
 
-- [ ] `LICENSE` (FSL-1.1-Apache-2.0) in place with correct metadata
+- [ ] `LICENSE` (Apache-2.0) in place with correct metadata
 - [ ] SPDX headers on every source file
 - [ ] `agentcomms bootstrap` succeeds end-to-end on a fresh AWS sub-account in ≤ 25 min (measured via CI)
 - [ ] `AGENT.md` tested by running Claude Code against it unaided, transcript recorded

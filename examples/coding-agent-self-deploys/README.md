@@ -65,8 +65,8 @@ Typical wall-clock time: **15–25 minutes** (CloudFormation + SES DNS propagati
 The agent prints the API key. Test it:
 
 ```bash
-export AGENTCOMMS_API_KEY="ac_live_<key from agent>"
-curl "$AGENTCOMMS_BASE_URL/v1/inboxes" -H "x-api-key: $AGENTCOMMS_API_KEY"
+export AGENTCOMMS_API_KEY="ak_live_<key from agent>"
+curl "$AGENTCOMMS_BASE_URL/agents" -H "x-api-key: $AGENTCOMMS_API_KEY"
 ```
 
 ## Capture your own transcript

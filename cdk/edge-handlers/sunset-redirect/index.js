@@ -1,5 +1,5 @@
 'use strict';
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 // Lambda@Edge viewer-request handler for api.victorymail.dev → api.agentcomms.dev.
 // Values __TARGET_API_URL__ and __SUNSET_DATE__ are replaced at CDK bundling time.
 

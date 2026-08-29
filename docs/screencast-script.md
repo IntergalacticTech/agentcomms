@@ -98,7 +98,7 @@
 | 2:08 | `agentcomms-api CREATE_COMPLETE` | 1× |
 | 2:12 | Seed phase: admin org + API key creating. | 1× |
 | 2:16 | Smoke test: inbox created, message sent, inbox deleted. | 1× |
-| 2:22 | **THE MONEY SHOT:** `{"event":"complete","api_key":"ac_live_..."}` scrolls into view. | 1× |
+| 2:22 | **THE MONEY SHOT:** `{"event":"complete","api_key":"ak_live_..."}` scrolls into view. | 1× |
 | 2:25 | Frame freezes on the `api_key` line. Zoom in 1.5×. | FREEZE |
 | 2:28 | Callout box over the key: "Your API key. Shown once." | FREEZE |
 | 2:30 | Screen un-freezes. Claude Code prints its summary. | 1× |
@@ -148,10 +148,10 @@
 
 | Time | What is on screen |
 |------|-------------------|
-| 2:30 | New terminal tab. `export AGENTCOMMS_API_KEY="ac_live_..."` |
-| 2:34 | `curl "$BASE_URL/inboxes" -H "x-api-key: $AGENTCOMMS_API_KEY"` — runs, returns empty `data` array. |
-| 2:40 | Short Python snippet (pre-written in editor): create inbox, send email, list messages. |
-| 2:45 | Terminal: runs the snippet. Inbox created. Email sent. |
+| 2:30 | New terminal tab. `export AGENTCOMMS_API_KEY="ak_live_..."` |
+| 2:34 | `curl "$BASE_URL/agents" -H "Authorization: Bearer $AGENTCOMMS_API_KEY"` - runs, returns an empty `agents` array. |
+| 2:40 | Short Python snippet (pre-written in editor): create agent, provision email channel, send email, list messages. |
+| 2:45 | Terminal: runs the snippet. Agent created. Email sent. |
 | 2:50 | Inbox listing shows the sent message AND a reply that arrives live (pre-arranged test). |
 | 2:55 | Final shot: `agent.messages.list()` output in terminal showing both messages. Direction=inbound and outbound. |
 | 2:58 | Fade to black. Text: "agentcomms.dev" |

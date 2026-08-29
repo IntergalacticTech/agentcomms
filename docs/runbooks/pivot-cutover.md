@@ -58,10 +58,10 @@ All steps must be completed before the cutover maintenance window opens.
   `api.victorymail.dev` still resolves to the old API GW for now, then comment out
   the `ARecord` construct from the stack before this deploy)
 - [ ] **Stripe API key** loaded in operator shell: `export STRIPE_API_KEY=sk_live_...`
-- [ ] **AWS credentials** point at prod account 732770059798:
+- [ ] **AWS credentials** point at prod account <AWS_ACCOUNT_ID>:
   ```bash
   aws sts get-caller-identity --query Account --output text
-  # must print: 732770059798
+  # must print: <AWS_ACCOUNT_ID>
   ```
 - [ ] **AgentComms smoke test passes**:
   ```bash
@@ -346,6 +346,6 @@ export VICTORYMAIL_TABLE=victorymail
 
 ## Appendix: Emergency contacts
 
-- AWS Support case: account 732770059798
+- AWS Support case: account <AWS_ACCOUNT_ID>
 - Stripe support: dashboard.stripe.com → Support
 - On-call engineer: see `#on-call` Slack channel

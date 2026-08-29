@@ -21,7 +21,7 @@
     "url": "https://github.com/IntergalacticTech/FreeMail.ai.git",
     "directory": "cli"
   },
-  "license": "FSL-1.1-Apache-2.0",
+  "license": "Apache-2.0",
   "keywords": ["agentcomms", "aws", "cdk", "agent", "cli"],
   "dependencies": {
     "@aws-sdk/client-sts": "^3.600.0",

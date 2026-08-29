@@ -38,11 +38,11 @@ AgentComms is an open-source, AWS-native, multi-channel hub where **the user's o
 |---|---|
 | Identity model per channel | **Hybrid** — A-mode (provision) or B-mode (bridge via OAuth) per channel |
 | Primary abstraction | **Agent-centric unified inbox**, DMs + mentions only; channel-native surfaces separate |
-| License | **FSL-1.1-Apache-2.0** (source-available, per-file Apache 2.0 after 2 years) |
+| License | **Apache-2.0** (permissive open source) |
 | v0.1 scope | Email + SMS + Push + Slack + Telegram + adapter SDK |
 | Name & domain | **AgentComms** / `agentcomms.dev` |
 | Self-deploy promise | `agentcomms bootstrap` runnable by a coding agent, <25 min to working hub |
-| Feature gating | **None** (FSL precludes it); hosted tiers are usage/quota/operational-value only |
+| Feature gating | **None** in the OSS repo; hosted tiers are usage/quota/operational-value only |
 
 ---
 
@@ -50,11 +50,11 @@ AgentComms is an open-source, AWS-native, multi-channel hub where **the user's o
 
 ### 1.1 What AgentComms is
 
-AgentComms is a source-available hub that gives AI agents a first-class identity across every channel humans and other agents use. When a developer spins up a new agent, one API call provisions that agent an email address, a phone number for SMS, a Slack bot identity, a Telegram bot, and a push notification target — all routing into a single unified inbox the agent reads from.
+AgentComms is an open-source hub that gives AI agents a first-class identity across every channel humans and other agents use. When a developer spins up a new agent, one API call provisions that agent an email address, a phone number for SMS, a Slack bot identity, a Telegram bot, and a push notification target — all routing into a single unified inbox the agent reads from.
 
-- **Canonical hosted service:** `agentcomms.dev`, run by Victory on AWS account 732770059798, us-east-1 initially. Victory is the only party licensed to sell it as a hosted service.
-- **Anyone can:** pull the code, self-host, modify, use for personal or internal-company purposes, offer it free.
-- **Nobody else can:** operate AgentComms as a paid hosted service competing with `agentcomms.dev`.
+- **Canonical hosted service:** `agentcomms.dev`, run by Victory. Hosted differentiation is operational: domain pool, sending reputation, provider registrations, support, and uptime.
+- **Anyone can:** pull the code, self-host, modify, redistribute, use for personal or internal-company purposes, and operate hosted versions under Apache-2.0.
+- **Trademark boundary:** forks and hosted derivatives must not imply endorsement by Victory or the AgentComms maintainers.
 - **Primary object:** `Agent`. Everything else is scoped under an agent.
 - **Primary surface:** `agent.messages` — DMs and @mentions from every channel merged into one timeline. Channel-native activity lives under `agent.slack.*`, `agent.discord.*`, etc.
 
@@ -609,8 +609,7 @@ No core changes required.
 
 ```
 agentcomms/
-├── LICENSE                           # FSL-1.1-Apache-2.0
-├── LICENSE.commercial                # template for commercial hosted-use license
+├── LICENSE                           # Apache-2.0
 ├── NOTICE                            # third-party attributions
 ├── README.md                         # landing-page mirror; first-read for humans
 ├── AGENT.md                          # ⭐ deployment guide for coding agents
@@ -756,28 +755,22 @@ Every adapter's `manifest.toml` declares which SSM keys it needs. `agentcomms ch
 
 ### 5.6 License mechanics
 
-**`LICENSE` (FSL-1.1-Apache-2.0):**
-- **Licensor:** Victory (exact legal entity name TBD; placeholder throughout repo until confirmed).
+**`LICENSE` (Apache-2.0):**
+- **Copyright holder:** Victory (exact legal entity name TBD; placeholder throughout repo until confirmed).
 - **Software:** AgentComms.
-- **Competing Use definition:** "any offering that is substantially similar to the Licensor's commercial hosted AgentComms service." Allowed: internal use, personal projects, running for your own agents, modifying freely, redistributing modifications under FSL, running in your own AWS account at any scale. Disallowed: hosting it as a paid service for third parties.
-- **Change Date:** 2 years from the date of each commit (per-file).
-- **Change License:** Apache 2.0.
+- **Permissions:** use, modification, redistribution, commercial use, and hosted operation under the Apache License 2.0 terms.
+- **Restrictions outside Apache:** trademark rights are not granted; forks and hosted derivatives must not imply endorsement by Victory or the AgentComms maintainers.
 
 **Per-file header:**
 ```
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 ```
 
-**`LICENSE.commercial`:** template Victory grants on request (email `commercial@agentcomms.dev`). Overrides the Competing Use clause under negotiated terms.
+**No separate paid license:** the repository does not require one for hosted or commercial use.
 
-**What Victory can do that nobody else can:**
-1. Operate `agentcomms.dev` as a paid hosted service.
-2. Grant commercial licenses.
-3. Relicense future code (new versions only; published FSL code stays FSL/Apache per its Change Date).
-
-**`docs/licensing.md`:** plain-English explainer of what users can and cannot do, how to get a commercial license, when code becomes Apache 2.0.
+**`docs/licensing.md`:** plain-English explainer of Apache-2.0 permissions, notice obligations, patent grant, trademarks, and contributions.
 
 ---
 
@@ -791,7 +784,7 @@ Clean-break migration with a dual-run window. Old victorymail/FreeMail API gets 
 
 | Current | Destination | Notes |
 |---|---|---|
-| `victorymail.dev` hosted service | `agentcomms.dev` hosted service | New CDK stacks, same AWS account (732770059798) |
+| `victorymail.dev` hosted service | `agentcomms.dev` hosted service | New CDK stacks, same AWS account (<AWS_ACCOUNT_ID>) |
 | `api.victorymail.dev` | `api.agentcomms.dev` + 301 redirect during sunset | `Deprecation` / `Sunset` headers |
 | `console.victorymail.dev` | `console.agentcomms.dev` | Rebuilt console; old URL redirects |
 | `freemail` Python SDK | `agentcomms` Python SDK (v1.0.0) | Old package final release re-exports + `DeprecationWarning` |
@@ -804,7 +797,7 @@ Clean-break migration with a dual-run window. Old victorymail/FreeMail API gets 
 | SES identity `victorymail.dev` | **Kept** as platform domain-pool entry | Old addresses keep working through new hub |
 | SES identities `karmascale.net` / `.org` | **Kept** as platform pool | No change |
 | Stripe products | Rewired per Section 7 | Grandfathered 6 mo for existing paid |
-| BYOC-with-license-server | **Retired**; replaced by `agentcomms bootstrap` | Redundant under FSL |
+| BYOC-with-license-server | **Retired**; replaced by `agentcomms bootstrap` | Redundant for self-hosting |
 | AWS Marketplace BYOC listing | Replaced by SaaS Subscriptions for `agentcomms.dev` | Different product, v0.3 |
 | `lambdas/sms/`, `lambdas/sms_processor/` | `adapters/sms/` | Port |
 | `lambdas/vault/` | `core/api/vault/` | Port (org-scoped feature) |
@@ -931,7 +924,7 @@ Estimated runtime at current scale: under 10 minutes.
 
 ### 7.3 Hosted-service pricing
 
-Under FSL there is zero code-level differentiator between hosted and self-hosted. Hosted customers pay for **operational value only:**
+Under Apache-2.0 there is zero code-level differentiator between hosted and self-hosted. Hosted customers pay for **operational value only:**
 1. Managed AWS infra
 2. Warmed SES reputation, dedicated IP pools
 3. Platform domain pool (`@agentcomms.dev` addresses)
@@ -948,7 +941,7 @@ Under FSL there is zero code-level differentiator between hosted and self-hosted
 | Developer | $19 | 10 | 10,000 | 1,000 | 100,000 | Hosted Slack/Telegram apps, community Discord + email support |
 | Team | $99 | 100 | 100,000 | 10,000 | 1M | Shared dedicated SES IP, 99.5% SLA |
 | Business | $499 | 1,000 | 1M | 100K | unlimited | Dedicated SES IP, dedicated 10DLC number, 99.9% SLA |
-| Enterprise | Custom | custom | custom | custom | custom | SSO, audit, commercial license option |
+| Enterprise | Custom | custom | custom | custom | custom | SSO, audit, support |
 
 **Metered overage (passthrough + 50% margin):**
 - Email: $0.00015 / message
@@ -995,11 +988,11 @@ Under FSL there is zero code-level differentiator between hosted and self-hosted
 
 These do not block the spec but must be resolved during planning:
 
-1. **Legal entity name** for the Licensor field in `LICENSE` and commercial license. Placeholder: "Victory". Needs exact legal name.
-2. **SES account consolidation.** The `victorymail.dev` Route 53 zone lives in a separate AWS account (noted in `BUILD_PLAN.md`). Consolidating into 732770059798 or leaving as-is. Implementation plan must address.
+1. **Legal entity name** for copyright notices and package metadata. Placeholder: "Victory". Needs exact legal name.
+2. **SES account consolidation.** The `victorymail.dev` Route 53 zone lives in a separate AWS account (noted in `BUILD_PLAN.md`). Consolidating into <AWS_ACCOUNT_ID> or leaving as-is. Implementation plan must address.
 3. **Slack A-mode (provision) scope.** Full A-mode means the hub creates a Slack app per agent (infeasible — requires manual Slack developer dashboard steps). "Limited A-mode" likely means: deployer creates one Slack app in their own Slack developer account, and agents provisioned on the hub become users in that app. The plan must specify.
 4. **Admin user model on the hosted service.** Who administers `agentcomms.dev`? Same Cognito User Pool as today? Mapping existing FreeMail admin users to the new console?
-5. **Non-FreeMail licenses in NOTICE.** Full audit of upstream dependency licenses before the FSL repo goes public.
+5. **Non-FreeMail licenses in NOTICE.** Full audit of upstream dependency licenses before the Apache-2.0 repo goes public.
 6. **Rate limits at the hub-vendor boundary.** Per-vendor (SES 14/s; Slack tier limits; Telegram 30/s/chat). Each adapter needs a documented rate-limit plan.
 7. **Outbound queue semantics.** Current `lambdas/outbound_worker/` uses SQS FIFO per-org. Preserve per-agent ordering guarantees? Or switch to per-channel queues?
 8. **WebSocket authentication under the new scope model.** Current WS auth is by API key; new scope hierarchy (org/agent/channel) needs explicit rules.

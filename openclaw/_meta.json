@@ -1,7 +1,7 @@
 {
   "owner": "IntergalacticTech",
-  "slug": "freemail",
-  "displayName": "FreeMail - Email for AI Agents",
+  "slug": "agentcomms",
+  "displayName": "AgentComms - Communications Hub for AI Agents",
   "latest": {
     "version": "1.0.0"
   },

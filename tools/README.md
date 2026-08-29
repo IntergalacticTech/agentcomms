@@ -52,13 +52,13 @@ Copies S3 objects between buckets. Supports two modes:
 # Re-key raw-email bucket (dry-run)
 python tools/migrate_s3_rekey.py \
   --source-bucket victorymail-raw-email \
-  --dest-bucket agentcomms-raw-inbound-prod-732770059798 \
+  --dest-bucket agentcomms-raw-inbound-prod-${AWS_ACCOUNT_ID} \
   --dry-run
 
 # Passthrough bodies bucket
 python tools/migrate_s3_rekey.py \
   --source-bucket victorymail-bodies \
-  --dest-bucket agentcomms-bodies-prod-732770059798 \
+  --dest-bucket agentcomms-bodies-prod-${AWS_ACCOUNT_ID} \
   --passthrough
 ```
 

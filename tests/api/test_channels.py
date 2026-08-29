@@ -2,8 +2,10 @@
 """Tests for /v1/agents/{id}/channels/* handler."""
 import json
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from core.adapters.base import ProvisionResult
 from core.data.models import (
     Agent, Channel, ChannelMode, ChannelStatus, ChannelType, Organization, OrgPlan,
 )
@@ -64,6 +66,29 @@ def test_create_channel_calls_provision(fixture):
     body = json.loads(resp["body"])
     assert body["channel"] == "email"
     assert body["mode"] == "provision"
+
+
+def test_create_channel_accepts_external_adapter_slug(fixture):
+    adapter = MagicMock()
+    adapter.provision.return_value = ProvisionResult(
+        status="active",
+        channel_id="chan_ss_123",
+        details={"address": "smoke:ridge-7"},
+    )
+    entry = SimpleNamespace(adapter=adapter, modes=["provision"])
+
+    with patch("core.api.channels_handler._registry", return_value={"smoke_signal": entry}):
+        resp = handler(_event(
+            "POST", "/v1/agents/agt_1/channels",
+            path_params={"agent_id": "agt_1"},
+            body={"channel": "smoke_signal", "config": {"ridge": "7"}},
+        ), None)
+
+    assert resp["statusCode"] == 201
+    body = json.loads(resp["body"])
+    assert body["channel"] == "smoke_signal"
+    assert body["channel_id"] == "chan_ss_123"
+    adapter.provision.assert_called_once()
 
 
 def test_get_channel_by_id(fixture):

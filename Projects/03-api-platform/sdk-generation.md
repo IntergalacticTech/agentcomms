@@ -437,11 +437,11 @@ All SDKs provide both synchronous and asynchronous clients.
 from agentmail import AgentMail, AsyncAgentMail
 
 # Synchronous
-client = AgentMail(api_key="am_live_...")
+client = AgentMail(api_key="ak_live_...")
 inboxes = client.inboxes.list(limit=10)
 
 # Asynchronous
-async_client = AsyncAgentMail(api_key="am_live_...")
+async_client = AsyncAgentMail(api_key="ak_live_...")
 inboxes = await async_client.inboxes.list(limit=10)
 ```
 
@@ -450,7 +450,7 @@ inboxes = await async_client.inboxes.list(limit=10)
 ```typescript
 import { AgentMail } from "@agentmail/sdk";
 
-const client = new AgentMail({ apiKey: "am_live_..." });
+const client = new AgentMail({ apiKey: "ak_live_..." });
 
 // Promise-based (all methods return promises)
 const inboxes = await client.inboxes.list({ limit: 10 });
@@ -461,7 +461,7 @@ const inboxes = await client.inboxes.list({ limit: 10 });
 ```go
 import "github.com/agentmail/agentmail-go"
 
-client := agentmail.NewClient("am_live_...")
+client := agentmail.NewClient("ak_live_...")
 
 // Context-based
 inboxes, err := client.Inboxes.List(ctx, &agentmail.ListInboxesParams{
@@ -476,7 +476,7 @@ All SDKs automatically retry on transient failures (429, 500, 502, 503, 504) wit
 ```python
 # Default retry configuration
 client = AgentMail(
-    api_key="am_live_...",
+    api_key="ak_live_...",
     max_retries=3,           # Maximum retry attempts
     retry_delay=1.0,         # Initial delay in seconds
     retry_max_delay=30.0,    # Maximum delay between retries
@@ -494,7 +494,7 @@ client = AgentMail(
 
 ```python
 client = AgentMail(
-    api_key="am_live_...",
+    api_key="ak_live_...",
     timeout=30.0,            # Request timeout in seconds
     connect_timeout=5.0,     # Connection timeout in seconds
 )
@@ -532,7 +532,7 @@ All SDKs include first-class WebSocket support for real-time events.
 ```python
 from agentmail import AgentMail
 
-client = AgentMail(api_key="am_live_...")
+client = AgentMail(api_key="ak_live_...")
 
 # Connect and subscribe
 ws = client.ws.connect()

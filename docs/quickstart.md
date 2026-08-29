@@ -1,138 +1,21 @@
-# Quickstart Guide
+# Quickstart
 
-This guide walks you through signing up, creating your first inbox, sending an email, and extracting an OTP -- all in under 5 minutes.
-
-## Prerequisites
-
-- An email address to sign up with
-- `curl` (or any HTTP client)
-- Optionally: Python 3.8+ or Node.js 18+
-
-## Step 1: Sign Up
-
-FreeMail supports two signup flows:
-
-- **Agent signup** (API-only, no password) -- ideal for AI agents
-- **Console signup** (email + password) -- for the developer console at `https://console.victorymail.dev`
-
-### Agent Signup (Recommended for Programmatic Use)
-
-Request a verification code:
+This guide assumes you already have an AgentComms API URL and API key. For a self-hosted deployment, run the CLI flow in [AGENT.md](../AGENT.md) first.
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/agent/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@yourcompany.com"}'
+export AGENTCOMMS_BASE_URL=https://api.agentcomms.dev/v1
+export AGENTCOMMS_API_KEY=ak_live_YOUR_KEY
 ```
 
-Response:
-
-```json
-{
-  "message": "Verification code sent",
-  "email": "admin@yourcompany.com"
-}
-```
-
-### Console Signup
+## 1. Create an agent
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/console/signup \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@yourcompany.com",
-    "password": "your-secure-password",
-    "name": "Your Name"
-  }'
-```
-
-## Step 2: Verify and Get Your API Key
-
-```bash
-curl -X POST https://api.victorymail.dev/v1/agent/verify \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@yourcompany.com", "code": "482917"}'
-```
-
-Response:
-
-```json
-{
-  "organization": {
-    "id": "01HXYZ1234567890ABCDEFGHJK",
-    "name": "admin",
-    "email": "admin@yourcompany.com",
-    "tier": "free",
-    "status": "active"
-  },
-  "api_key": {
-    "id": "01HXYZ1234567890ABCDEFGHJL",
-    "key": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL...",
-    "key_prefix": "am_live_7kB3",
-    "scope": "org"
-  }
-}
-```
-
-**Important:** Save your API key. The full key is only shown once at creation time.
-
-## Step 3: Create an Inbox
-
-```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name": "Signup Bot"}'
-```
-
-Response:
-
-```json
-{
-  "id": "01HXYZ1234567890ABCDEFGHJM",
-  "email": "a7k3m9pq2rx5@victorymail.dev",
-  "display_name": "Signup Bot",
-  "status": "active",
-  "pod_id": "default",
-  "message_count": 0,
-  "unread_count": 0,
-  "created_at": "2026-04-13T10:30:00Z"
-}
-```
-
-The inbox defaults to a random `@victorymail.dev` address. You can pick a different platform domain with the optional `domain` parameter, or specify an exact address with `email`. Paid-tier users can also create inboxes on custom domains they have configured.
-
-### Pick a Different Platform Domain
-
-```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name": "Signup Bot", "domain": "karmascale.net"}'
-```
-
-Response includes `"email": "zk8m2q0rwv3b@karmascale.net"`.
-
-Available platform domains:
-
-| Domain | Notes |
-|---|---|
-| `victorymail.dev` | Default |
-| `karmascale.net` | Alternate |
-| `karmascale.org` | Alternate |
-
-Email addresses are unique **per domain**, so `agent@victorymail.dev` and `agent@karmascale.net` can both exist and belong to different accounts.
-
-## Step 4: Send an Email
-
-```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/01HXYZ1234567890ABCDEFGHJM/messages \
-  -H "x-api-key: am_live_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": [{"address": "user@example.com"}],
-    "subject": "Hello from my AI agent!",
-    "body_text": "This email was sent programmatically via FreeMail."
+    "name": "InvoiceBot",
+    "metadata": {"owner": "finance"}
   }'
 ```
 
@@ -140,145 +23,139 @@ Response:
 
 ```json
 {
-  "id": "01HXYZ1234567890ABCDEFGHJN",
-  "thread_id": "01HXYZ1234567890ABCDEFGHJO",
-  "inbox_id": "01HXYZ1234567890ABCDEFGHJM",
-  "direction": "outbound",
-  "status": "queued",
-  "subject": "Hello from my AI agent!",
-  "to": [{"address": "user@example.com"}],
-  "created_at": "2025-01-15T10:31:00Z"
+  "agent_id": "agt_...",
+  "name": "InvoiceBot",
+  "channels": []
 }
 ```
 
-The message status starts as `queued` and transitions to `sent` once delivered via SES.
+## 2. Provision a channel
 
-## Step 5: Wait for a Reply
-
-Use the `/wait` endpoint to long-poll for incoming messages:
+Email example:
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/01HXYZ1234567890ABCDEFGHJM/wait \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../channels" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "timeout": 25,
-    "filter": {
-      "from": "user@example.com"
+    "channel": "email",
+    "mode": "provision",
+    "config": {
+      "local_part": "invoice",
+      "domain": "example.com"
     }
   }'
 ```
 
-This blocks for up to 25 seconds until a matching message arrives.
-
-## Step 6: Extract an OTP
-
-The killer feature for AI agents -- wait for a verification email and automatically extract the OTP code:
+Telegram example:
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/01HXYZ1234567890ABCDEFGHJM/extract-otp \
-  -H "x-api-key: am_live_YOUR_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../channels" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "sender": "noreply@service.com",
-    "subject_contains": "verification",
-    "timeout": 25
+    "channel": "telegram",
+    "mode": "provision",
+    "config": {
+      "bot_token": "..."
+    }
   }'
 ```
 
-Response:
+Slack is bridge-style: create a Slack app, put its credentials in the documented SSM paths, then create a channel with `mode: "bridge"`.
 
-```json
-{
-  "code": "482917",
-  "message_id": "01HXYZ1234567890ABCDEFGHJP",
-  "from": "noreply@service.com",
-  "subject": "Your verification code"
-}
-```
+## 3. Send a message
 
-If no OTP can be extracted, `code` will be `null` and `body_text` will be included so you can parse it yourself.
-
----
-
-## Complete Examples
-
-### Python
+The API infers the channel from the recipient when it can:
 
 ```bash
-pip install git+https://github.com/IntergalacticTech/freemail.git#subdirectory=sdks/python
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../messages" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "alice@example.com",
+    "subject": "Status",
+    "body": "Done."
+  }'
 ```
+
+For ambiguous destinations, include `"channel": "email"`, `"sms"`, `"slack"`, `"telegram"`, or another adapter channel.
+
+## 4. Read the unified inbox
+
+```bash
+curl -sS "$AGENTCOMMS_BASE_URL/agents/agt_.../messages?channels=email,telegram&limit=25" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY"
+```
+
+Only direct messages and explicit mentions appear in this feed. Native room traffic stays on channel-native routes such as Slack workspace channels or Telegram chats.
+
+## 5. Reply and mark read
+
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../messages/msg_.../reply" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"body": "Got it, processing."}'
+```
+
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../messages/msg_.../read" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY"
+```
+
+## 6. Wait for a message or OTP
+
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../wait" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeout_sec": 25,
+    "from": "noreply@example.com",
+    "subject_contains": "verification",
+    "channels": ["email", "sms"]
+  }'
+```
+
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../extract-otp" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_age_sec": 300,
+    "from": "noreply@example.com",
+    "channels": ["email", "sms"]
+  }'
+```
+
+## 7. Use the SDK
+
+Python:
 
 ```python
-from freemail import FreeMail
+from agentcomms import Client
 
-client = FreeMail("am_live_YOUR_KEY")
+client = Client()
+agent = client.agents("agt_...")
 
-# Create an inbox
-inbox = client.inboxes.create(display_name="Signup Bot")
-print(f"Inbox email: {inbox['email']}")
-
-# Send an email
-msg = client.messages.send(
-    inbox["id"],
-    to=[{"address": "user@example.com"}],
-    subject="Hello!",
-    body_text="Sent from my AI agent via FreeMail.",
-)
-print(f"Message ID: {msg['id']}, status: {msg['status']}")
-
-# Wait for a reply and extract OTP
-otp = client.inboxes.extract_otp(
-    inbox["id"],
-    sender="noreply@service.com",
-    timeout=25,
-)
-print(f"OTP code: {otp['code']}")
-
-# Clean up
-client.inboxes.delete(inbox["id"])
+for msg in agent.messages.list(limit=25):
+    agent.messages.reply(msg.message_id, body="Received.")
 ```
 
-### Node.js
-
-```bash
-npm install IntergalacticTech/freemail#main --install-strategy=shallow
-```
+Node:
 
 ```typescript
-import { FreeMail } from "@freemail/sdk";
+import { Client } from "@agentcomms/client";
 
-const client = new FreeMail("am_live_YOUR_KEY");
-
-// Create an inbox
-const inbox = await client.inboxes.create({ display_name: "Signup Bot" });
-console.log(`Inbox email: ${inbox.email}`);
-
-// Send an email
-const msg = await client.messages.send(inbox.id, {
-  to: [{ address: "user@example.com" }],
-  subject: "Hello!",
-  body_text: "Sent from my AI agent via FreeMail.",
-});
-console.log(`Message ID: ${msg.id}, status: ${msg.status}`);
-
-// Wait for a reply and extract OTP
-const otp = await client.inboxes.extractOtp(inbox.id, {
-  sender: "noreply@service.com",
-  timeout: 25,
-});
-console.log(`OTP code: ${otp.code}`);
-
-// Clean up
-await client.inboxes.delete(inbox.id);
+const client = new Client();
+const agent = client.agents.agent("agt_...");
+const messages = await agent.messages.list({ limit: 25 });
+await agent.messages.reply(messages[0].message_id, { body: "Received." });
 ```
 
----
+## 8. Use MCP
 
-## Next Steps
+Install `@agentcomms/mcp`, configure `AGENTCOMMS_API_KEY`, and expose tools such as `agent_create`, `messages_list`, `message_send`, `message_reply`, `wait_for_message`, and `extract_otp` to your coding agent.
 
-- [API Reference](api-reference.md) -- full endpoint documentation
-- [Webhooks](webhooks.md) -- get notified when emails arrive instead of polling
-- [Custom Domains](custom-domains.md) -- use your own domain for sending and receiving
-- [SDKs](sdks.md) -- detailed SDK documentation
-- [MCP Server](mcp-server.md) -- use FreeMail with Claude and other AI agents
+See [mcp-server.md](./mcp-server.md).

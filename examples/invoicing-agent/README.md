@@ -1,14 +1,13 @@
 # Invoicing Agent Example
 
 A working Python agent that demonstrates the real multi-channel AgentComms flow:
-poll a unified inbox, use AI to categorize and extract invoice data, store it in
+poll an agent's unified message stream, use AI to categorize and extract invoice data, store it in
 SQLite, reply to the sender, and fire an alert for large invoices.
 
 ## What it does
 
-1. **Provisions itself** — at startup, calls `POST /inboxes` to create (or reuse) an
-   inbox named "InvoiceBot". Idempotent: if an inbox with that display name already
-   exists it reuses it.
+1. **Provisions itself** — at startup, creates or reuses an `InvoiceBot` agent and
+   provisions email with `POST /agents`.
 2. **Polls every 30 seconds** for new inbound email messages.
 3. **Categorizes each message** via `POST /ai/categorize` with labels
    `["invoice", "receipt", "other"]`.
@@ -24,8 +23,9 @@ SQLite, reply to the sender, and fire an alert for large invoices.
 - `AGENTCOMMS_API_KEY` env var set to your API key.
 - `AGENTCOMMS_BASE_URL` env var set to your API base URL (e.g. `https://api.agentcomms.dev/v1`).
 - `INVOICE_ALERT_EMAIL` env var set to the address that should receive large-invoice alerts.
-- An AgentComms tier that includes AI features (Starter or above). AI endpoints return
-  `403` on the Free tier.
+- Optional `INVOICE_AGENT_ID` env var set to an existing agent ID if you do not want the example to create one.
+- A deployment with AI endpoints enabled and a model provider configured. Hosted
+  deployments may apply plan limits separately.
 
 ## Quick start
 
@@ -36,7 +36,7 @@ cd examples/invoicing-agent
 pip install -e .
 
 # Configure
-export AGENTCOMMS_API_KEY="ac_live_your_key"
+export AGENTCOMMS_API_KEY="ak_live_your_key"
 export AGENTCOMMS_BASE_URL="https://api.agentcomms.dev/v1"
 export INVOICE_ALERT_EMAIL="alerts@yourcompany.com"
 
@@ -52,7 +52,7 @@ python invoicing_agent.py 2>&1 | python -m json.tool
 
 ## What to watch for
 
-- **Startup:** The agent prints its inbox ID and email address. Send a test invoice
+- **Startup:** The agent prints its agent ID and email address. Send a test invoice
   email to that address.
 - **Categorization:** Watch for `{"event": "categorize", "label": "invoice"}` lines.
 - **Extraction:** After a categorize hit, watch for `{"event": "extract", ...}` with

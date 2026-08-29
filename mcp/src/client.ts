@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { API_KEY, BASE_URL } from "./config.js";
 
 // Default per-request timeout (ms). Overridable via AGENTCOMMS_TIMEOUT_MS.

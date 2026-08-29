@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/api/push_native_handler.py
 """
@@ -137,8 +137,10 @@ def handler(event: dict, context) -> dict:
     # ── POST /push/send ──
     if method == "POST" and path.endswith("/send"):
         body = parse_body(event)
-        dev_id = body.get("device_id", "").strip()
-        body_text = body.get("body_text", "").strip()
+        dev_id = (body.get("device_id") or "").strip()
+        if not dev_id and isinstance(body.get("device_ids"), list) and body["device_ids"]:
+            dev_id = str(body["device_ids"][0]).strip()
+        body_text = (body.get("body_text") or body.get("body") or "").strip()
         title = body.get("title", "").strip()
         badge = body.get("badge")
 

@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """Pydantic models mirroring AgentComms API response shapes."""
 from __future__ import annotations
 
@@ -98,11 +98,21 @@ class Webhook(BaseModel):
 
 
 class VaultItem(BaseModel):
+    model_config = {"extra": "allow"}
+
     vault_id: str
     org_id: str
-    name: str
+    label: Optional[str] = None
     type: str = "secret"
+    value: Optional[str] = None
+    tags: dict[str, Any] = Field(default_factory=dict)
+    kms_key_id: Optional[str] = None
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @property
+    def name(self) -> Optional[str]:
+        return self.label or (self.__pydantic_extra__ or {}).get("name")
 
 
 class Persona(BaseModel):
@@ -116,9 +126,22 @@ class Persona(BaseModel):
 
 
 class Domain(BaseModel):
+    model_config = {"extra": "allow"}
+
     domain_id: str
     org_id: str
-    domain: str
+    domain_name: Optional[str] = None
     status: Optional[str] = None
+    dkim_tokens: list[str] = Field(default_factory=list)
     dkim_verified: bool = False
+    spf_verified: bool = False
+    mx_verified: bool = False
+    dmarc_verified: bool = False
+    dns_records: dict[str, Any] = Field(default_factory=dict)
+    verified_at: Optional[str] = None
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @property
+    def domain(self) -> Optional[str]:
+        return self.domain_name or (self.__pydantic_extra__ or {}).get("domain")

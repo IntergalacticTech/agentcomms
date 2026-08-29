@@ -6,13 +6,13 @@
 
 Alternates:
 - `Unified inbox for AI agents — email, SMS, Slack, Telegram.` (58)
-- `Source-available agent comms hub. Deploys into your cloud.` (59)
+- `Open-source agent comms hub. Deploys into your cloud.` (55)
 
 Primary is best — it signals the agent focus and the self-deploy twist in one line.
 
 ## Description (260 characters max)
 
-> AgentComms gives each AI agent an email, phone number, Slack bot, and Telegram bot — routing into ONE unified inbox. Source-available, deploys into YOUR AWS account in 20 minutes via a CLI your coding agent can run. No Kafka, no Redis, pure AWS. FSL-licensed.
+> AgentComms gives each AI agent an email, phone number, Slack bot, and Telegram bot — routing into ONE unified inbox. Open source under Apache-2.0, deploys into YOUR AWS account in 20 minutes via a CLI your coding agent can run.
 
 ## Maker comment (T+0 on launch day)
 
@@ -20,11 +20,11 @@ Primary is best — it signals the agent focus and the self-deploy twist in one 
 >
 > The shift: agents don't need email, agents need to communicate. Email is one channel. The right abstraction is a unified inbox across every channel — email, SMS, Slack, Telegram, mobile push, with more (Discord, WhatsApp, postal, fax, voice) coming.
 >
-> Two things nobody else is doing: (1) the entire thing deploys into YOUR AWS account via one CLI command, using only AWS-native primitives. Your data never leaves your cloud. (2) The license is Functional Source License — the code's readable, runnable, and modifiable forever, and auto-relicenses to Apache 2.0 per file after two years. You just can't resell the service in competition with ours.
+> Two things nobody else is doing: (1) the entire thing deploys into YOUR AWS account via one CLI command, using only AWS-native primitives. Your data never leaves your cloud. (2) The license is Apache-2.0 — the code is readable, runnable, modifiable, redistributable, and usable for commercial or hosted deployments without a separate agreement from us.
 >
 > Built on DynamoDB, Lambda, SES, SNS, Kinesis, Bedrock. 390+ tests passing. Phases 1–4 shipped and running in production today; Phase 5 cutover complete; Phase 6 is this launch.
 >
-> Happy to answer anything. Technical questions especially — the architectural decisions here (agent-centric data model, unified inbox with sparse GSI, source-available license choice) took a while to land and I'm glad to go deep.
+> Happy to answer anything. Technical questions especially — the architectural decisions here (agent-centric data model, unified inbox with sparse GSI, and adapter contract for new channels) took a while to land and I'm glad to go deep.
 
 ## Screenshots / media
 
@@ -43,7 +43,7 @@ Gallery order: 1, 2, 3, 4, 5.
 - Developer tools
 - Artificial intelligence
 - SaaS
-- Open source (PH lets you tag this even though FSL isn't strictly open source — better exposure than not tagging)
+- Open source
 - AWS
 - Productivity
 

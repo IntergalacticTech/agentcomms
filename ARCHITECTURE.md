@@ -1,6 +1,6 @@
 # FreeMail on AWS: Architecture for an Email Platform for AI Agents
 
-> ⚠️ **SUPERSEDED / PRE-PIVOT** — describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md](./docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md) and [docs/platform-review-2026-07-19.md](./docs/platform-review-2026-07-19.md).
+> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](./docs/architecture.md), [docs/adapter-roadmap.md](./docs/adapter-roadmap.md), and [docs/platform-review.md](./docs/platform-review.md).
 
 > **Status as of 2026-04-13.** FreeMail is **live in production** on AWS account `<YOUR_ACCOUNT_ID>` in `us-east-1`. The shipped surface includes the REST API at `api.victorymail.dev`, developer console at `console.victorymail.dev`, marketing site at `victorymail.dev`, verified SES sending and receiving for `victorymail.dev` + the `karmascale.net` / `karmascale.org` domain pool, DynamoDB single-table storage, Cognito-based console auth, Stripe billing integration, and the full REST resource surface described in `docs/api-reference.md`.
 >

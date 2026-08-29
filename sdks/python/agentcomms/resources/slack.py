@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory. Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """Slack channel-native sub-surface resource."""
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class SlackWorkspaceChannels:
         return data.get("messages", [])
 
     def post(self, channel_id: str, *, body: str, blocks: Any = None) -> dict[str, Any]:
-        payload: dict[str, Any] = {"body": body}
+        payload: dict[str, Any] = {"text": body}
         if blocks:
             payload["blocks"] = blocks
         return self._client._request("POST", f"{self._base()}/{channel_id}/messages", json=payload)
@@ -45,7 +45,7 @@ class SlackWorkspace:
         return self._client._request(
             "POST",
             f"/agents/{self._agent_id}/slack/workspaces/{self._team_id}/users/{user_id}/messages",
-            json={"body": body},
+            json={"text": body},
         )
 
 

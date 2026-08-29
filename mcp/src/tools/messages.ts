@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { apiRequest } from "../client.js";
 import type { Tool } from "./agents.js";
 
@@ -16,7 +16,7 @@ export const messageTools: Tool[] = [
         channels: {
           type: "array",
           items: { type: "string" },
-          description: "Filter by channel IDs",
+          description: "Filter by channel types, for example email or slack",
         },
         limit: { type: "number", description: "Max messages to return (default 25)" },
       },
@@ -27,7 +27,7 @@ export const messageTools: Tool[] = [
       if (args.since) params.set("since", String(args.since));
       if (args.until) params.set("until", String(args.until));
       if (Array.isArray(args.channels)) {
-        (args.channels as string[]).forEach((c) => params.append("channels", c));
+        params.set("channels", (args.channels as string[]).join(","));
       }
       if (args.limit) params.set("limit", String(args.limit));
       const qs = params.toString();
@@ -36,24 +36,17 @@ export const messageTools: Tool[] = [
   },
   {
     name: "message_get",
-    description: "Get a single message by ID. Requires received_at_ms for DynamoDB sort key lookup.",
+    description: "Get a single message by ID.",
     inputSchema: {
       type: "object",
       properties: {
         agent_id: { type: "string", description: "The agent ID" },
         message_id: { type: "string", description: "The message ID" },
-        received_at_ms: {
-          type: "number",
-          description: "Unix timestamp in milliseconds when the message was received",
-        },
       },
-      required: ["agent_id", "message_id", "received_at_ms"],
+      required: ["agent_id", "message_id"],
     },
     handler: async (args) => {
-      return apiRequest(
-        "GET",
-        `/agents/${args.agent_id}/messages/${args.message_id}?received_at_ms=${args.received_at_ms}`
-      );
+      return apiRequest("GET", `/agents/${args.agent_id}/messages/${args.message_id}`);
     },
   },
   {
@@ -66,7 +59,7 @@ export const messageTools: Tool[] = [
         agent_id: { type: "string", description: "The agent ID to send from" },
         to: { type: "string", description: "Recipient address (email, phone, etc.)" },
         body: { type: "string", description: "Message body text" },
-        channel: { type: "string", description: "Channel ID (optional; auto-inferred if omitted)" },
+        channel: { type: "string", description: "Channel type (optional; auto-inferred if omitted)" },
         subject: { type: "string", description: "Subject line for email messages" },
       },
       required: ["agent_id", "to", "body"],

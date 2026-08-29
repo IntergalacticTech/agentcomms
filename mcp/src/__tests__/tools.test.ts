@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 
 // Must set env before importing config

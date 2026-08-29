@@ -5,8 +5,8 @@ Target publish: Tuesday at 09:15 UTC (optimal US/EU overlap). See `docs/runbooks
 ## Primary (main post)
 
 **Title (choose one):**
-- `Show HN: AgentComms – source-available agent comms hub your coding agent deploys`
-- `Show HN: AgentComms – unified inbox for AI agents across email, SMS, Slack, Telegram (AWS-native, FSL)`
+- `Show HN: AgentComms - open-source agent comms hub your coding agent deploys`
+- `Show HN: AgentComms - unified inbox for AI agents across email, SMS, Slack, Telegram`
 - `Show HN: Give AI agents a phone number and email in 20 minutes, in your own AWS`
 
 First option is tightest and lead with the differentiator.
@@ -17,9 +17,9 @@ First option is tightest and lead with the differentiator.
 
 > AgentComms gives AI agents a first-class identity across email, SMS, Slack, Telegram, and mobile push — routing into one unified inbox the agent reads from. One API call gets a new agent an email address, phone number, and chat bots; any direct message or @mention on any channel shows up in a single `/v1/agents/{id}/messages` feed, interleaved by time.
 >
-> What's different: the whole thing is source-available, deploys end-to-end into your own AWS account in ~20 minutes via a CLI written for coding agents to operate, and uses only AWS-native primitives (DynamoDB, Lambda, SES, SNS, Kinesis, Bedrock). No Kafka, Redis, or Postgres. Your coding agent can install the CLI, read `AGENT.md`, and have a working hub running in your cloud without your input.
+> What's different: the whole thing is open source under Apache-2.0, deploys end-to-end into your own AWS account in ~20 minutes via a CLI written for coding agents to operate, and uses only AWS-native primitives (DynamoDB, Lambda, SES, SNS, Kinesis, Bedrock). No Kafka, Redis, or Postgres. Your coding agent can install the CLI, read `AGENT.md`, and have a working hub running in your cloud without your input.
 >
-> Licensed under FSL-1.1-Apache-2.0: you can self-host, modify, and build commercial products on your own deployment; you can't resell it as a hosted service competing with ours. Each file auto-relicenses to Apache 2.0 after 2 years.
+> Licensed under Apache-2.0: you can self-host, modify, redistribute, build commercial products, and run your own hosted version. No field-of-use restriction, delayed relicensing period, or separate paid license.
 >
 > Previously called FreeMail. Pivoted because the narrow email-for-agents wedge commoditized faster than we expected. Full backstory at agentcomms.dev/blog/pivot.
 >
@@ -37,7 +37,7 @@ First option is tightest and lead with the differentiator.
 >
 > This means agents can treat the unified inbox like a real inbox (low volume, every message deserves attention) while still getting full access to channel-native behavior when they want it. That split turned out to be the right primitive.
 >
-> Happy to go deeper on anything — data model, the one-command deploy, the license choice, or any of the adapter implementations.
+> Happy to go deeper on anything — data model, the one-command deploy, the OSS model, or any of the adapter implementations.
 
 ## Guard rails
 

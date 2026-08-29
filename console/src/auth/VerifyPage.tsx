@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { API_BASE } from "../api/client";
 
 export default function VerifyPage() {
   const [searchParams] = useSearchParams();
@@ -18,7 +19,7 @@ export default function VerifyPage() {
     setLoading(true);
     try {
       const resp = await fetch(
-        `${import.meta.env.VITE_AGENTCOMMS_API_URL || import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/verify`,
+        `${API_BASE}/console/verify`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -44,7 +45,7 @@ export default function VerifyPage() {
     setResending(true);
     try {
       const resp = await fetch(
-        `${import.meta.env.VITE_AGENTCOMMS_API_URL || import.meta.env.VITE_API_URL || "https://api.victorymail.dev/v1"}/console/resend-code`,
+        `${API_BASE}/console/resend-code`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

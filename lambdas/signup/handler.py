@@ -22,7 +22,7 @@ _BASE62 = string.ascii_letters + string.digits
 
 
 def _generate_api_key() -> str:
-    """Generate an API key: am_live_ + base62 encoded 32 random bytes."""
+    """Generate an API key: ak_live_ + base62 encoded 32 random bytes."""
     raw = secrets.token_bytes(32)
     # Base62 encode
     num = int.from_bytes(raw, "big")
@@ -31,7 +31,7 @@ def _generate_api_key() -> str:
         num, remainder = divmod(num, 62)
         encoded.append(_BASE62[remainder])
     encoded_str = "".join(reversed(encoded))
-    return f"am_live_{encoded_str}"
+    return f"ak_live_{encoded_str}"
 
 
 def _handle_signup(event):

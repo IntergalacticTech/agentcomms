@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for TelegramAdapter: UTF-16 mention detection, independent
 webhook secret verification, and HTML send-body selection."""
 from __future__ import annotations

@@ -1,62 +1,77 @@
-# @freemail/sdk
+# @agentcomms/client
 
-Node.js SDK for the FreeMail email platform.
+Official Node.js SDK for AgentComms.
 
 ## Installation
 
 ```bash
-npm install IntergalacticTech/freemail#main --install-strategy=shallow
+npm install @agentcomms/client
 ```
 
 ## Quickstart
 
 ```typescript
-import { FreeMail } from "@freemail/sdk";
+import { Client } from "@agentcomms/client";
 
-const client = new FreeMail("am_live_your_key");
+const client = new Client({ apiKey: "ak_live_your_key" });
 
-// Create an inbox
-const inbox = await client.inboxes.create({ display_name: "My Agent" });
-
-// Send a message
-const msg = await client.messages.send(inbox.id, {
-  to: [{ address: "user@example.com" }],
-  subject: "Hello from FreeMail!",
-  body_text: "Sent via the Node.js SDK",
+const created = await client.agents.create({
+  name: "InvoiceBot",
+  provision: {
+    email: { local_part: "invoice", domain: "example.com" },
+  },
 });
 
-// Wait for an inbound message and extract an OTP
-const otp = await client.inboxes.extractOtp(inbox.id, {
-  sender: "noreply@example.com",
+const agent = client.agents.agent(created.agent_id);
+
+await agent.messages.send({
+  to: "user@example.com",
+  subject: "Hello from AgentComms",
+  body: "Sent via the Node.js SDK",
 });
-console.log(`OTP: ${otp.code}`);
+
+const messages = await agent.messages.list({ limit: 25 });
+await agent.messages.reply(messages[0].message_id, { body: "Received." });
 ```
+
+The constructor also reads `AGENTCOMMS_API_KEY` and `AGENTCOMMS_BASE_URL` from the environment.
 
 ## Resources
 
-| Resource          | Methods                                        |
-| ----------------- | ---------------------------------------------- |
-| `client.inboxes`  | list, get, create, update, delete, waitForMessage, extractOtp |
-| `client.messages` | list, get, send, reply, forward, update        |
-| `client.pods`     | list, get, create, delete                      |
-| `client.domains`  | list, get, create, verify, delete              |
-| `client.webhooks` | list, create, update, delete                   |
-| `client.apiKeys`  | list, create, delete                           |
+| Resource | Methods |
+|---|---|
+| `client.agents` | `list`, `create`, `get`, `patch`, `update`, `delete`, `provision`, `agent` |
+| `client.agents.agent(id).messages` | `list`, `listPage`, `get`, `send`, `reply`, `markRead`, `wait`, `extractOtp` |
+| `client.agents.agent(id).channels` | `list`, `create`, `get`, `patch`, `delete` |
+| `client.agents.agent(id).threads` | `list`, `get` |
+| `client.agents.agent(id).drafts` | `list`, `create`, `get`, `update`, `delete`, `send` |
+| `client.agents.agent(id).webhooks` | `list`, `create`, `get`, `update`, `delete` |
+| `client.agents.agent(id).slack` | Slack native surfaces |
+| `client.agents.agent(id).telegram` | Telegram native surfaces |
+| `client.agents.agent(id).push` | Push devices and sends |
+| `client.agents.agent(id).ai` | `categorize`, `extract`, `summarize`, `search` |
+| `client.vault` | `list`, `create`, `get`, `getTotp`, `delete` |
+| `client.personas` | `list`, `create`, `get`, `update`, `associate`, `delete` |
+| `client.domains` | `list`, `create`, `get`, `verify`, `zoneFile`, `delete` |
 
 ## Error Handling
 
 ```typescript
-import { FreemailAPIError, NotFoundError, RateLimitError } from "@freemail/sdk";
+import { AgentCommsError, NotFoundError, RateLimitError } from "@agentcomms/client";
 
 try {
-  await client.inboxes.get("nonexistent");
+  await client.agents.get("missing");
 } catch (err) {
   if (err instanceof NotFoundError) {
-    console.log("Inbox not found");
+    console.log("Agent not found");
   } else if (err instanceof RateLimitError) {
     console.log("Rate limited, retry later");
-  } else if (err instanceof FreemailAPIError) {
+  } else if (err instanceof AgentCommsError) {
     console.log(`API error ${err.statusCode}: ${err.message}`);
   }
 }
 ```
+
+## License
+
+Apache-2.0.

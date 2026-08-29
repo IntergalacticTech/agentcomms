@@ -1,4 +1,5 @@
 # tests/core/test_registry.py
+import importlib.metadata
 import sys
 import pytest
 from pathlib import Path
@@ -98,6 +99,44 @@ class HookedAdapter(ChannelAdapter):
     assert registry["hooked"].webhook_routes == {
         "inbound": {"path": "/webhooks/hooked", "method": "POST"}
     }
+
+
+def test_load_registry_discovers_entry_point_adapter(tmp_path, monkeypatch):
+    from core.adapters.base import ChannelAdapter, HealthStatus, ProvisionResult, SendResult
+
+    class EntryPointAdapter(ChannelAdapter):
+        channel_name = "smoke_signal"
+        supports_modes = ["provision"]
+
+        def provision(self, *, agent, config):
+            return ProvisionResult(status="active", channel_id="chan_ss_1", details={})
+
+        def teardown(self, *, channel):
+            return None
+
+        def health_check(self, *, channel):
+            return HealthStatus(ok=True, last_success_at="x")
+
+        def ingest(self, *, payload):
+            return None
+
+        def send(self, *, channel, message):
+            return SendResult(channel_native_id="x", status="sent")
+
+    class FakeEntryPoint:
+        def load(self):
+            return EntryPointAdapter
+
+    def fake_entry_points(*, group):
+        assert group == "agentcomms.adapters"
+        return [FakeEntryPoint()]
+
+    monkeypatch.setattr(importlib.metadata, "entry_points", fake_entry_points)
+    registry = load_registry(adapters_root=tmp_path / "missing")
+
+    assert "smoke_signal" in registry
+    assert registry["smoke_signal"].modes == ["provision"]
+    assert isinstance(registry["smoke_signal"].adapter, EntryPointAdapter)
 
 
 def test_discord_scaffold_skipped(monkeypatch):

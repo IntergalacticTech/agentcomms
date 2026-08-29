@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 """
 Migrate S3 objects from legacy victorymail buckets to agentcomms buckets.
 
@@ -19,12 +19,12 @@ Usage:
     # Re-key (raw-email bucket):
     python tools/migrate_s3_rekey.py \\
         --source-bucket victorymail-raw-email \\
-        --dest-bucket agentcomms-raw-inbound-prod-732770059798
+        --dest-bucket agentcomms-raw-inbound-prod-${AWS_ACCOUNT_ID}
 
     # Passthrough (bodies/attachments):
     python tools/migrate_s3_rekey.py \\
         --source-bucket victorymail-bodies \\
-        --dest-bucket agentcomms-bodies-prod-732770059798 \\
+        --dest-bucket agentcomms-bodies-prod-${AWS_ACCOUNT_ID} \\
         --passthrough
 
 IMPORTANT: Do NOT run against production without --dry-run first.

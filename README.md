@@ -1,73 +1,64 @@
 # AgentComms
 
-**Your agent's identity and communications hub — email, SMS, Slack, Telegram, push — one unified inbox, one AWS deployment, one source-available codebase.**
+**An open-source communications hub for AI agents: email, SMS, Slack, Telegram, push, and new adapter channels in one unified inbox.**
 
-[![License: FSL-1.1-Apache-2.0](https://img.shields.io/badge/License-FSL--1.1--Apache--2.0-blue.svg)](./LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](./LICENSE)
 [![Tests](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml/badge.svg)](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml)
 
----
+## What It Does
 
-## What it does
+AgentComms gives each AI agent durable communication identity across human and machine channels:
 
-When you spin up a new AI agent, one API call gets that agent:
-- An email address at your domain
-- A phone number for SMS (US 10DLC)
-- A Slack bot identity (bridged into your workspace)
-- A Telegram bot
-- Mobile push notifications (APNs + FCM)
+- Email addresses on your domain
+- SMS numbers through AWS End User Messaging
+- Slack workspace identities through OAuth bridge mode
+- Telegram bots
+- Mobile push notifications through APNs and FCM
+- A small adapter contract for the rest: Discord, WhatsApp, fax, voice, postal mail, radio, or anything else that can send and receive structured events
 
-All routing into **one unified inbox** the agent reads from:
+All direct messages and explicit mentions route into one agent-scoped timeline:
 
 ```python
 from agentcomms import Client
 
-client = Client(api_key="ak_live_...")
-agent = client.agents.create(
+client = Client(api_key="ak_live_your_key", base_url="https://api.your-domain.com/v1")
+
+created = client.agents.create(
     name="InvoiceBot",
     provision={
-        "email": {"local_part": "invoice"},
+        "email": {"local_part": "invoice", "domain": "your-domain.com"},
         "sms": {},
         "telegram": {"bot_token": "..."},
     },
-    bridge={"slack": {"return_url": "https://..."}},
+    bridge={"slack": {"return_url": "https://your-app.example/slack/oauth/callback"}},
 )
 
-for msg in agent.messages.stream():
+agent = client.agents(created["agent_id"])
+
+for msg in agent.messages.list():
     print(f"[{msg.channel}] {msg.from_.address}: {msg.body_text}")
-    if "invoice" in msg.body_text.lower():
-        agent.messages.reply(msg.message_id, body="Got it, processing...")
+    if "invoice" in (msg.body_text or "").lower():
+        agent.messages.reply(msg.message_id, body="Got it, processing.")
 ```
 
-## The differentiator: your coding agent deploys it
+## Self-Deploying Infrastructure
 
-Point Claude Code, Cursor, or Aider at this repo and your AWS credentials. Twenty minutes later your agent has its own email, phone, and Slack identity — running in YOUR cloud, under YOUR control.
+The core deployment target is your own AWS account. The CLI is built so a coding agent can run it end to end:
 
 ```bash
 npm i -g @agentcomms/cli
-agentcomms bootstrap --domain your-domain.com --admin-email you@your-domain.com --json
+agentcomms bootstrap \
+  --domain your-domain.com \
+  --admin-email you@your-domain.com \
+  --non-interactive \
+  --json
 ```
 
-See [AGENT.md](./AGENT.md) for the full deployment guide written for coding agents.
-
-## Why source-available, not open source
-
-Functional Source License (FSL-1.1-Apache-2.0). You can:
-- Self-host for personal, internal, or company use
-- Modify and redistribute under FSL
-- Build commercial products on top of your AgentComms deployment
-
-You cannot:
-- Offer AgentComms as a paid hosted service to third parties (that's the Competing Use clause)
-
-After 2 years, each file automatically relicenses to Apache 2.0.
-
-Commercial licenses available — contact `commercial@agentcomms.dev`.
-
-See [docs/licensing.md](./docs/licensing.md) for the plain-English explanation.
+See [AGENT.md](./AGENT.md) for the deployment contract, preflight checks, NDJSON output, exit codes, and recovery paths.
 
 ## Architecture
 
-```
+```text
     +--- SDKs / MCP / REST clients ---+
     v                                 v
  +----------------------------------------------+
@@ -83,54 +74,49 @@ See [docs/licensing.md](./docs/licensing.md) for the plain-English explanation.
                                   (email) (AWS)  (OAuth)  (bot)
 ```
 
-- **Agent-centric**: `Agent` is the top-level object. Everything else (channels, messages, threads) is scoped under an agent.
-- **Unified inbox**: Direct messages and @mentions from every channel merged into one timeline. Channel-native activity accessible via per-channel sub-surfaces.
-- **AWS-native**: DynamoDB, Lambda, SES, SNS, SQS, Kinesis, Bedrock. No Kafka, no Redis, no Postgres.
-- **Plugin adapter SDK**: Each channel is a module in `adapters/` implementing the `ChannelAdapter` contract. Add a new channel by copying an existing adapter and changing ~300 lines.
+- **Agent-centric**: `Agent` is the top-level object. Channels, messages, threads, drafts, webhooks, and native surfaces are scoped under an agent.
+- **Unified inbox**: Direct messages and explicit mentions merge into one timeline. Channel-native room traffic remains accessible through channel-specific paths.
+- **AWS-native**: DynamoDB, Lambda, SES, SNS, SQS, Kinesis, API Gateway, KMS, Bedrock. No Kafka, Redis, or Postgres required.
+- **Adapter-first**: Each channel implements `core.adapters.base.ChannelAdapter`. Adding a channel should mean adding an adapter module, CDK wiring, tests, and docs, not rewriting the hub.
 
-See [docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md](./docs/superpowers/specs/2026-04-17-agentcomms-pivot-design.md) for the full design spec.
+See [docs/architecture.md](./docs/architecture.md) for the current system design, [docs/adapter-authoring.md](./docs/adapter-authoring.md) for the adapter contract, and [docs/adapter-roadmap.md](./docs/adapter-roadmap.md) for the channel-adapter roadmap.
 
 ## Status
 
-| Phase | Status |
+| Area | Status |
 |---|---|
-| Phase 1: Foundation | Complete |
-| Phase 2: SMS + Push + Vault + Personas + Domains + AI | Complete |
-| Phase 3: Slack + Telegram | Complete |
-| Phase 4: OSS packaging | Complete |
-| Phase 5: Migration + cutover | Complete |
-| Phase 6: Public launch | Upcoming |
+| Core API, data model, auth, unified inbox | Working |
+| Email, SMS, push, Slack, Telegram adapters | Working, with external provider setup required |
+| Python SDK, Node SDK, MCP server, CLI | Working |
+| Discord adapter | Scaffolded |
+| API key management | Working |
+| Next adapter targets | Discord, WhatsApp, voice, fax, postal |
 
-## Quickstart
+## Repo Layout
 
-See [AGENT.md](./AGENT.md) for agent-assisted deploy, or [docs/quickstart.md](./docs/quickstart.md) for manual setup.
-
-The live API is available at `https://agentcomms.dev/v1/` — sign up at `agentcomms.dev` if you don't want to run your own deployment.
-
-## Repo layout
-
+```text
+adapters/   Channel adapter implementations
+cdk/        AWS CDK infrastructure
+cli/        agentcomms CLI
+console/    Management console
+core/       Shared Python runtime, API handlers, models, registry
+docs/       API docs, channel guides, runbooks, historical design notes
+examples/   Example agent integrations
+mcp/        MCP server for agent tool use
+sdks/       Python and Node SDKs
+tests/      Unit, integration, and e2e tests
+tools/      Seed, migration, smoke, and maintenance scripts
 ```
-adapters/         Channel adapter implementations (email, sms, push, slack, telegram)
-cdk/              AWS CDK infrastructure (TypeScript)
-cli/              agentcomms CLI (TypeScript) — Phase 4 Task 3
-console/          React management console
-core/             Shared Python runtime (data models, event bus, adapter registry, API authorizer at core/api/authorizer_lambda.py)
-docs/             API reference, quickstart, per-channel guides
-lambdas/          Lambda handlers (Hub API, billing, processors, etc.)
-mcp-server/       MCP server for agent tool use
-sdks/             Client SDKs — Python (agentcomms) + Node (@agentcomms/client)
-tests/            Integration + unit tests (run via CI — see the Tests badge above)
-tools/            Ops scripts (seed, SPDX headers, etc.)
-```
+
+## License
+
+AgentComms is true open source under the Apache License 2.0. See [LICENSE](./LICENSE) and [docs/licensing.md](./docs/licensing.md).
 
 ## Contributing
 
-Contributions welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-New channel adapters are the highest-leverage contribution: start with `adapters/telegram/` as the simplest template. Discord scaffolding is already at `adapters/discord/`.
+Contributions welcome. New channel adapters are the highest-leverage work; start with [examples/adapter-template/](./examples/adapter-template/) for an external package or `adapters/telegram/` for an in-repo adapter. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Contact
 
 - Issues: [GitHub Issues](https://github.com/IntergalacticTech/FreeMail.ai/issues)
-- Commercial licensing: `commercial@agentcomms.dev`
-- Security: `security@agentcomms.dev` — see [SECURITY.md](./SECURITY.md) for responsible disclosure policy
+- Security: `security@agentcomms.dev` - see [SECURITY.md](./SECURITY.md)

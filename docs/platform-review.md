@@ -1,142 +1,97 @@
 # Platform Review
 
-Status: review based on the repository state on 2026-06-17.
+Status: review updated on 2026-08-29 after the Apache-2.0 OSS cleanup and API/SDK contract pass.
 
 ## Executive Summary
 
-AgentComms has a strong product direction: a unified communications inbox for agents, with channel adapters, SDKs, a console, and infrastructure as code. The best technical asset is the newer AgentComms core: `core/data/repo.py` keeps DynamoDB access behind a repository, `core/data/models.py` defines normalized cross-channel entities, and the adapter contract makes channels independently replaceable.
+AgentComms is now pointed in the right direction for an open-source AI communications hub. The strongest assets are the agent-centric domain model, the `UnifiedMessage` abstraction, the adapter contract, and the deployable AWS CDK stack. The repository is no longer blocked by a restrictive license, hard-coded maintainer AWS account, missing API key routes, or stale SDK/MCP contracts for the main agent/message flows.
 
-The platform is not yet cleanly self-hostable or cloud-portable. The repo currently contains two product generations: older FreeMail/VictoryMail stacks and newer AgentComms stacks. The CDK app deploys both generations into a hard-coded AWS account, and several docs still describe the older hosted FreeMail surface. That makes the current "one command deploy" story risky for external users.
+The next serious work is less about product copy and more about production architecture: durable async delivery, adapter package contracts, provider abstraction, deeper console operations, and a clean split between legacy migration material and current public docs.
 
-The Azure path is feasible, but it is not just an IaC translation. Azure does not currently provide a generally available SES-equivalent inbound/catch-all email service through Azure Communication Services Email. A feature-complete Azure-native deployment must either use Microsoft 365/Graph mail ingestion, ACS Email inbound private preview if available, or a custom SMTP ingress service on Azure infrastructure.
+## Resolved In This Pass
 
-## High Priority Findings
+- Switched repository licensing to Apache-2.0 and removed the separate commercial license template.
+- Replaced public restrictive-license copy in the README, license explainer, landing page, launch drafts, and key planning docs.
+- Added API key management handlers and CDK routes for `GET/POST /v1/api-keys` and `DELETE /v1/api-keys/{key_id}`.
+- Fixed core message routes so clients can get by stable `message_id`, reply, mark read, and delete without timestamp knowledge.
+- Aligned SDK/MCP/CLI payloads with current handlers for messages, wait/OTP, vault, domains, AI, Slack, Telegram, push, and API keys.
+- Parameterized the CDK app account/region through context and environment instead of pinning deployments to one account.
+- Fixed the TOKEN authorizer Lambda to parse method/path from `methodArn`.
+- Fixed inbound email raw-MIME lookup to respect the SES `inbound/` S3 prefix.
+- Replaced stale public docs for quickstart, SDKs, MCP, architecture, API reference, BYOC, billing, and roadmap.
+- Updated the console's default API URL and primary Agents, Messages, API Keys, and Domains views to the current route and response shapes.
 
-### 1. Self-hosting deploys are hard-coded to one AWS account
+## Remaining High-Priority Risks
 
-`cdk/bin/app.ts` hard-codes account `732770059798` and `us-east-1` for both the older VictoryMail stacks and the newer AgentComms stacks. The CLI bootstrap path deploys `AgentCommsData`, `AgentCommsEvents`, `AgentCommsApi`, and `AgentCommsAdapters`, but those stacks still resolve to the hard-coded account in the app.
+### 1. Durable Async Delivery
 
-Impact: users following `AGENT.md` may believe they are deploying into their account, while the CDK app is anchored to the maintainer account. This blocks real BYOC and makes Azure parity premature.
-
-Recommendation:
-
-- Replace hard-coded `env` values with `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`, CLI options, or context.
-- Split older VictoryMail stacks from the AgentComms app entrypoint.
-- Add a self-host synth test that asserts no production account ID is present in the synthesized template.
-
-### 2. Agent-scoped and channel-scoped API keys are not wired correctly through API Gateway
-
-`core/api/authorizer_lambda.py` passes `event.get("path")` and `event.get("httpMethod")` into `authorize()`, but API Gateway TOKEN authorizers generally provide `authorizationToken` and `methodArn`, not the full request path and method. The CDK stack uses `TokenAuthorizer`, and the tests exercise `authorize()` directly rather than the Lambda authorizer event shape.
-
-Impact: non-org API keys are likely denied for valid requests, or scope enforcement will be incomplete if later moved into handlers inconsistently.
+Outbound sends are still too synchronous for a hub that will cover unreliable providers. Every adapter needs a durable outbox contract with idempotency keys, retries, backoff, status transitions, and dead-letter visibility.
 
 Recommendation:
 
-- Switch to a REQUEST authorizer with path and method identity sources, or parse method/stage/path from `methodArn`.
-- Add tests for `authorizer_lambda.lambda_handler()` using realistic API Gateway authorizer events.
-- Decide whether path-level scope lives in the authorizer or in handler-level ownership checks, then make it consistent.
+- Add an `outbox` entity and worker path keyed by org, agent, channel, and message.
+- Define adapter retry categories: permanent, transient, rate-limited, provider-auth, and user-action-required.
+- Expose delivery status consistently through messages, webhooks, and `agentcomms status`.
 
-### 3. New AgentComms inbound email wiring appears broken
+### 2. Adapter Contract Testing
 
-`cdk/lib/adapters/email-adapter-stack.ts` stores SES inbound mail in S3 with `objectKeyPrefix: 'inbound/'`. `adapters/email/ingest.py` fetches the object with `mail.messageId` only, without the `inbound/` prefix.
-
-Impact: inbound email in the newer AgentComms stack will not find raw MIME objects unless SES writes without the prefix or the handler is patched.
+The `ChannelAdapter` interface is good, but there is no shared compliance test suite that adapter authors can run.
 
 Recommendation:
 
-- Set the handler key to `f"inbound/{message_id}"`, or make the prefix configurable.
-- Add an integration-style test that builds an SNS SES notification, writes `inbound/{messageId}` to S3, and verifies a message record is persisted.
+- Create adapter contract tests for `provision`, `ingest`, `send`, `health_check`, native surfaces, and idempotency.
+- Publish provider fixture conventions under `docs/adapters/`.
+- Make Discord the first adapter to pass the new contract suite.
 
-### 4. Product identity is inconsistent across docs, code, and domains
+### 3. External Adapter Packaging
 
-The root README is AgentComms, while `docs/README.md`, `docs/quickstart.md`, `ARCHITECTURE.md`, old Lambda names, stack names, and domains still refer to FreeMail, VictoryMail, `victorymail.dev`, and `api.victorymail.dev`.
-
-Impact: this weakens public launch readiness, creates support ambiguity, and increases migration risk.
-
-Recommendation:
-
-- Declare AgentComms as the canonical name.
-- Move legacy VictoryMail/FreeMail docs into a `docs/legacy/` folder or mark them explicitly as historical.
-- Update quickstart, hosted URLs, SDK names, key prefixes, email addresses, and screenshots in one coordinated pass.
-
-### 5. CDK tests perform real Lambda asset bundling
-
-Running `npx jest --runInBand` from `cdk/` passed, but it pulled the SAM Python 3.12 image and installed Python dependencies during unit tests.
-
-Impact: CDK tests are slow, network-dependent, and brittle in CI. They test bundling side effects more than template intent.
+`core.adapters.registry` already supports Python entry points in `agentcomms.adapters`, but docs and examples need a complete external adapter package template.
 
 Recommendation:
 
-- Add a test mode for CDK constructs that uses stub Lambda assets.
-- Keep bundling verification in a separate integration test or CI job.
-- Add an `npm test` script in `cdk/package.json`; Jest tests exist but `npm test` currently fails.
+- Add `examples/adapter-template/` with `pyproject.toml`, manifest, tests, and CI.
+- Document version compatibility and manifest schema.
+- Keep core repo adapters as reference implementations, not the only supported extension path.
 
-## Architecture Assessment
+### 4. Provider Abstraction Beyond AWS
 
-### Strengths
+The domain model can outlive AWS, but runtime code still uses direct AWS clients in several handlers/adapters.
 
-- The normalized `UnifiedMessage` model and adapter contract are the right shape for a multi-channel agent inbox.
-- Single-table data access is mostly centralized in `Repo`, which makes testing and future provider adapters easier.
-- The stack uses managed services well for the AWS target: Lambda, DynamoDB, S3, SQS/SNS/Kinesis, SES, Cognito, CloudWatch, and Bedrock.
-- The CLI emits structured NDJSON, which is good for agent-driven setup and automation.
-- Tests cover core models, adapters, API handlers, and CDK templates, even if the local environment needs tightening.
+Recommendation:
 
-### Risks
+- Formalize provider interfaces for table, blob, events, queues, secrets, email, SMS, push, and AI.
+- Move direct `boto3` access behind provider modules where practical.
+- Treat Azure as a provider port after the AWS provider boundary is clean.
 
-- There are two infrastructure generations in the same CDK app.
-- Runtime provider calls are spread through adapters and handlers via direct `boto3` usage.
-- Several docs describe target state as if it is implemented.
-- Security boundaries rely on a mix of authorizer checks and handler ownership checks.
-- Some operational features are stated but not yet complete: SES polling, smoke tests, deploy resume, marketplace BYOC, and cloud-neutral setup.
+### 5. Console Operations Depth
 
-## Azure Native Direction
+The console is back on the current API surface, but OSS users still need better operational visibility into native surfaces, adapter health, and provider setup errors.
 
-Azure support should be implemented as a provider port, not a fork. Keep the domain model, API shape, adapter contract, SDKs, and console. Replace the runtime provider layer and IaC:
+Recommendation:
 
-- AWS CDK becomes Azure Bicep or Azure Developer CLI templates.
-- Lambda becomes Azure Functions or Container Apps jobs.
-- DynamoDB becomes Cosmos DB for NoSQL.
-- S3 becomes Blob Storage.
-- SQS/SNS/Kinesis becomes Service Bus, Event Grid, and Event Hubs.
-- KMS/SSM/Secrets Manager becomes Key Vault.
-- Cognito becomes Microsoft Entra External ID or Azure AD B2C.
-- Bedrock/OpenSearch becomes Azure OpenAI plus Azure AI Search.
-- SES outbound becomes Azure Communication Services Email.
-- SES inbound needs a product decision: Graph mailbox ingestion, ACS private preview, or custom SMTP ingress.
+- Rebuild console navigation around Agents, Channels, Messages, Native Surfaces, API Keys, Domains, Vault, Webhooks, and Adapter Health.
+- Avoid making provider setup a hidden docs-only workflow; surface missing SSM secrets and provider permissions in UI.
 
-See `docs/azure-native-setup.md` for a concrete setup plan.
+### 6. Legacy Material
 
-## Recommended Roadmap
+Migration scripts and pre-pivot design docs still intentionally mention FreeMail/VictoryMail. That is fine for historical context, but current docs should remain agent-centric.
 
-### Week 1: Make AWS self-hosting honest
+Recommendation:
 
-- Parameterize CDK account, region, stage, and domains.
-- Remove VictoryMail stacks from the AgentComms bootstrap entrypoint.
-- Fix the email S3 prefix issue.
-- Add realistic authorizer Lambda event tests.
-- Add `cdk` and CLI test scripts that work from `npm test`.
+- Move old docs into `docs/legacy/` after the cutover window closes.
+- Keep `MIGRATION.md` and tools docs for operators.
+- Add a top-level note to any preserved historical doc that points to the current quickstart and architecture.
 
-### Week 2: Create provider seams
+## OSS Contribution Priorities
 
-- Introduce provider interfaces for table, blob, queue, event publish, secrets, email send, SMS, push, and AI.
-- Move direct `boto3` calls out of API handlers where possible.
-- Keep AWS implementations as the first provider.
+1. Discord adapter implementation.
+2. Generic webhook adapter.
+3. Adapter compliance test harness.
+4. Durable outbox and inbound idempotency.
+5. External adapter package template.
+6. Console adapter-health and provider-setup views.
+7. Dependency license inventory refresh in `NOTICE`.
 
-### Week 3: Azure foundation
+## Strategic Direction
 
-- Add `infra/azure/` with Bicep modules for Cosmos DB, Storage, Functions, Service Bus, Event Grid, Key Vault, Application Insights, ACS Email/SMS, Static Web Apps, and API Management.
-- Add Azure runtime config and managed identity permissions.
-- Build Azure provider implementations behind the same interfaces.
-
-### Week 4: Inbound email decision and prototype
-
-- If ACS inbound private preview is available, wire Event Grid to an Azure Function.
-- If not, prototype Microsoft Graph change notifications for a shared mailbox, or a custom SMTP receiver on Azure Container Apps/AKS.
-- Keep the AWS SES path as the reference implementation until Azure inbound is proven.
-
-## Verification Performed
-
-- `pytest tests/core/test_authorizer.py tests/api/test_agents.py adapters/email/tests/test_adapter.py -q` failed because `moto` is not installed in the local Python environment.
-- `cd cdk && npm test -- --runInBand` failed because `cdk/package.json` has no `test` script.
-- `cd cdk && npx jest --runInBand` passed: 5 suites, 21 tests. The run took about 116 seconds because CDK tests bundled Lambda assets through Docker.
-
+AgentComms should stay strict at the center and weird at the edges. Core owns tenancy, auth, normalized persistence, event publication, and dispatch. Adapters own every provider quirk, from Slack threads to WhatsApp templates to fax delivery receipts to any future transport that can be represented as an event and a reply target.

@@ -37,7 +37,6 @@ Optional flags:
 - `--account 123456789012` — validate that AWS creds resolve to this account ID before deploying
 - `--profile myprofile` — use a named AWS CLI profile
 - `--skip-channels sms,slack` — omit specific channel adapters from the initial deploy
-- `--env-suffix dev2` — suffix all resource names (avoids collision with an existing deploy)
 
 ## NDJSON event stream
 
@@ -49,11 +48,11 @@ Each phase emits a line of JSON to stdout. Expected phases in order:
 {"phase":"cdk_bootstrap","status":"ok"}
 {"phase":"deploy","stack":"AgentCommsData","status":"running","progress":0.3}
 {"phase":"deploy","stack":"AgentCommsData","status":"ok"}
-{"phase":"ses","check":"dkim","status":"waiting","msg":"DKIM verification pending (1 of 3 CNAMEs verified)"}
-{"phase":"ses","check":"dkim","status":"ok"}
+{"phase":"ses","check":"dkim","status":"waiting","msg":"submit DKIM CNAMEs via: agentcomms status"}
+{"phase":"ses","check":"dkim","status":"ok","msg":"skipping poll in v0.1; run `agentcomms status` after DNS propagates"}
 {"phase":"seed","status":"ok","org_id":"org_01H...","admin_api_key":"ak_live_...","note":"This key is shown once. Store it securely."}
-{"phase":"smoke","status":"ok","outbound_message_id":"msg_01H..."}
-{"phase":"done","status":"ok","api_url":"https://api.your-domain.com/v1","console_url":"https://console.your-domain.com","admin_email":"you@your-domain.com","admin_api_key":"ak_live_...","next_steps":["enable sms: agentcomms channels enable sms","enable slack: agentcomms channels enable slack"]}
+{"phase":"smoke","status":"ok","msg":"smoke test skipped in v0.1; run `agentcomms status` to verify channels"}
+{"phase":"done","status":"ok","api_url":"https://api.your-domain.com/v1","console_url":"https://console.your-domain.com","admin_email":"you@your-domain.com","admin_api_key":"ak_live_...","next_steps":["Create agents: agentcomms agents create --name MyAgent","Create agent-scoped keys: agentcomms keys create --scope agent --agent-id agt_... --name MyAgent","Store the admin API key securely."]}
 ```
 
 All structured output goes to stdout. Human-readable progress goes to stderr. Pipe stdout through `jq` if you want to filter specific phases.
@@ -84,7 +83,7 @@ All structured output goes to stdout. Human-readable progress goes to stderr. Pi
 ### 3. `deploy: AgentCommsData CREATE_FAILED s3 bucket already exists`
 - Grep: `"status":"fail"` on a `deploy` phase line, CloudFormation error contains `BucketAlreadyExists`
 - Cause: A previous partial deploy left S3 buckets. Bucket names are globally unique.
-- Fix: `aws s3 ls | grep agentcomms-` then either delete old buckets or use `--env-suffix dev2` to get a fresh set of names.
+- Fix: `aws s3 ls | grep agentcomms-`, decide whether retained bucket contents are safe to remove, then delete the old buckets or choose a different domain/env configuration before retrying.
 
 ### 4. `deploy: Lambda Runtime.ImportModuleError`
 - Grep: `Runtime.ImportModuleError` in CloudWatch logs or CDK output
@@ -94,7 +93,7 @@ All structured output goes to stdout. Human-readable progress goes to stderr. Pi
 ### 5. `ses: dkim timeout`
 - Grep: `"check":"dkim","status":"fail","msg":"timeout"`
 - Cause: DNS CNAMEs propagated slowly.
-- Fix: `dig CNAME <token>._domainkey.your-domain.com` — if NXDOMAIN, wait; if resolving correctly, run `agentcomms bootstrap --resume`.
+- Fix: `dig CNAME <token>._domainkey.your-domain.com`. If NXDOMAIN, wait. If resolving correctly, run `agentcomms status --json` and then rerun the same bootstrap command only if a stack failed.
 
 ### 6. `smoke: no delivery confirmation`
 - Grep: `"phase":"smoke","status":"fail"`
@@ -116,47 +115,32 @@ All structured output goes to stdout. Human-readable progress goes to stderr. Pi
 
 ### 10. `seed: admin_api_key lost`
 - Cause: You lost the key printed in the NDJSON (it is printed exactly once and not stored by the CLI).
-- Fix: `agentcomms keys revoke bootstrap-admin && agentcomms keys create --scope org --name admin --show` to generate a replacement.
+- Fix: If the CLI saved the key in `~/.agentcomms/config.json`, run `agentcomms keys create --scope org --name replacement-admin --json`. Then run `agentcomms keys list --json`, find the old key ID, and revoke it with `agentcomms keys revoke <key_id>`.
 
-## Enable channels after bootstrap
+## Channels After Bootstrap
 
-Bootstrap provisions email by default. Other channels require additional setup:
-
-### SMS (AWS End User Messaging)
+Bootstrap deploys the adapter infrastructure unless you omit adapters with `--skip-channels`. Per-agent channel identities are created through the API, SDKs, or MCP tools:
 
 ```bash
-agentcomms channels enable sms
+agentcomms agents create --name InvoiceBot
 ```
 
-Walks through: 10DLC brand registration, campaign registration, phone number provisioning. Takes 2–7 business days for carrier approval before any number can send/receive. You'll be prompted for brand name, EIN, website, and use-case description.
+Then use `POST /v1/agents/{agent_id}/channels` or the SDK equivalent:
 
-### Slack
-
-```bash
-agentcomms channels enable slack
+```python
+client.agents("agt_...").channels.create(
+    channel="email",
+    config={"local_part": "invoice", "domain": "your-domain.com"},
+)
 ```
 
-You'll create a Slack app in Slack's developer console and paste the app ID, `client_id`, `client_secret`, and `signing_secret` into the CLI prompts. The CLI stores them in SSM Parameter Store under `/agentcomms/{env}/slack/`.
+Provider setup still happens outside AgentComms where the provider requires it:
 
-### Telegram
-
-```bash
-agentcomms channels enable telegram
-```
-
-Create a bot via @BotFather in Telegram, paste the bot token. Instant — no approval process.
-
-### Push (APNs + FCM)
-
-```bash
-agentcomms channels enable push
-```
-
-You'll provide your APNs auth key (`.p8` file) and/or FCM server key. The CLI creates SNS Platform Applications in your account.
-
-### Discord
-
-Not yet implemented. Scaffold is at `adapters/discord/`. Contributions welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+- SMS: AWS End User Messaging and 10DLC approval are required before US numbers can send/receive.
+- Slack: create a Slack app and store OAuth credentials in SSM under the documented `/agentcomms/{env}/adapters/slack/*` paths.
+- Telegram: create a bot with BotFather and pass its token when provisioning.
+- Push: configure APNs or FCM platform application credentials.
+- Discord: adapter scaffold exists in `adapters/discord/`; the implementation is still open for contribution.
 
 ## Status check
 
@@ -176,24 +160,19 @@ agentcomms destroy --yes
 
 Deletes CloudFormation stacks AND the DynamoDB table AND SNS/SQS/Kinesis resources. Does NOT delete S3 buckets (they're retained by default to protect against accidental data loss). Delete manually with `aws s3 rm s3://bucket-name --recursive && aws s3 rb s3://bucket-name` if you want them gone.
 
-## Self-hosting vs hosted service
+## Self-Hosting And Hosted Service
 
-The canonical hosted `agentcomms.dev` service runs from the same CDK app you just deployed. The only things Victory has that you don't:
+The canonical hosted `agentcomms.dev` service runs from the same open-source code and CDK app you deploy yourself. The hosted service competes on operations:
 
 1. Victory's production AWS account + operational tuning
 2. The `@agentcomms.dev` domain pool for email addresses
 3. Victory's SES production sending reputation
 4. Victory's 10DLC brand registration for SMS
-5. The commercial hosting rights granted by the license Victory holds
 
-You can do everything else on your own deploy — for your own agents, your own internal users, your own company. If you want to host AgentComms as a paid service for third parties, you need a commercial license: `commercial@agentcomms.dev`.
+You can self-host, fork, modify, redistribute, or operate your own hosted version under Apache-2.0.
 
 ## License
 
-FSL-1.1-Apache-2.0. You can: self-host, modify, run internally, build commercial products on top of your own deployment.
-
-You cannot: offer AgentComms itself as a paid hosted service to third parties without a commercial license.
-
-Each file becomes Apache 2.0 two years after its commit date.
+Apache-2.0. You can use AgentComms privately or commercially, self-host it, modify it, redistribute it, and build hosted services on top of it.
 
 See [LICENSE](./LICENSE) and [docs/licensing.md](./docs/licensing.md).

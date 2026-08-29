@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 import { Command } from "commander";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -202,8 +202,8 @@ export function bootstrapCommand(): Command {
         admin_api_key: adminKey,
         region: opts.region,
         next_steps: [
-          "Enable additional channels: agentcomms channels enable <sms|slack|telegram|push>",
           "Create agents: agentcomms agents create --name MyAgent",
+          "Create agent-scoped keys: agentcomms keys create --scope agent --agent-id agt_... --name MyAgent",
           "Read the admin API key above and store it securely.",
         ],
       });

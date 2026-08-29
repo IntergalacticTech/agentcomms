@@ -71,19 +71,19 @@ The server implements MCP protocol version `2024-11-05` (latest stable). It decl
 ### Prerequisites
 
 - Node.js 18+ (for npx execution)
-- An AgentMail API key (obtain from the developer console or via `POST /agent/signup` + `POST /agent/verify`)
+- An AgentComms API key from the developer console or a self-hosted bootstrap run.
 
 ### Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `AGENTMAIL_API_KEY` | Yes | -- | API key in format `am_live_...` or `am_test_...` |
-| `AGENTMAIL_API_URL` | No | `https://api.agentmail.aws` | Base URL for the AgentMail REST API |
-| `AGENTMAIL_DEFAULT_INBOX` | No | -- | Default inbox ID to use when inbox_id is omitted from tool calls |
-| `AGENTMAIL_LOG_LEVEL` | No | `warn` | Logging level: `debug`, `info`, `warn`, `error`, `silent` |
-| `AGENTMAIL_TIMEOUT` | No | `300000` | Default HTTP request timeout in milliseconds |
-| `AGENTMAIL_TRANSPORT` | No | `stdio` | Transport mode: `stdio`, `sse`, `streamable-http` |
-| `AGENTMAIL_PORT` | No | `3100` | Port for SSE and Streamable HTTP transports |
+| `AGENTCOMMS_API_KEY` | Yes | -- | API key in format `ak_live_...` or `ak_test_...` |
+| `AGENTCOMMS_API_URL` | No | `https://api.agentcomms.dev/v1` | Base URL for the AgentComms REST API |
+| `AGENTCOMMS_DEFAULT_AGENT` | No | -- | Default agent ID to use when `agent_id` is omitted from tool calls |
+| `AGENTCOMMS_LOG_LEVEL` | No | `warn` | Logging level: `debug`, `info`, `warn`, `error`, `silent` |
+| `AGENTCOMMS_TIMEOUT` | No | `300000` | Default HTTP request timeout in milliseconds |
+| `AGENTCOMMS_TRANSPORT` | No | `stdio` | Transport mode: `stdio`, `sse`, `streamable-http` |
+| `AGENTCOMMS_PORT` | No | `3100` | Port for SSE and Streamable HTTP transports |
 
 ### Claude Code
 
@@ -99,7 +99,7 @@ To pass the API key explicitly:
 
 ```bash
 claude mcp add agentmail \
-  --env AGENTMAIL_API_KEY=am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL \
+  --env AGENTCOMMS_API_KEY=ak_live_EXAMPLE \
   -- npx @agentmail/mcp-server
 ```
 
@@ -114,7 +114,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "command": "npx",
       "args": ["@agentmail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL",
+        "AGENTCOMMS_API_KEY": "ak_live_EXAMPLE",
         "AGENTMAIL_API_URL": "https://api.agentmail.aws"
       }
     }
@@ -135,7 +135,7 @@ Create `.cursor/mcp.json` in the project root (or `~/.cursor/mcp.json` for globa
       "command": "npx",
       "args": ["@agentmail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL"
+        "AGENTCOMMS_API_KEY": "ak_live_EXAMPLE"
       }
     }
   }
@@ -153,7 +153,7 @@ Add to `.vscode/mcp.json`:
       "command": "npx",
       "args": ["@agentmail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL"
+        "AGENTCOMMS_API_KEY": "ak_live_EXAMPLE"
       }
     }
   }
@@ -171,7 +171,7 @@ Add to the JetBrains MCP configuration (Settings > Tools > AI Assistant > MCP Se
       "command": "npx",
       "args": ["@agentmail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL"
+        "AGENTCOMMS_API_KEY": "ak_live_EXAMPLE"
       }
     }
   }
@@ -189,7 +189,7 @@ Create `.windsurf/mcp.json` in the project root:
       "command": "npx",
       "args": ["@agentmail/mcp-server"],
       "env": {
-        "AGENTMAIL_API_KEY": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL"
+        "AGENTCOMMS_API_KEY": "ak_live_EXAMPLE"
       }
     }
   }
@@ -200,7 +200,7 @@ Create `.windsurf/mcp.json` in the project root:
 
 ```bash
 docker run -d \
-  -e AGENTMAIL_API_KEY=am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL \
+  -e AGENTCOMMS_API_KEY=ak_live_EXAMPLE \
   -e AGENTMAIL_TRANSPORT=sse \
   -e AGENTMAIL_PORT=3100 \
   -p 3100:3100 \
@@ -221,7 +221,7 @@ proc = subprocess.Popen(
     ["npx", "@agentmail/mcp-server"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
-    env={**os.environ, "AGENTMAIL_API_KEY": "am_live_..."},
+    env={**os.environ, "AGENTCOMMS_API_KEY": "ak_live_..."},
 )
 # Send JSON-RPC messages to proc.stdin, read from proc.stdout
 ```
@@ -235,7 +235,7 @@ pip install agentmail-mcp
 ```python
 from agentmail_mcp import AgentMailMCPServer
 
-server = AgentMailMCPServer(api_key="am_live_...")
+server = AgentMailMCPServer(api_key="ak_live_...")
 server.start()  # Starts the Node.js process internally
 ```
 
@@ -248,7 +248,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const transport = new StdioClientTransport({
   command: "npx",
   args: ["@agentmail/mcp-server"],
-  env: { AGENTMAIL_API_KEY: "am_live_..." },
+  env: { AGENTCOMMS_API_KEY: "ak_live_..." },
 });
 
 const client = new Client({ name: "my-agent", version: "1.0.0" });
@@ -310,7 +310,7 @@ Options:
   --transport <mode>    Transport mode: stdio, sse, streamable-http (default: stdio)
   --port <number>       Port for SSE/HTTP transports (default: 3100)
   --host <string>       Bind address for SSE/HTTP transports (default: 127.0.0.1)
-  --api-key <string>    AgentMail API key (overrides AGENTMAIL_API_KEY env var)
+  --api-key <string>    AgentMail API key (overrides AGENTCOMMS_API_KEY env var)
   --api-url <string>    AgentMail API URL (overrides AGENTMAIL_API_URL env var)
   --log-level <level>   Log level: debug, info, warn, error, silent (default: warn)
   --version             Show version number
@@ -2523,7 +2523,7 @@ The MCP server maps REST API errors to structured MCP tool error responses. Ever
 |------------|----------------|-------------------|
 | 400 | `INVALID_REQUEST` | `"Invalid request: {message}. Check the tool parameters and try again."` |
 | 400 | `VALIDATION_ERROR` | `"Validation error: {message}. The following fields have issues: {details}."` |
-| 401 | `UNAUTHORIZED` | `"Authentication failed. Your AGENTMAIL_API_KEY may be invalid, expired, or missing. Check your MCP server configuration."` |
+| 401 | `UNAUTHORIZED` | `"Authentication failed. Your AGENTCOMMS_API_KEY may be invalid, expired, or missing. Check your MCP server configuration."` |
 | 403 | `FORBIDDEN` | `"Permission denied. Your API key does not have access to this resource. Key scope: {scope}."` |
 | 403 | `SCOPE_VIOLATION` | `"Scope violation: your API key is scoped to {scope} and cannot access {resource}. Use an org-scoped key or request a key with broader scope."` |
 | 404 | `RESOURCE_NOT_FOUND` | `"Not found: {resource_type} {id} does not exist. Verify the ID and try again."` |
@@ -2584,9 +2584,9 @@ If the REST API is unreachable (DNS failure, connection refused, TLS error):
 
 ### API Key Management
 
-- The API key is loaded exclusively from the `AGENTMAIL_API_KEY` environment variable or the `--api-key` CLI flag.
+- The API key is loaded exclusively from the `AGENTCOMMS_API_KEY` environment variable or the `--api-key` CLI flag.
 - The API key is **never** included in MCP configuration files that may be committed to version control. The env var approach ensures the key lives in the shell environment or a `.env` file excluded from git.
-- The MCP server does not log the API key. It logs only the key prefix (`am_live_7kB3...`) for debugging purposes.
+- The MCP server does not log the API key. It logs only the key prefix (`ak_live_7kB3...`) for debugging purposes.
 - The API key is transmitted only over HTTPS to `api.agentmail.aws`. The MCP server rejects `http://` API URLs unless `AGENTMAIL_ALLOW_INSECURE=true` is set (for local development only).
 
 ### Data Sanitization in Tool Outputs
@@ -3164,7 +3164,7 @@ For advanced deployments, the MCP server supports a YAML configuration file at `
 
 ```yaml
 # ~/.agentmail/mcp-config.yaml
-api_key: ${AGENTMAIL_API_KEY}  # Supports env var interpolation
+api_key: ${AGENTCOMMS_API_KEY}  # Supports env var interpolation
 api_url: https://api.agentmail.aws
 transport: stdio
 port: 3100

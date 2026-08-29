@@ -1,186 +1,108 @@
 ---
-name: freemail
+name: agentcomms
 description: |
-  Email for AI agents. Create inboxes, send/receive email, wait for messages,
-  and extract OTP codes via the FreeMail API. No OAuth, no human provisioning.
-  One API call to sign up, one to create an inbox, one to send email.
+  Communications hub for AI agents. Create agents, provision channels, send and
+  receive messages, wait for replies, extract OTP codes, and use native channel
+  surfaces through the AgentComms API.
 metadata:
   openclaw:
     requires:
       env:
-        - FREEMAIL_API_KEY
-    primaryEnv: FREEMAIL_API_KEY
+        - AGENTCOMMS_API_KEY
+    primaryEnv: AGENTCOMMS_API_KEY
 ---
 
-# FreeMail - Email for AI Agents
+# AgentComms - Communications Hub for AI Agents
 
-API-first email platform. Create inboxes, send and receive email, wait for
-messages, and extract verification codes. Purpose-built for autonomous AI
-agent workflows.
+AgentComms gives AI agents durable identities across email, SMS, Slack, Telegram, push, and adapter channels. Direct messages and explicit mentions land in one unified inbox.
 
-Base URL: `https://api.victorymail.dev/v1`
-
-## Self-Signup (No Human Required)
-
-An agent can create its own account and API key in a single call:
-
-```bash
-curl -X POST https://api.victorymail.dev/v1/console/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email": "agent@example.com", "password": "SecurePass123!", "name": "My Agent"}'
-```
-
-Response includes `api_key` which works immediately -- no email verification
-needed for API access. Save the key; it is shown only once.
+Base URL: `https://api.agentcomms.dev/v1`
 
 ## Authentication
 
-All API calls require the `x-api-key` header:
+Use either header:
 
+```text
+Authorization: Bearer ak_live_your_key_here
 ```
-x-api-key: am_live_your_key_here
+
+```text
+x-api-key: ak_live_your_key_here
 ```
 
 ## Core Workflow
 
-### 1. Create an inbox
+### 1. Create an agent
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes \
-  -H "x-api-key: $FREEMAIL_API_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "My Agent"}'
+  -d '{"name": "TaskAgent"}'
 ```
 
-Returns `id` and `email` (e.g. `x7k9m2@victorymail.dev`). Use this email
-address to send and receive mail.
-
-### 2. Send email
+### 2. Provision a channel
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/{inbox_id}/messages \
-  -H "x-api-key: $FREEMAIL_API_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/$AGENT_ID/channels" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": [{"address": "user@example.com"}],
-    "subject": "Hello",
-    "body_text": "Sent by an AI agent via FreeMail"
+    "channel": "email",
+    "mode": "provision",
+    "config": {"local_part": "task-agent", "domain": "example.com"}
   }'
 ```
 
-### 3. Wait for a reply
+### 3. Send a message
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/{inbox_id}/wait \
-  -H "x-api-key: $FREEMAIL_API_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/$AGENT_ID/messages" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"timeout": 25, "filter": {"from": "user@example.com"}}'
+  -d '{
+    "to": "user@example.com",
+    "subject": "Hello",
+    "body": "Sent by an AI agent via AgentComms"
+  }'
 ```
 
-Long-polls up to 25 seconds. Returns the full message when one arrives.
-
-### 4. Extract OTP / verification code
+### 4. Wait for a reply
 
 ```bash
-curl -X POST https://api.victorymail.dev/v1/inboxes/{inbox_id}/extract-otp \
-  -H "x-api-key: $FREEMAIL_API_KEY" \
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/$AGENT_ID/wait" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"timeout": 25, "sender": "noreply@example.com"}'
+  -d '{"timeout_sec": 25, "from": "user@example.com"}'
 ```
 
-Waits for a matching email and extracts the numeric verification code
-automatically. Returns `{"code": "482917", ...}`.
+### 5. Extract OTP / verification code
 
-## All Endpoints
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/$AGENT_ID/extract-otp" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"max_age_sec": 300, "from": "noreply@example.com"}'
+```
+
+## Main Endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
-| POST | /console/signup | Create account + get API key |
-| GET | /organizations/me | Get account info |
-| POST | /inboxes | Create inbox |
-| GET | /inboxes | List inboxes |
-| GET | /inboxes/{id} | Get inbox |
-| DELETE | /inboxes/{id} | Delete inbox |
-| POST | /inboxes/{id}/messages | Send email |
-| GET | /inboxes/{id}/messages | List messages |
-| GET | /inboxes/{id}/messages/{mid} | Get message with body |
-| POST | /inboxes/{id}/messages/{mid}/reply | Reply to message |
-| POST | /inboxes/{id}/messages/{mid}/forward | Forward message |
-| POST | /inboxes/{id}/wait | Wait for matching email |
-| POST | /inboxes/{id}/extract-otp | Wait + extract OTP code |
-| GET | /inboxes/{id}/threads | List threads |
-| POST | /inboxes/{id}/drafts | Create draft |
-| POST | /domains | Add custom domain |
-| POST | /webhooks | Create webhook |
-| POST | /search | Search messages |
-| POST | /api-keys | Create additional API key |
+|---|---|---|
+| `POST` | `/agents` | Create an agent |
+| `GET` | `/agents` | List agents |
+| `POST` | `/agents/{agent_id}/channels` | Provision or bridge a channel |
+| `GET` | `/agents/{agent_id}/messages` | List unified inbox messages |
+| `POST` | `/agents/{agent_id}/messages` | Send a message |
+| `POST` | `/agents/{agent_id}/messages/{message_id}/reply` | Reply to a message |
+| `POST` | `/agents/{agent_id}/wait` | Wait for a matching message |
+| `POST` | `/agents/{agent_id}/extract-otp` | Wait and extract OTP |
+| `POST` | `/api-keys` | Create a scoped API key |
+| `GET` | `/vault` | List vault items |
 
-## Common Agent Scenarios
+## Guidance for Agents
 
-### Sign up for a service and verify email
-
-1. Create inbox: `POST /inboxes`
-2. Use the inbox email to register on the target service
-3. Extract OTP: `POST /inboxes/{id}/extract-otp` with `sender` filter
-4. Submit the OTP code to the target service
-
-### Send outbound emails
-
-1. Create inbox: `POST /inboxes`
-2. Send email: `POST /inboxes/{id}/messages`
-3. Check delivery: `GET /inboxes/{id}/messages/{mid}` (status field)
-
-### Monitor for incoming emails
-
-1. Create inbox or use existing
-2. Poll: `POST /inboxes/{id}/wait` with filters
-3. Process the returned message
-
-## MCP Server
-
-For AI frameworks that support MCP (Model Context Protocol), clone the
-repo and run the MCP server:
-
-```bash
-git clone https://github.com/IntergalacticTech/freemail.git
-cd freemail/mcp-server && npm install && npm run build
-```
-
-Add to your MCP config:
-
-```json
-{
-  "mcpServers": {
-    "freemail": {
-      "command": "node",
-      "args": ["/path/to/FreeMail.ai/mcp-server/dist/index.js"],
-      "env": {
-        "FREEMAIL_API_KEY": "am_live_your_key_here"
-      }
-    }
-  }
-}
-```
-
-10 tools available: create_inbox, list_inboxes, send_email, list_messages,
-get_message, reply_to_message, wait_for_email, extract_otp, delete_inbox,
-get_organization.
-
-## Trigger Words
-
-- email
-- inbox
-- send email
-- receive email
-- OTP
-- verification code
-- FreeMail
-- email inbox
-- sign up for service
-- verify email
-
-## Links
-
-- GitHub: https://github.com/IntergalacticTech/freemail
-- Console: https://console.victorymail.dev
-- API: https://api.victorymail.dev/v1
+- Prefer `message_reply`/reply routes for existing conversations so provider threading is preserved.
+- Treat IDs and cursors as opaque.
+- Never log API keys, vault secrets, TOTP seeds, or webhook signing secrets.
+- Use native routes for room/channel context instead of forcing all provider traffic into the unified inbox.

@@ -19,13 +19,13 @@ All endpoints are relative to this base URL. HTTPS is required; plain HTTP reque
 Every request must include an API key via one of two mechanisms:
 
 ```
-x-api-key: am_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+x-api-key: ak_live_EXAMPLE
 ```
 
 or
 
 ```
-Authorization: Bearer am_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer ak_live_EXAMPLE
 ```
 
 Both headers are checked in order. If both are present, `x-api-key` takes precedence. See [Authentication](./authentication.md) for full details on key format, scoping, and the authorizer flow.
@@ -182,7 +182,7 @@ Verify the OTP code and complete account creation. Returns the organization and 
   },
   "api_key": {
     "id": "01HXYZ1234567890ABCDEFGHJL",
-    "key": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL",
+    "key": "ak_live_EXAMPLE",
     "name": "Default Key",
     "scope": "org",
     "created_at": "2026-04-10T14:32:00.000Z"
@@ -252,7 +252,7 @@ List all API keys for the organization. The `key` field is never returned -- onl
     {
       "id": "01HXYZ1234567890ABCDEFGHJL",
       "name": "Production Key",
-      "prefix": "am_live_7kB3",
+      "prefix": "ak_live_7kB3",
       "scope": "org",
       "scope_resource_id": null,
       "last_used_at": "2026-04-10T14:00:00.000Z",
@@ -261,7 +261,7 @@ List all API keys for the organization. The `key` field is never returned -- onl
     {
       "id": "01HXYZ1234567890ABCDEFGHJM",
       "name": "Inbox-Scoped Key",
-      "prefix": "am_live_9xR2",
+      "prefix": "ak_live_9xR2",
       "scope": "inbox",
       "scope_resource_id": "01HXYZ1234567890ABCDEFGHJA",
       "last_used_at": "2026-04-09T22:15:00.000Z",
@@ -298,9 +298,9 @@ Create a new API key. The plaintext key is returned only in this response.
 ```json
 {
   "id": "01HXYZ1234567890ABCDEFGHJN",
-  "key": "am_live_4tU7wP0qS3xY6zA9bC2dE5fG8hJ1kM",
+  "key": "ak_live_EXAMPLE",
   "name": "Worker Key",
-  "prefix": "am_live_4tU7",
+  "prefix": "ak_live_4tU7",
   "scope": "pod",
   "scope_resource_id": "01HXYZ1234567890ABCDEFGHJP",
   "created_at": "2026-04-10T14:32:00.000Z"
@@ -1362,7 +1362,7 @@ wss://ws.agentmail.aws/v1/ws
 ```json
 {
   "action": "auth",
-  "api_key": "am_live_7kB3mN9pQ2rX5vW8yA1cD4eF6gH0jL"
+  "api_key": "ak_live_EXAMPLE"
 }
 ```
 

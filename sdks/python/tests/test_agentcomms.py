@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the agentcomms Python SDK."""
 from __future__ import annotations
 
@@ -156,7 +156,7 @@ class TestMessagesResource:
         assert msgs[0].message_id == "msg_1"
 
     def test_send_issues_post(self):
-        resp = _make_response(202, {"message_id": "msg_2"})
+        resp = _make_response(201, {"message_id": "msg_2"})
         with _mock_session_request(resp) as mock_req:
             client = Client(api_key="k")
             result = client.agents("agt_1").messages.send(to="alice@example.com", body="hi")
@@ -164,11 +164,34 @@ class TestMessagesResource:
         assert result["message_id"] == "msg_2"
 
     def test_reply_issues_post_to_reply_endpoint(self):
-        resp = _make_response(202, {"message_id": "msg_3"})
+        resp = _make_response(201, {"message_id": "msg_3"})
         with _mock_session_request(resp) as mock_req:
             client = Client(api_key="k")
             client.agents("agt_1").messages.reply("msg_2", body="thanks")
         assert "/msg_2/reply" in mock_req.call_args[0][1]
+
+    def test_wait_sends_channels_array_for_multi_channel_filter(self):
+        resp = _make_response(200, {"message_id": "msg_4", "agent_id": "agt_1", "channel": "slack"})
+        with _mock_session_request(resp) as mock_req:
+            client = Client(api_key="k")
+            client.agents("agt_1").messages.wait(channels=["email", "slack"])
+        assert mock_req.call_args.kwargs["json"]["channels"] == ["email", "slack"]
+        assert "channel" not in mock_req.call_args.kwargs["json"]
+
+
+# ---------------------------------------------------------------------------
+# AI resource
+# ---------------------------------------------------------------------------
+
+class TestAiResource:
+    def test_summarize_raw_text_issues_canonical_payload(self):
+        resp = _make_response(200, {"summary": "Short summary"})
+        with _mock_session_request(resp) as mock_req:
+            client = Client(api_key="k")
+            result = client.agents("agt_1").ai.summarize(text="Long body", length="short")
+        assert "/agents/agt_1/ai/summarize" in mock_req.call_args[0][1]
+        assert mock_req.call_args.kwargs["json"] == {"text": "Long body", "length": "short"}
+        assert result["summary"] == "Short summary"
 
 
 # ---------------------------------------------------------------------------

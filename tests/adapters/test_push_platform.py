@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for push APNs platform selection (sandbox vs prod)."""
 from __future__ import annotations
 

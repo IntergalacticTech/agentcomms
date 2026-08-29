@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: FSL-1.1-Apache-2.0
-# © 2026 Victory (Intergalactic Tech). Licensed under the Functional Source License, Version 1.1,
-# with Apache 2.0 Future License. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Victory (Intergalactic Tech).
+# Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
 # core/data/repo.py
 """
@@ -62,6 +62,34 @@ class Repo:
         resp = self.table.get_item(Key={"PK": f"ORG#{org_id}", "SK": "META"})
         item = resp.get("Item")
         return Organization.from_dynamodb_item(item) if item else None
+
+    # ─── API keys ────────────────────────────────────────────────────
+    def put_api_key(self, key: ApiKey) -> None:
+        self.table.put_item(Item=key.to_dynamodb_item())
+
+    def list_api_keys(self, *, org_id: str, include_revoked: bool = False) -> list[ApiKey]:
+        resp = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"ORG#{org_id}")
+                & Key("SK").begins_with("APIKEY#"),
+        )
+        keys = [ApiKey.from_dynamodb_item(i) for i in resp.get("Items", [])]
+        if not include_revoked:
+            keys = [k for k in keys if not k.revoked]
+        return keys
+
+    def get_api_key_by_id(self, *, org_id: str, key_id: str) -> ApiKey | None:
+        for key in self.list_api_keys(org_id=org_id, include_revoked=True):
+            if key.key_id == key_id:
+                return key
+        return None
+
+    def revoke_api_key(self, *, org_id: str, key_id: str) -> ApiKey | None:
+        key = self.get_api_key_by_id(org_id=org_id, key_id=key_id)
+        if key is None:
+            return None
+        updated = key.model_copy(update={"revoked": True})
+        self.put_api_key(updated)
+        return updated
 
     # ─── Agents ──────────────────────────────────────────────────────
     def put_agent(self, agent: Agent) -> None:
@@ -172,6 +200,14 @@ class Repo:
             },
             UpdateExpression="SET labels = :l",
             ExpressionAttributeValues={":l": labels},
+        )
+
+    def delete_message(self, *, agent_id: str, received_at_ms: int, message_id: str) -> None:
+        self.table.delete_item(
+            Key={
+                "PK": f"AGT#{agent_id}",
+                "SK": f"MSG#{received_at_ms}#{message_id}",
+            }
         )
 
     def query_unified_inbox(
