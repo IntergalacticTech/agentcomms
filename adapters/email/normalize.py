@@ -6,8 +6,8 @@
 """
 Parse raw MIME into the AgentComms normalized form.
 
-Ports the MIME parsing and quoted-reply stripping that the existing FreeMail
-`lambdas/inbound_processor/handler.py` implements. The output shape is the
+Ports the MIME parsing and quoted-reply stripping from the legacy inbound
+processor. The output shape is the
 adapter's private intermediate representation, converted to UnifiedMessage in
 adapter.py.
 """

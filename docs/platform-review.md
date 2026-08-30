@@ -43,14 +43,14 @@ Recommendation:
 - Publish provider fixture conventions under `docs/adapters/`.
 - Make Discord the first adapter to pass the new contract suite.
 
-### 3. External Adapter Packaging
+### 3. External Adapter Compatibility
 
-`core.adapters.registry` already supports Python entry points in `agentcomms.adapters`, but docs and examples need a complete external adapter package template.
+`core.adapters.registry` supports Python entry points in `agentcomms.adapters`, and `examples/adapter-template/` now gives external adapter authors a working starting point. The next issue is compatibility discipline: adapter packages need a clear contract for which hub versions they support.
 
 Recommendation:
 
-- Add `examples/adapter-template/` with `pyproject.toml`, manifest, tests, and CI.
-- Document version compatibility and manifest schema.
+- Publish an adapter contract version and require packages to declare compatibility.
+- Add a shared adapter compliance suite for lifecycle, ingest, send, health, native surfaces, and idempotency.
 - Keep core repo adapters as reference implementations, not the only supported extension path.
 
 ### 4. Provider Abstraction Beyond AWS
@@ -88,7 +88,7 @@ Recommendation:
 2. Generic webhook adapter.
 3. Adapter compliance test harness.
 4. Durable outbox and inbound idempotency.
-5. External adapter package template.
+5. Adapter version compatibility policy.
 6. Console adapter-health and provider-setup views.
 7. Dependency license inventory refresh in `NOTICE`.
 

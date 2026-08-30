@@ -31,7 +31,7 @@
 
 ### Voice-over (word-for-word)
 
-> "AI agents are everywhere. But connecting them to the real world — email, SMS, Slack — still means building and hosting that infrastructure yourself. What if your coding agent could deploy the whole thing into your own AWS account in 20 minutes?"
+> "AI agents are everywhere. But connecting them to the real world - email, SMS, Slack, Telegram, push, and the channels you haven't named yet - still means building and hosting that infrastructure yourself. What if your coding agent could deploy the hub into your own AWS account?"
 
 ### On-screen annotations
 
@@ -97,7 +97,7 @@
 | 2:04 | `agentcomms-api CREATE_IN_PROGRESS` — final stack | 1× |
 | 2:08 | `agentcomms-api CREATE_COMPLETE` | 1× |
 | 2:12 | Seed phase: admin org + API key creating. | 1× |
-| 2:16 | Smoke test: inbox created, message sent, inbox deleted. | 1× |
+| 2:16 | Smoke test: agent created, message sent, agent deleted. | 1× |
 | 2:22 | **THE MONEY SHOT:** `{"event":"complete","api_key":"ak_live_..."}` scrolls into view. | 1× |
 | 2:25 | Frame freezes on the `api_key` line. Zoom in 1.5×. | FREEZE |
 | 2:28 | Callout box over the key: "Your API key. Shown once." | FREEZE |
@@ -160,17 +160,17 @@
 
 > *(2:30)* "Let's use it. Export the key, hit the API."
 >
-> *(2:34)* "Empty inbox. Clean slate. We'll send a real email..."
+> *(2:34)* "Empty message feed. Clean slate. We'll send a real email..."
 >
 > *(2:45)* "...and watch it appear in the unified inbox. There's the outbound. And here comes the reply."
 >
-> *(2:55)* "Two messages. One inbox. Your agent, talking to the world. Deploy yours at agentcomms.dev."
+> *(2:55)* "Two messages. One attention stream. Your agent, talking to the world. Deploy yours at agentcomms.dev."
 
 ### On-screen annotations
 
 - 2:34: Callout on the API response: "Real REST call. Real AWS infrastructure."
 - 2:50: Callout on inbound message: "Reply arrived via SES — no polling, just events."
-- 2:58: Overlay text: "agentcomms.dev — deploy in 20 minutes"
+- 2:58: Overlay text: "agentcomms.dev - open-source AI comms hub"
 
 ### Music
 
@@ -204,7 +204,7 @@
 
 - **Title:** AgentComms: Your coding agent deploys its own AWS communications hub (live demo)
 - **Description:** First paragraph: the one-line hook. Second paragraph: link to repo + AGENT.md. Third: timestamps for each section.
-- **Thumbnail:** The frozen frame at 2:25 with the API key visible (key redacted with blur) + overlay text "20 minutes. Your AWS account."
+- **Thumbnail:** The frozen frame at 2:25 with the API key visible (key redacted with blur) + overlay text "Your agents. Your AWS account."
 - **Tags:** agentcomms, aws, claude, coding agent, ai agent, email api, slack api, infrastructure
 
 ---

@@ -10,8 +10,8 @@ interface OrgInfo {
   tier: string;
   status: string;
   settings?: Record<string, unknown>;
-  quotas?: { agents?: number; inboxes?: number; messages_per_day?: number };
-  usage?: { agents?: number; inboxes?: number; pods?: number };
+  quotas?: { agents?: number; max_agents?: number; inboxes?: number; max_inboxes?: number; messages_per_day?: number; max_messages_per_day?: number };
+  usage?: { agents?: number; inboxes?: number; messages_today?: number };
 }
 
 export default function DashboardPage() {
@@ -71,18 +71,18 @@ export default function DashboardPage() {
                 </p>
                 {org.quotas && (
                   <p className="text-xs text-gray-400 mt-2">
-                    of {org.quotas.agents ?? org.quotas.inboxes ?? "--"} allowed
+                    of {org.quotas.agents ?? org.quotas.max_agents ?? org.quotas.inboxes ?? org.quotas.max_inboxes ?? "--"} allowed
                   </p>
                 )}
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <p className="text-sm text-gray-500">Pods</p>
+                <p className="text-sm text-gray-500">Messages/day</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {org.usage?.pods ?? "--"}
+                  {org.quotas?.messages_per_day ?? org.quotas?.max_messages_per_day ?? "--"}
                 </p>
                 {org.quotas && (
                   <p className="text-xs text-gray-400 mt-2">
-                    of {org.quotas.messages_per_day}/day
+                    daily throughput limit
                   </p>
                 )}
               </div>

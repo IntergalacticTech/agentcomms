@@ -13,4 +13,10 @@ describe('CDK app configuration', () => {
     expect(appSource).toContain('const deployLegacy = flag("deployLegacy", false)');
     expect(appSource).toContain('const deployAgentComms = flag("deployAgentComms", true)');
   });
+
+  test('includes the public landing site in AgentComms production deploys', () => {
+    const appSource = readFileSync(join(__dirname, '..', 'bin', 'app.ts'), 'utf8');
+    expect(appSource).toContain('new LandingStack(app, "AgentCommsLanding"');
+    expect(appSource).toContain('siteId: "agentcomms"');
+  });
 });

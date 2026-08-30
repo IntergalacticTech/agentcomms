@@ -105,7 +105,7 @@ Body:
 }
 ```
 
-Known channel values: `email`, `sms`, `push`, `slack`, `telegram`, `discord`, `whatsapp`, `postal`, `fax`, `voice`. External adapters may add any stable slug matching `[a-z][a-z0-9_-]{0,62}`, such as `matrix`, `smoke_signal`, or `alien-transmission`.
+Known channel values: `email`, `sms`, `push`, `slack`, `telegram`, `discord`, `whatsapp`, `postal`, `fax`, `voice`. External adapters may add any stable slug matching `[a-z][a-z0-9_-]{0,62}`, such as `matrix`, `webhook`, `smoke_signal`, or `alien-transmission`.
 
 ## Messages
 
@@ -234,6 +234,12 @@ Create body:
 ```
 
 Webhook deliveries are signed with the webhook signing secret returned at creation time.
+
+## Adapter Extensibility
+
+Core request/response shapes do not require a closed channel enum. Any installed adapter package can register a stable channel slug through the `agentcomms.adapters` Python entry-point group. Once registered, that slug can be used in `/agents/{agent_id}/channels`, message filters, webhook payloads, SDK responses, and persisted records.
+
+Use [adapter-authoring.md](./adapter-authoring.md) and [examples/adapter-template/](../examples/adapter-template/) as the external adapter starting point.
 
 ## API Keys
 

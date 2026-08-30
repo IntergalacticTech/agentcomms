@@ -217,7 +217,7 @@ This is handled through `POST /agents/{agent_id}/channels` once provider setup i
 
 **Launch baseline: ~$15/month fixed (1 campaign + 5 numbers) plus per-message charges.**
 
-**Per customer with 1 inbox, 50 messages/month:**
+**Per agent SMS channel with 50 messages/month:**
 - Number lease: $1/mo
 - 50 outbound: $0.475
 - Total: **~$1.48/mo cost** → break-even at $5/mo Starter tier with the SMS add-on
@@ -252,7 +252,7 @@ When you're ready, the order is:
 2. **Tomorrow:** Once sandbox is exited, register the brand (Step 3). Wait for TCR.
 3. **Day 3-5:** Brand approved → register the campaign (Step 4). Wait for TCR.
 4. **Day 6-10:** Campaign approved → buy 5 phone numbers (Step 5).
-5. **Day 10:** Wire the SNS topic into CDK (Step 6) and deploy `VictoryMail-Api-dev`.
+5. **Day 10:** Wire the SNS topic into CDK (Step 6) and deploy the relevant `AgentCommsAdapters-*` stack.
 6. **Day 11:** Manual smoke test — send an SMS from one of the phone numbers using `aws sms-voice send-text-message`, then send one to it from your personal phone and verify `SmsProcessorFn` writes it to DynamoDB.
 7. **Day 12+:** Harden SMS channel provisioning and ship SMS as a production hosted feature.
 

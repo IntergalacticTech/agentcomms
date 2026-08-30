@@ -37,5 +37,5 @@ Unless stated otherwise, contributions submitted to this repository are accepted
 
 ## Questions
 
-- Open an issue: [github.com/IntergalacticTech/FreeMail.ai/issues](https://github.com/IntergalacticTech/FreeMail.ai/issues)
+- Open an issue: [github.com/IntergalacticTech/agentcomms/issues](https://github.com/IntergalacticTech/agentcomms/issues)
 - Security disclosures: `security@agentcomms.dev`

@@ -1,6 +1,6 @@
 # FreeMail Build Plan
 
-> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](./docs/architecture.md), [docs/adapter-roadmap.md](./docs/adapter-roadmap.md), and [docs/platform-review.md](./docs/platform-review.md).
+> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](../architecture.md), [docs/adapter-roadmap.md](../adapter-roadmap.md), and [docs/platform-review.md](../platform-review.md).
 
 ## Project Context
 
@@ -32,7 +32,7 @@
   - `victorymail.dev` — marketing site (CloudFront + S3)
 - SES production access, 50K/day send, 14/sec rate
 - SES domain identities verified for `victorymail.dev`, `karmascale.net`, `karmascale.org` (domain pool)
-- Route53 hosted zones for `karmascale.net` (Z071121127YBF0QF7XIJG) and `karmascale.org` (Z0712406NGP913O4A6EG)
+- Route53 hosted zones for the legacy domain pool
   - NOTE: `victorymail.dev` Route53 zone lives in a separate AWS account; flagged for consolidation
 - Cognito User Pool for console authentication
 - Stripe billing integration for Free/Starter/Pro tiers (Starter $5 tier in progress)

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgentComms — the agent communications hub you deploy to your own AWS</title>
-  <meta name="description" content="Your coding agent deploys AgentComms into your AWS account in 20 minutes. Unified inbox for email, SMS, Slack, Telegram, and push — open source under Apache-2.0.">
+  <title>AgentComms - open-source AI communications hub</title>
+  <meta name="description" content="AgentComms is an Apache-2.0 communications hub for AI agents: one agent identity, every channel, one unified inbox, deployed into your AWS.">
   <meta property="og:title" content="AgentComms">
-  <meta property="og:description" content="One API call gets an AI agent an email address, phone number, Slack bot, and Telegram bot — all into one unified inbox, running in your AWS.">
+  <meta property="og:description" content="Open-source AI communications infrastructure for email, SMS, Slack, Telegram, push, and external adapter channels.">
   <meta property="og:url" content="https://agentcomms.dev">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -213,18 +213,19 @@
       <div class="logo">Agent<span>Comms</span></div>
       <div class="links">
         <a href="#channels">Channels</a>
+        <a href="#adapters">Adapters</a>
         <a href="#deploy">Deploy</a>
         <a href="#license">License</a>
-        <a href="https://github.com/IntergalacticTech/FreeMail.ai" target="_blank">GitHub</a>
-        <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" class="cta" target="_blank">Get started</a>
+        <a href="https://github.com/IntergalacticTech/agentcomms" target="_blank">GitHub</a>
+        <a href="https://github.com/IntergalacticTech/agentcomms/blob/main/AGENT.md" class="cta" target="_blank">Get started</a>
       </div>
     </div>
   </nav>
 
   <div class="hero container">
-    <h1>Your AI agent's <span>communications hub</span>,<br>deployed into your own AWS.</h1>
+    <h1>Open-source <span>communications infrastructure</span><br>for AI agents.</h1>
     <p class="tagline">
-      One API call gets an agent an email address, phone number, Slack bot, and Telegram bot — all routing into one unified inbox. Your coding agent installs and deploys the whole thing into your own AWS account in about twenty minutes. Open source under Apache-2.0.
+      Give agents durable identities across email, SMS, Slack, Telegram, push, and external adapter channels. Direct messages and explicit mentions land in one unified inbox; channel-native context stays available when the agent needs the full provider surface.
     </p>
 
     <div class="code-block">
@@ -235,23 +236,23 @@
     --admin-email me@my-agent-domain.com \
     --non-interactive --json
 
-<span class="comment"># ~20 minutes later, your hub is live in your AWS account.</span>
-<span class="comment"># The final NDJSON line contains your admin API key.</span>
+<span class="comment"># The final NDJSON line contains your API URL and admin key.</span>
+<span class="comment"># Add built-in or third-party adapters without changing core.</span>
     </div>
 
     <div class="badges">
       <span>Self-hosted on YOUR AWS</span>
-      <span>Unified inbox across every channel</span>
-      <span>No vendor lock-in</span>
-      <span>Apache-2.0</span>
+      <span>Apache-2.0 true OSS</span>
+      <span>Unified inbox plus native surfaces</span>
+      <span>External adapter entry points</span>
     </div>
   </div>
 
   <section id="channels">
     <div class="container">
-      <h2>Every channel an agent could need</h2>
+      <h2>One hub, many channels</h2>
       <p class="section-intro">
-        Email, SMS, Slack, Telegram, and mobile push today. Discord, WhatsApp, postal mail, and fax on the roadmap. Each channel is a plugin in <code>adapters/</code> — add one by copying an existing adapter.
+        Built-ins cover the common channels today. The adapter contract keeps the edge open for Discord, WhatsApp, Matrix, voice, fax, webhooks, hardware radios, or any other system that can produce events and accept replies.
       </p>
       <div class="grid">
         <div class="card">
@@ -281,8 +282,8 @@
         </div>
         <div class="card">
           <div class="icon discord">◆</div>
-          <h3>Discord <span style="color: var(--text-muted); font-weight: normal; font-size: 13px;">(scaffold)</span></h3>
-          <p>Adapter scaffold in the repo. Bounty open for the first working implementation. Follow the Telegram adapter as the template.</p>
+          <h3>Any Adapter</h3>
+          <p>Third-party packages register through <code>agentcomms.adapters</code>. Use stable slugs like <code>matrix</code>, <code>webhook</code>, <code>ham_radio</code>, or <code>alien-transmission</code>.</p>
         </div>
       </div>
     </div>
@@ -290,20 +291,20 @@
 
   <section class="differentiator" id="deploy">
     <div class="container">
-      <h2>Your coding agent deploys it for you</h2>
+      <h2>Deploy it where your agents run</h2>
       <p class="section-intro">
-        Point Claude Code, Cursor, Aider, or any coding agent at this repo and your AWS credentials. Twenty minutes later the hub is live in YOUR cloud, under YOUR control. No data ever touches a third party.
+        The default deployment target is your AWS account. The same Apache-2.0 codebase powers the hosted service path and the self-hosted path, so teams can inspect, fork, modify, and operate the hub directly.
       </p>
       <div class="diff-grid">
         <div class="diff-text">
-          <h3>What other services can't do</h3>
-          <p>Alternative email-for-agents services run in their cloud. Your agent's messages sit in their database. That might be fine for a weekend project. It's not fine when you're running production agents for a regulated industry, a competitive startup, or a customer who asked where their data lives.</p>
-          <p>AgentComms runs in YOUR AWS account. Same code as what we run on agentcomms.dev; same CDK app; same operational defaults. The only things our hosted service has that you don't are our warmed SES reputation, our domain pool, and our 10DLC brand registration — all operational, not code.</p>
+          <h3>Strict core, open edges</h3>
+          <p>Core owns tenancy, authorization, normalized persistence, API keys, webhooks, and the unified inbox. Adapters own every provider-specific detail: OAuth, webhooks, signing, native threads, delivery receipts, and provider retries.</p>
+          <p>That split lets AgentComms stay small in the middle and broad at the edge. A new channel should not require a rewrite of the hub; it should require an adapter, tests, docs, and deployment wiring when the provider needs infrastructure.</p>
           <ul>
             <li>Your data stays in your account</li>
             <li>You pay AWS directly at AWS rates</li>
-            <li>Your agents use your compliance posture</li>
-            <li>The code is readable, auditable, modifiable</li>
+            <li>Your adapter package can ship independently</li>
+            <li>The code is readable, auditable, and forkable</li>
           </ul>
         </div>
         <div class="diff-code">
@@ -328,9 +329,9 @@
 
   <section class="alt">
     <div class="container">
-      <h2>The unified inbox</h2>
+      <h2>The unified inbox is the attention stream</h2>
       <p class="section-intro">
-        Every direct message to your agent — email, SMS, Slack DM, Slack @mention, Telegram DM, push receipt — interleaved into one timeline, queryable with one API call. Channel-native surfaces (Slack workspace chatter, Telegram groups) stay accessible separately so your agent isn't drowning in noise.
+        Every direct message to your agent - email, SMS, Slack DM, Slack @mention, Telegram DM, push receipt, or third-party adapter event - is interleaved into one timeline. Ambient room traffic stays on native surfaces so the agent sees context only when it asks.
       </p>
       <div class="code-example">
 <span class="keyword">from</span> agentcomms <span class="keyword">import</span> Client
@@ -355,6 +356,27 @@ agent = client.<span class="fn">agents</span>(result[<span class="string">"agent
 
 <span class="comment"># reply via auto-detected channel (email → email, E.164 → SMS, slack: → Slack)</span>
 agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@example.com"</span>, body=<span class="string">"Got it — processing."</span>)
+      </div>
+    </div>
+  </section>
+
+  <section id="adapters">
+    <div class="container">
+      <h2>Adapters are public API</h2>
+      <p class="section-intro">
+        Built-in adapters live in this repository. External adapters can live anywhere, publish on their own cadence, and register through Python entry points when installed into the runtime.
+      </p>
+      <div class="code-example">
+<span class="comment"># pyproject.toml in an external adapter package</span>
+[project.entry-points.<span class="string">"agentcomms.adapters"</span>]
+matrix = <span class="string">"agentcomms_adapter_matrix.adapter:MatrixAdapter"</span>
+
+<span class="comment"># attach the adapter channel to an agent</span>
+agent.channels.<span class="fn">create</span>(
+    channel=<span class="string">"matrix"</span>,
+    mode=<span class="string">"bridge"</span>,
+    config={<span class="string">"homeserver"</span>: <span class="string">"https://matrix.example"</span>},
+)
       </div>
     </div>
   </section>
@@ -400,16 +422,16 @@ agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@examp
     <div class="container">
       <h2>Status</h2>
       <p class="section-intro">
-        Living project, shipped iteratively, tested in production before each phase tag.
+        Current public surface after the Apache-2.0 and AgentComms hub pass.
       </p>
       <div class="status-table">
         <table>
-          <tr><td>Phase 1 — Foundation (data model + adapter SDK + email)</td><td class="done">✓ Live</td></tr>
-          <tr><td>Phase 2 — SMS + Push + Vault + Personas + Domains + AI</td><td class="done">✓ Live</td></tr>
-          <tr><td>Phase 3 — Slack + Telegram</td><td class="done">✓ Live</td></tr>
-          <tr><td>Phase 4 — OSS packaging (CLI, SDKs, license, docs)</td><td class="wip">◐ Shipping</td></tr>
-          <tr><td>Phase 5 — Migration cutover + public GitHub launch</td><td class="next">Upcoming</td></tr>
-          <tr><td>Phase 6 — Public announcement + demo</td><td class="next">Upcoming</td></tr>
+          <tr><td>Apache-2.0 licensing and public repo cleanup</td><td class="done">Live</td></tr>
+          <tr><td>Agent API, API keys, unified inbox, webhooks, vault, AI helpers</td><td class="done">Live</td></tr>
+          <tr><td>Email, SMS, push, Slack, and Telegram adapters</td><td class="done">Live</td></tr>
+          <tr><td>External adapter slugs and entry-point discovery</td><td class="done">Live</td></tr>
+          <tr><td>Landing site deployment through AgentComms CDK</td><td class="done">Live</td></tr>
+          <tr><td>Next community adapters: Discord, Matrix, WhatsApp, voice, fax</td><td class="next">Next</td></tr>
         </table>
       </div>
     </div>
@@ -418,9 +440,9 @@ agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@examp
   <div class="cta-section">
     <div class="container">
       <h2>Start with the AGENT.md guide</h2>
-      <p>Fifteen-minute read for a human, five-minute read for a coding agent. Then twenty minutes to deploy.</p>
-      <a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" class="btn btn-primary" target="_blank">Read AGENT.md</a>
-      <a href="https://github.com/IntergalacticTech/FreeMail.ai" class="btn btn-secondary" target="_blank">Browse the source</a>
+      <p>Read it as a human or hand it to a coding agent. It covers bootstrap, failure modes, and the first agent workflow.</p>
+      <a href="https://github.com/IntergalacticTech/agentcomms/blob/main/AGENT.md" class="btn btn-primary" target="_blank">Read AGENT.md</a>
+      <a href="https://github.com/IntergalacticTech/agentcomms" class="btn btn-secondary" target="_blank">Browse the source</a>
     </div>
   </div>
 
@@ -429,15 +451,15 @@ agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@examp
       <div class="footer-grid">
         <div>
           <div class="logo" style="font-weight: 700; font-size: 18px; color: var(--text); margin-bottom: 12px;">Agent<span style="color: var(--primary);">Comms</span></div>
-          <p>Open-source agent communications hub. Deployed into your AWS. One unified inbox across every channel agents need.</p>
+          <p>Open-source AI communications hub. One agent identity, many adapters, one unified attention stream.</p>
         </div>
         <div>
           <h4>Resources</h4>
           <ul>
-            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/AGENT.md" target="_blank">AGENT.md</a></li>
-            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai" target="_blank">GitHub</a></li>
-            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/LICENSE" target="_blank">License</a></li>
-            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/blob/develop/docs/licensing.md" target="_blank">Licensing explainer</a></li>
+            <li><a href="https://github.com/IntergalacticTech/agentcomms/blob/main/AGENT.md" target="_blank">AGENT.md</a></li>
+            <li><a href="https://github.com/IntergalacticTech/agentcomms" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/IntergalacticTech/agentcomms/blob/main/LICENSE" target="_blank">License</a></li>
+            <li><a href="https://github.com/IntergalacticTech/agentcomms/blob/main/docs/licensing.md" target="_blank">Licensing explainer</a></li>
           </ul>
         </div>
         <div>
@@ -455,7 +477,7 @@ agent.messages.<span class="fn">send</span>(to=<span class="string">"alice@examp
           <ul>
             <li><a href="mailto:hello@agentcomms.dev">hello@agentcomms.dev</a></li>
             <li><a href="mailto:security@agentcomms.dev">Security disclosures</a></li>
-            <li><a href="https://github.com/IntergalacticTech/FreeMail.ai/issues" target="_blank">Open an issue</a></li>
+            <li><a href="https://github.com/IntergalacticTech/agentcomms/issues" target="_blank">Open an issue</a></li>
           </ul>
         </div>
       </div>

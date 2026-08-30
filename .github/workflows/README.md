@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This directory contains CI/CD workflows for the AgentComms project. Two pre-existing FreeMail workflows (`ci.yml`, `deploy.yml`) are left untouched.
+This directory contains CI/CD workflows for the AgentComms project.
 
 ---
 
@@ -57,7 +57,7 @@ To skip the gate for fully-automated releases, leave Required reviewers empty.
 
 Triggers on a daily cron (`07:00 UTC`) and via `workflow_dispatch` for manual runs.
 
-The job is guarded by `if: github.repository == 'IntergalacticTech/FreeMail.ai'` so it is automatically skipped on forks.
+The job is guarded by `if: github.repository == 'IntergalacticTech/agentcomms'` so it is automatically skipped on forks.
 
 #### What it does
 
@@ -99,7 +99,7 @@ aws iam create-open-id-connect-provider \
 #         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
 #       },
 #       "StringLike": {
-#         "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/FreeMail.ai:*"
+#         "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/agentcomms:*"
 #       }
 #     }
 #   }]
@@ -115,7 +115,8 @@ Set the resulting role ARN as the `AWS_BOOTSTRAP_SMOKE_ROLE` secret on the `boot
 ### `deploy.yml` — Production CDK deploy from `main`
 
 Triggers on pushes to `main` and deploys only stacks whose names start with
-`AgentComms`. Legacy `VictoryMail-*` stacks are intentionally excluded.
+`AgentComms`, including the public `AgentCommsLanding` static site stack.
+Legacy `VictoryMail-*` stacks are intentionally excluded.
 
 The workflow uses the `production` GitHub environment and deploys with these
 CDK context values by default:
@@ -167,7 +168,7 @@ Create a deploy role with a trust policy scoped to the production environment:
     "Condition": {
       "StringEquals": {
         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/FreeMail.ai:environment:production"
+        "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/agentcomms:environment:production"
       }
     }
   }]
@@ -199,6 +200,6 @@ gh variable set AGENTCOMMS_DOMAIN --env production --body agentcomms.dev
 
 ## Skipping workflows on forks
 
-The `bootstrap-smoke` workflow already contains `if: github.repository == 'IntergalacticTech/FreeMail.ai'`. Fork contributors will never accidentally run the smoke test or spend AWS resources.
+The `bootstrap-smoke` workflow already contains `if: github.repository == 'IntergalacticTech/agentcomms'`. Fork contributors will never accidentally run the smoke test or spend AWS resources.
 
 The `publish-sdks` workflow is implicitly safe on forks because forked repos do not have access to the `pypi`/`npm` environment secrets.

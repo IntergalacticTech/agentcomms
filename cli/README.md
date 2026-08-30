@@ -74,4 +74,4 @@ agentcomms status --json  # reads from config
 
 Apache-2.0. See [LICENSE](./LICENSE).
 
-Full deployment guide: [AGENT.md](https://github.com/IntergalacticTech/FreeMail.ai/blob/main/AGENT.md)
+Full deployment guide: [AGENT.md](https://github.com/IntergalacticTech/agentcomms/blob/main/AGENT.md)

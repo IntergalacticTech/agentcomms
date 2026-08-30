@@ -16,7 +16,7 @@
 //   - CloudFront distribution fronting api.victorymail.dev
 //   - Route 53 alias A record → CloudFront distribution
 //
-// IMPORTANT: Do NOT deploy before DNS is ready. See docs/runbooks/pivot-cutover.md.
+// IMPORTANT: Do NOT deploy before DNS is ready. See docs/legacy/runbooks/pivot-cutover.md.
 //
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';

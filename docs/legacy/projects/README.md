@@ -1,3 +1,11 @@
+# Legacy Project Planning Archive
+
+This directory is historical. It preserves the original FreeMail and AgentMail planning corpus so old architecture, migration, cost, and go-to-market decisions remain auditable. It is not the current AgentComms implementation guide, and it intentionally contains old product names, old domains, old placeholder account IDs, and superseded assumptions.
+
+Use the current AgentComms docs in [`docs/`](../..) for implementation work.
+
+---
+
 # FreeMail - Complete Project Documentation
 
 ## Executive Summary

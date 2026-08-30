@@ -1,4 +1,6 @@
-# AgentComms Top-Down Review — 2026-07-19
+# Superseded Platform Review: AgentComms Top-Down Review - 2026-07-19
+
+> Superseded by [platform-review.md](../platform-review.md). This file is preserved as historical review context from before the Apache-2.0 OSS cleanup, API-key routes, SDK/MCP alignment, public landing refresh, and AgentComms production deploy path were completed. Do not treat the findings below as the current public project status.
 
 Status: consolidated findings from a 9-agent deep review of `develop` at commit `d860561`.
 Supersedes and extends `docs/platform-review.md` (2026-06-17).

@@ -12,7 +12,7 @@ jobs:
     permissions:
       id-token: write                 # for OIDC
       contents: read
-    if: github.repository == 'IntergalacticTech/FreeMail.ai'  # skip on forks
+    if: github.repository == 'IntergalacticTech/agentcomms'  # skip on forks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

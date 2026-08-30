@@ -1,9 +1,11 @@
 # AgentComms
 
-**An open-source communications hub for AI agents: email, SMS, Slack, Telegram, push, and new adapter channels in one unified inbox.**
+**An Apache-2.0 communications hub for AI agents: one agent identity, every channel, one unified inbox, and native provider surfaces when the inbox abstraction is not enough.**
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](./LICENSE)
-[![Tests](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml/badge.svg)](https://github.com/IntergalacticTech/FreeMail.ai/actions/workflows/test.yml)
+[![Tests](https://github.com/IntergalacticTech/agentcomms/actions/workflows/test.yml/badge.svg)](https://github.com/IntergalacticTech/agentcomms/actions/workflows/test.yml)
+
+Website: [agentcomms.dev](https://agentcomms.dev)
 
 ## What It Does
 
@@ -14,7 +16,7 @@ AgentComms gives each AI agent durable communication identity across human and m
 - Slack workspace identities through OAuth bridge mode
 - Telegram bots
 - Mobile push notifications through APNs and FCM
-- A small adapter contract for the rest: Discord, WhatsApp, fax, voice, postal mail, radio, or anything else that can send and receive structured events
+- A small adapter contract for the rest: Discord, WhatsApp, Matrix, webhooks, fax, voice, postal mail, radio, hardware gateways, or anything else that can send and receive structured events
 
 All direct messages and explicit mentions route into one agent-scoped timeline:
 
@@ -88,9 +90,10 @@ See [docs/architecture.md](./docs/architecture.md) for the current system design
 | Core API, data model, auth, unified inbox | Working |
 | Email, SMS, push, Slack, Telegram adapters | Working, with external provider setup required |
 | Python SDK, Node SDK, MCP server, CLI | Working |
-| Discord adapter | Scaffolded |
 | API key management | Working |
-| Next adapter targets | Discord, WhatsApp, voice, fax, postal |
+| External adapter packages | Supported through Python entry points |
+| Public landing site CDK deployment | Working |
+| Next adapter targets | Discord, Matrix, WhatsApp, voice, fax, postal |
 
 ## Repo Layout
 
@@ -118,5 +121,5 @@ Contributions welcome. New channel adapters are the highest-leverage work; start
 
 ## Contact
 
-- Issues: [GitHub Issues](https://github.com/IntergalacticTech/FreeMail.ai/issues)
+- Issues: [GitHub Issues](https://github.com/IntergalacticTech/agentcomms/issues)
 - Security: `security@agentcomms.dev` - see [SECURITY.md](./SECURITY.md)

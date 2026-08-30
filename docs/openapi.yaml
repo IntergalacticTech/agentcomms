@@ -5,7 +5,7 @@ info:
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
-  description: Open-source communications hub API for AI agents.
+  description: Open-source communications hub API for AI agents, built around agent identities, channel adapters, a unified inbox, and native provider surfaces.
 servers:
   - url: https://api.agentcomms.dev/v1
 security:
