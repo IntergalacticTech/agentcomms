@@ -154,7 +154,7 @@ cd cdk
 npx cdk bootstrap "aws://${ACCOUNT_ID}/us-east-1"
 ```
 
-Create a deploy role with a trust policy scoped to the production environment:
+Create a deploy role with a trust policy scoped to the renamed repository's production environment and `main` ref subjects:
 
 ```json
 {
@@ -167,8 +167,13 @@ Create a deploy role with a trust policy scoped to the production environment:
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/agentcomms:environment:production"
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+      },
+      "StringLike": {
+        "token.actions.githubusercontent.com:sub": [
+          "repo:IntergalacticTech/agentcomms:environment:production",
+          "repo:IntergalacticTech/agentcomms:ref:refs/heads/main"
+        ]
       }
     }
   }]
