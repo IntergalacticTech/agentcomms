@@ -5,26 +5,26 @@
 **`Your AI agent's communications hub, in your own AWS.`** (52 chars)
 
 Alternates:
-- `Unified inbox for AI agents — email, SMS, Slack, Telegram.` (58)
+- `Unified inbox for AI agents across every channel.` (48)
 - `Open-source agent comms hub. Deploys into your cloud.` (55)
 
-Primary is best — it signals the agent focus and the self-deploy twist in one line.
+Primary is best: it signals the agent focus and the self-deploy model in one line.
 
 ## Description (260 characters max)
 
-> AgentComms gives each AI agent an email, phone number, Slack bot, and Telegram bot — routing into ONE unified inbox. Open source under Apache-2.0, deploys into YOUR AWS account in 20 minutes via a CLI your coding agent can run.
+> AgentComms is an Apache-2.0 communications hub for AI agents: email, SMS, Slack, Telegram, push, and third-party adapter channels in one unified inbox. Deploy it into your AWS account with a CLI your coding agent can run.
 
 ## Maker comment (T+0 on launch day)
 
-> I spent the last year running FreeMail — "email for AI agents." It worked until it didn't; the category commoditized faster than expected. Rather than ride the curve down I rebuilt the product from the ground up as AgentComms.
+> I started this as narrow infrastructure for agent email. The more real workflows we saw, the more obvious the actual primitive became: agents do not need one more mailbox API; they need a durable communications hub.
 >
-> The shift: agents don't need email, agents need to communicate. Email is one channel. The right abstraction is a unified inbox across every channel — email, SMS, Slack, Telegram, mobile push, with more (Discord, WhatsApp, postal, fax, voice) coming.
+> AgentComms gives each agent durable identity across email, SMS, Slack, Telegram, mobile push, and any external adapter channel. Direct messages and explicit mentions land in one unified inbox; room or provider-native context stays available through native surfaces instead of flooding the attention stream.
 >
-> Two things nobody else is doing: (1) the entire thing deploys into YOUR AWS account via one CLI command, using only AWS-native primitives. Your data never leaves your cloud. (2) The license is Apache-2.0 — the code is readable, runnable, modifiable, redistributable, and usable for commercial or hosted deployments without a separate agreement from us.
+> Two things matter most: (1) the whole hub deploys into YOUR AWS account via one CLI command, using AWS-native primitives. Your data stays in your cloud. (2) The license is Apache-2.0: readable, runnable, modifiable, redistributable, and usable for commercial or hosted deployments without a separate agreement from us.
 >
-> Built on DynamoDB, Lambda, SES, SNS, Kinesis, Bedrock. 390+ tests passing. Phases 1–4 shipped and running in production today; Phase 5 cutover complete; Phase 6 is this launch.
+> Built on DynamoDB, Lambda, API Gateway, SES, SNS, SQS, Kinesis, KMS, and Bedrock. The REST API, Python SDK, Node SDK, CLI, MCP server, and adapter template are all tested. The production deploy path is live.
 >
-> Happy to answer anything. Technical questions especially — the architectural decisions here (agent-centric data model, unified inbox with sparse GSI, and adapter contract for new channels) took a while to land and I'm glad to go deep.
+> Happy to answer anything. Technical questions especially: the agent-centric data model, unified inbox semantics, and adapter contract are the core of the project.
 
 ## Screenshots / media
 
@@ -32,7 +32,7 @@ Five suggested screenshots / media assets for Product Hunt (1270×760 ideal):
 
 1. **Landing page hero** — "Your AI agent's communications hub, deployed into your own AWS." with the bootstrap command below the fold.
 2. **CLI bootstrap in action** — terminal with NDJSON events scrolling: preflight → deploy → ses → seed → done with the API key.
-3. **Unified inbox code example** — Python SDK showing `agent.messages.list()` returning interleaved email + SMS + Slack messages.
+3. **Unified inbox code example** — Python SDK showing `agent.messages.list()` returning interleaved email, SMS, Slack, Telegram, and adapter messages.
 4. **Architecture diagram** — the ASCII diagram from the README, cleaned up in Excalidraw or Figma. Boxes for SDKs/REST clients → API Gateway → Lambda → DynamoDB/Kinesis/Adapter Runtime → SES/SMS/Slack/Telegram.
 5. **Screencast frame** — still from the 3-minute demo, freeze-frame at the "admin_api_key" reveal moment.
 
@@ -63,7 +63,7 @@ Self-hunt (you can hunt your own product on PH). If you have a well-known PH hun
 
 ## Cross-promotion timing
 
-- **Day -3:** DM 20 early AgentComms / FreeMail customers asking if they'd be willing to comment on launch day with their real-world usage.
+- **Day -3:** DM 20 early AgentComms users and OSS contributors asking if they'd be willing to comment on launch day with their real-world usage.
 - **Day -1:** Set up Twitter/LinkedIn thread explaining the pivot, publish at T+4h on launch day.
 - **Day 0:** Launch. Respond to everything.
 - **Day +1:** Post retrospective thread on X with screenshots of the ranking timeline + any funny comments.

@@ -2,7 +2,7 @@
 
 This guide walks you through verifying the AgentComms bootstrap flow on a **clean AWS account** (recommended: a separate sub-account, not your production one). It exercises every channel path that doesn't require a real third-party registration (Slack app, 10DLC brand, APNs certs).
 
-Expect this to take about 45 minutes the first time: 20 minutes of setup (the preconditions) + 20 minutes of `bootstrap` running + a few minutes of smoke tests.
+Expect this to take about 45 minutes the first time: setup and AWS/DNS preconditions, a CDK bootstrap/deploy run, and a few minutes of smoke tests.
 
 ---
 
@@ -80,7 +80,7 @@ If any check is `fail`, fix that item before proceeding. The `ses_account warn` 
 
 ## 4. Bootstrap
 
-This is the real deploy. It creates four CloudFormation stacks in your account, a KMS key, an API Gateway, roughly 14 Lambda functions, a DynamoDB table with 7 GSIs, 3 S3 buckets, a Kinesis stream, and more. Budget about 20 minutes wall-clock.
+This is the real deploy. It creates the core AgentComms CloudFormation stacks in your account, a KMS key, an API Gateway, Lambda functions, a DynamoDB table with 7 GSIs, S3 buckets, a Kinesis stream, and adapter infrastructure. Budget roughly 20 minutes wall-clock on the first run.
 
 ```bash
 agentcomms bootstrap \
@@ -95,7 +95,7 @@ Watch for these phases (each is one line of NDJSON):
 
 - `preflight` — repeats the doctor checks
 - `cdk_bootstrap` — one-time CDK toolkit stack (skipped if already bootstrapped)
-- `deploy` — four stacks: AgentCommsData, AgentCommsEvents, AgentCommsApi, AgentCommsAdapters
+- `deploy` — core stacks: AgentCommsData, AgentCommsEvents, AgentCommsApi, AgentCommsAdapters, AgentCommsAdapters-Email, plus enabled adapter sub-stacks
 - `ses` — DKIM identity registration
 - `seed` — creates the first Org and prints your admin API key
 - `smoke` — confirmation
@@ -248,7 +248,7 @@ Both the email and the Telegram messages should appear in the same unified inbox
 agentcomms destroy --yes
 ```
 
-This deletes the four AgentComms CloudFormation stacks and the DynamoDB table. It **does not** delete the S3 buckets (retained to protect against accidental data loss). Delete them manually:
+This deletes the AgentComms CloudFormation stacks deployed by bootstrap and the DynamoDB table. It **does not** delete the S3 buckets (retained to protect against accidental data loss). Delete them manually:
 
 ```bash
 for b in agentcomms-raw-inbound-prod-<your-account> agentcomms-bodies-prod-<your-account> agentcomms-attachments-prod-<your-account>; do
@@ -277,4 +277,4 @@ If something breaks during testing, the most useful thing you can do is capture:
 2. CloudFormation events for the failing stack: `aws cloudformation describe-stack-events --stack-name <failed-stack>`.
 3. The relevant Lambda's CloudWatch log group, last 5 minutes.
 
-Open an issue at https://github.com/IntergalacticTech/FreeMail.ai/issues with those three pieces.
+Open an issue at https://github.com/IntergalacticTech/agentcomms/issues with those three pieces.

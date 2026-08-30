@@ -1,158 +1,174 @@
-# Making AgentComms public
+# Public Release Runbook
 
-Runbook for the tasks that need to happen (mostly outside this codebase) to go from "green-on-our-branch" to "public repo users can clone and install."
+AgentComms is licensed under Apache-2.0 and is intended to be public OSS. This runbook covers the remaining external launch work around GitHub visibility, package registries, and the public website.
 
-## 1. Repo rename + visibility flip
+## Current Launch Surface
 
-The GitHub repo is currently `IntergalacticTech/FreeMail.ai` (private). To match the new product name:
+- Product name: `AgentComms`
+- Target repo: `IntergalacticTech/agentcomms`
+- License: Apache-2.0
+- Hosted API default: `https://api.agentcomms.dev/v1`
+- Public landing source: [`landing/`](../landing/)
+- Landing deployment stack: `AgentCommsLanding`
+- Core production stacks: `AgentCommsData`, `AgentCommsEvents`, `AgentCommsApi`, `AgentCommsAdapters`, and adapter sub-stacks
+
+The landing stack deploys the checked-in static site to S3 + CloudFront and emits a CloudFront URL. The `agentcomms.dev` vanity domain still needs Route 53 hosted-zone and ACM certificate setup before it can point at that distribution.
+
+## 1. Final Repository Safety Check
+
+Before flipping GitHub visibility, run:
 
 ```bash
-# Rename on GitHub
-gh repo rename agentcomms --repo IntergalacticTech/FreeMail.ai
+secret_re='AKIA[0-9A-Z]{16}|aws_secret_access_''key|ak_live_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{16,}|xox[baprs]-|ghp_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{20,}'
+git grep -nE "$secret_re" -- . ':!**/node_modules/**' ':!**/dist/**' ':!cdk/cdk.out/**' ':!docs/legacy/**' ':!docs/superpowers/**' | grep -Ev 'xox''b-fake(-token)?'
 
-# OR via the GitHub UI: Settings → General → Rename repository
-
-# After rename, the old URL redirects — but update local remotes:
-git remote set-url origin git@github.com:IntergalacticTech/agentcomms.git
+aws_account_re='arn:aws:[^:]+:[^:]*:[^:]*:[0-9]{12}:|account(_id)?[" :=]+[0-9]{12}'
+git grep -nE "$aws_account_re" -- . ':!**/node_modules/**' ':!**/dist/**' ':!cdk/cdk.out/**' ':!docs/legacy/**' ':!docs/superpowers/**' | grep -Ev '123456789012|000000000000'
+git diff --check
 ```
 
-**Before flipping to public**, verify:
+Expected result: no live secrets, no real AWS account IDs in active public docs/code, and no whitespace errors.
 
-- [ ] `.env` is gitignored and no `.env.*` files are tracked (run `git grep -l 'AWS_ACCESS_KEY' -- '*.env*'` — should be empty)
-- [ ] No AWS account IDs in tracked code. An account ID is not a secret, but publishing it needlessly widens your attack surface (it lets outsiders craft ARNs and enumerate your resources). Before going public, move any hardcoded account ID out of `cdk/bin/app.ts` — source it from `CDK_DEFAULT_ACCOUNT`/an env var or CDK context instead of committing the literal. Run `git grep -nE '[0-9]{12}'` and confirm nothing real remains.
-- [ ] No real API keys in fixtures — the `ak_live_...` in `project_agentcomms_phase1_status.md` is a memory file (gitignored in `.claude/`); confirm no live key is in the repo via `git grep -E 'ak_live_[A-Za-z0-9]{20,}'` (this matches real base62 keys but not the `ak_live_YOUR_ORG_KEY_HERE` placeholder used in the docs — it should return zero hits)
-- [ ] No internal-only docs in `docs/` — `BUILD_PLAN.md` and `ARCHITECTURE.md` are fine to ship; delete `docs/superpowers/` before going public if you'd rather not publish the brainstorming artifacts (they're fine to keep, they just show your work)
-- [ ] LICENSE, NOTICE, README, AGENT.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md all exist at repo root
+Historical planning material may mention FreeMail, VictoryMail, or AgentMail because it documents the old project. Current docs, README, landing page, SDK docs, MCP docs, OpenClaw skill, and quickstart should all use AgentComms. The public pivot blog is the only current marketing asset that should intentionally explain the old FreeMail name.
 
-Then in GitHub Settings → General → Danger Zone → Change visibility → Public.
+## 2. Rename and Publish the GitHub Repo
 
-## 2. Publish the CLI to npm
+```bash
+gh repo rename agentcomms --repo IntergalacticTech/FreeMail.ai
+git remote set-url origin git@github.com:IntergalacticTech/agentcomms.git
+gh repo edit IntergalacticTech/agentcomms --visibility public --accept-visibility-change-consequences
+```
+
+After rename, update AWS OIDC trust policies that scope to `github.repository`:
+
+```json
+{
+  "token.actions.githubusercontent.com:sub": "repo:IntergalacticTech/agentcomms:environment:production"
+}
+```
+
+GitHub redirects old repository URLs, but new docs and launch assets should link to `https://github.com/IntergalacticTech/agentcomms`.
+
+## 3. Publish the CLI to npm
 
 ```bash
 cd cli
-# first-time publish: npm needs to know about the @agentcomms scope
+cp ../LICENSE LICENSE
 npm login
-npm whoami                                # verify
-npm publish --access public               # scoped packages default to private; --access public is required
+npm whoami
+npm publish --access public
+npm view @agentcomms/cli
 ```
 
-The `files` list in `cli/package.json` only includes `dist/`, `README.md`, `LICENSE`. Before publishing, copy the root LICENSE into `cli/`:
+Users can then run:
 
 ```bash
-cp LICENSE cli/LICENSE
+npm i -g @agentcomms/cli
 ```
 
-After publish:
-```bash
-npm view @agentcomms/cli                  # verify the tarball contents look right
-```
-
-Users can then run `npm i -g @agentcomms/cli`.
-
-## 3. Publish the Python SDK to PyPI
+## 4. Publish the Python SDK to PyPI
 
 ```bash
 cd sdks/python
 pip install build twine
-python -m build                            # creates dist/agentcomms-1.0.0-py3-none-any.whl + .tar.gz
-python -m twine upload dist/*              # authenticates against PyPI credentials
+python -m build
+python -m twine upload dist/*
 ```
 
-The `pyproject.toml` `name = "agentcomms"` must not conflict with an existing PyPI package. Check first:
+Check name availability first:
 
 ```bash
-pip index versions agentcomms              # should return nothing / "no matching distribution"
+pip index versions agentcomms
 ```
 
-If the name is taken, pick a scoped alternative (`agentcomms-sdk`, `agentcomms-client`) and update `pyproject.toml` + `__init__.py`.
+If `agentcomms` is already taken, pick `agentcomms-sdk` or `agentcomms-client` and update package metadata before publishing.
 
-Users can then run `pip install agentcomms`.
-
-## 4. Publish the Node SDK to npm
+## 5. Publish Node Packages to npm
 
 ```bash
 cd sdks/node
 npm publish --access public
+
+cd ../../mcp
+npm publish --access public
 ```
 
-Users can then run `npm i @agentcomms/client`.
-
-## 5. Buy and configure `agentcomms.dev`
-
-Already owned (per project memory: user purchased `agentcomms.dev` during brainstorming). Configure Route 53 + CloudFront:
+Users can then run:
 
 ```bash
-# Add to cdk/lib/stacks/agentcomms-landing-stack.ts (new) — deploys landing/index.html to S3 + CloudFront + ACM cert + Route 53 alias
-
-# Once deployed:
-#   https://agentcomms.dev → landing page
-#   https://docs.agentcomms.dev → documentation (mkdocs or Docusaurus; deferred to Phase 6)
-#   https://api.agentcomms.dev → hosted API Gateway (custom domain, deferred to Phase 5 cutover)
-#   https://console.agentcomms.dev → hosted developer console
+npm i @agentcomms/client
+npm i -g @agentcomms/mcp
 ```
 
-For MVP, just:
+## 6. Configure Public Domains
+
+Create or transfer a public Route 53 hosted zone for `agentcomms.dev`, then add aliases:
+
+| Hostname | Target |
+|---|---|
+| `agentcomms.dev` | CloudFront distribution emitted by `AgentCommsLanding` |
+| `www.agentcomms.dev` | Same landing distribution or redirect |
+| `api.agentcomms.dev` | API Gateway custom domain for `AgentCommsApi` |
+| `console.agentcomms.dev` | Console distribution once the AgentComms console backend is live |
+| `docs.agentcomms.dev` | Future generated docs site |
+
+The current landing stack intentionally avoids creating vanity-domain aliases until the hosted zone and ACM certificate exist. This keeps production CDK deploys green in fresh AWS accounts.
+
+## 7. Configure Project Email
+
+Set up these addresses before public launch:
+
+- `hello@agentcomms.dev` - general inquiries
+- `security@agentcomms.dev` - vulnerability reports
+- `conduct@agentcomms.dev` - Code of Conduct reports
+- `sdks@agentcomms.dev` - SDK maintainer contact
+
+Use Google Workspace aliases, SES forwarding, or AgentComms-managed channels once the hosted service is ready for inbound production traffic.
+
+## 8. CI/CD Secrets
+
+Required GitHub environments:
+
+| Environment | Required secrets |
+|---|---|
+| `production` | `AGENTCOMMS_DEPLOY_ROLE_ARN` |
+| `npm` | `NPM_TOKEN` |
+| `pypi` | `PYPI_API_TOKEN` |
+| `bootstrap-smoke` | `AWS_BOOTSTRAP_SMOKE_ROLE`, `AGENTCOMMS_SMOKE_DOMAIN`, `AGENTCOMMS_SMOKE_ADMIN_EMAIL` |
+
+The internal prototype production deploy role currently uses broad CDK deployment permissions. Replace it with least privilege before running a production-grade hosted service.
+
+## 9. Public Launch Checklist
+
+- [ ] GitHub repo renamed to `IntergalacticTech/agentcomms`
+- [ ] GitHub repo visibility set to public
+- [ ] Production GitHub OIDC trust updated to the renamed repo
+- [ ] `main` CI and deploy workflows green
+- [ ] Landing CloudFront URL verified
+- [ ] `agentcomms.dev` hosted zone and aliases configured
+- [ ] CLI published to npm
+- [ ] Python SDK published to PyPI
+- [ ] Node SDK and MCP package published to npm
+- [ ] Launch assets in [`landing/blog/`](../landing/blog/) reviewed
+- [ ] First adapter issues labeled `good first adapter`
+
+## 10. Final Smoke
+
+Run before launch announcement:
 
 ```bash
-# Manual S3 + CloudFront setup if the CDK stack isn't ready yet:
-aws s3 mb s3://agentcomms-dev-landing --region us-east-1
-aws s3 website s3://agentcomms-dev-landing --index-document index.html
-aws s3 cp landing/index.html s3://agentcomms-dev-landing/ --content-type text/html
-aws s3api put-bucket-policy --bucket agentcomms-dev-landing --policy '{
-  "Version":"2012-10-17",
-  "Statement":[{
-    "Sid":"PublicReadForStaticWeb","Effect":"Allow","Principal":"*",
-    "Action":"s3:GetObject","Resource":"arn:aws:s3:::agentcomms-dev-landing/*"
-  }]
-}'
-# point Route 53 ALIAS A record at the S3 website endpoint
+pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template -q
+cd sdks/python && pytest tests -q
+cd ../node && npm test
+cd ../../mcp && npm test
+cd ../cli && npm test
+cd ../cdk && npm test && npx tsc --noEmit
 ```
 
-Or deploy the static landing content through the AgentComms landing stack for your hosted domain.
+Then verify the deployed protected API responds through API Gateway:
 
-## 6. Update email addresses referenced in docs
+```bash
+curl -i https://API_ID.execute-api.us-east-1.amazonaws.com/prod/v1/agents
+```
 
-Several docs and the landing page reference these email addresses:
-
-- `hello@agentcomms.dev` — general inquiries
-- `security@agentcomms.dev` — security disclosures
-- `conduct@agentcomms.dev` — CoC violations
-- `sdks@agentcomms.dev` — SDK maintainer contact
-
-Configure these in AWS SES (either as verified identities that forward to a real inbox, or as provisioned AgentComms inboxes once the hosted service is running). Cheapest option: a single Google Workspace mailbox with aliases.
-
-## 7. GitHub Actions for CI
-
-Two workflows to add to `.github/workflows/`:
-
-- `test.yml` — runs on every PR: `pytest tests/ adapters/` + `cd cdk && npm test` + `cd cli && npm test` + `cd sdks/python && pip install -e . && pytest tests/` + `cd sdks/node && npm test`.
-- `publish.yml` — runs on tag `v*`: publishes CLI to npm, Python SDK to PyPI, Node SDK to npm.
-
-Setting up CI credentials:
-- `NPM_TOKEN` — npm automation token (scope: publish on @agentcomms/*)
-- `PYPI_API_TOKEN` — PyPI scoped token for the `agentcomms` project
-
-## 8. Public launch checklist (Phase 6)
-
-From `docs/superpowers/plans/2026-04-17-agentcomms-phase6-launch.md`:
-
-- [ ] Screencast demonstrating a coding agent deploying AgentComms (3 minutes, YouTube)
-- [ ] Launch blog post at `agentcomms.dev/blog/pivot`
-- [ ] Show HN post
-- [ ] Product Hunt submission
-- [ ] Discord community server + invite link in README
-- [ ] First community adapter PR (Discord — bounty open)
-
-## Testing checklist before going public
-
-- [ ] `cd cli && npm run build && npm test` — all green
-- [ ] `cd sdks/python && pytest tests/` — all green
-- [ ] `cd sdks/node && npm test` — all green
-- [ ] `pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template -q` — all green
-- [ ] `cd cdk && npx cdk synth --all` — no errors
-- [ ] `agentcomms doctor --domain $TEST_DOMAIN --json` — runs cleanly against a fresh AWS sub-account
-- [ ] `agentcomms bootstrap ... --json` succeeds end-to-end on a fresh account (see `docs/TESTING.md`)
-- [ ] Smoke tests from `docs/TESTING.md` §5-7 all pass
-- [ ] `grep -rE 'ak_live_[A-Za-z0-9]{20,}|AKIA|aws_secret' --include='*.py' --include='*.ts' --include='*.md' .` returns zero hits (the pattern matches real base62 keys, not the `ak_live_YOUR_ORG_KEY_HERE` doc placeholder)
-
-Once those pass, the code is ready for a public repo.
+Expected unauthenticated result: `401 Unauthorized`.

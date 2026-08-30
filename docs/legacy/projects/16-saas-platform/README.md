@@ -13,7 +13,7 @@ The current source of truth is:
 - AI features are **paid-only**
 - AWS Marketplace is the path **beyond Pro**, not the first launch channel
 
-If a later section in this file conflicts with those rules, follow this section and the current [build plan](/Users/jwc/code/Victory/FreeMail.ai/BUILD_PLAN.md).
+If a later section in this file conflicts with those rules, follow this section and the archived [build plan](../../freemail-build-plan.md).
 
 ### Current Tier Model
 

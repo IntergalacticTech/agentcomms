@@ -219,7 +219,7 @@ Creates:
 ## Task 6: Customer communications
 
 **Deliverables (human-authored; Phase 5 includes collecting and sending):**
-- Personal email to each paying Stripe customer ~10 days before cutover. Template at `docs/customer-emails/pivot-announcement.md`. Variables: customer name, current plan, migrated plan, migration date, your migration call offer.
+- Personal email to each paying Stripe customer ~10 days before cutover. Template at `docs/legacy/customer-emails/pivot-announcement.md`. Variables: customer name, current plan, migrated plan, migration date, your migration call offer.
 - Public blog post at `agentcomms.dev/blog/pivot`. Draft at `landing/blog/pivot.md`, published at Week 3.
 - `MIGRATION.md` at repo root — the endpoint-by-endpoint before/after diff. Auto-generate from `openapi.yaml` diffs where possible.
 
@@ -229,7 +229,7 @@ Creates:
 
 ## Task 7: Production cutover runbook
 
-**File:** `docs/runbooks/pivot-cutover.md`
+**File:** `docs/legacy/runbooks/pivot-cutover.md`
 
 Step-by-step runbook for the production migration window (T-0 to T+2 hours):
 

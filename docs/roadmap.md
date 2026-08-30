@@ -18,6 +18,8 @@ AgentComms is moving toward one open-source hub for AI communications: one agent
 | Node SDK | Working |
 | MCP server | Working |
 | CLI bootstrap | Working, with provider setup still required for some channels |
+| External adapter package template | Working |
+| Public landing site CDK deployment | Working |
 | Discord adapter | Scaffolded |
 
 ## Near Term

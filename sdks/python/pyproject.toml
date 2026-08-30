@@ -23,7 +23,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://agentcomms.dev"
-Repository = "https://github.com/IntergalacticTech/FreeMail.ai"
+Repository = "https://github.com/IntergalacticTech/agentcomms"
 Documentation = "https://agentcomms.dev/docs"
 
 [project.optional-dependencies]

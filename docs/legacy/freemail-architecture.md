@@ -1,14 +1,14 @@
 # FreeMail on AWS: Architecture for an Email Platform for AI Agents
 
-> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](./docs/architecture.md), [docs/adapter-roadmap.md](./docs/adapter-roadmap.md), and [docs/platform-review.md](./docs/platform-review.md).
+> **SUPERSEDED / PRE-PIVOT** - describes the retired FreeMail/VictoryMail generation. For the current AgentComms system see [docs/architecture.md](../architecture.md), [docs/adapter-roadmap.md](../adapter-roadmap.md), and [docs/platform-review.md](../platform-review.md).
 
-> **Status as of 2026-04-13.** FreeMail is **live in production** on AWS account `<YOUR_ACCOUNT_ID>` in `us-east-1`. The shipped surface includes the REST API at `api.victorymail.dev`, developer console at `console.victorymail.dev`, marketing site at `victorymail.dev`, verified SES sending and receiving for `victorymail.dev` + the `karmascale.net` / `karmascale.org` domain pool, DynamoDB single-table storage, Cognito-based console auth, Stripe billing integration, and the full REST resource surface described in `docs/api-reference.md`.
+> **Status as of 2026-04-13.** FreeMail was live in production on AWS account `<YOUR_ACCOUNT_ID>` in `us-east-1`. The shipped surface included the REST API at `api.victorymail.dev`, developer console at `console.victorymail.dev`, marketing site at `victorymail.dev`, verified SES sending and receiving for `victorymail.dev` + the `karmascale.net` / `karmascale.org` domain pool, DynamoDB single-table storage, Cognito-based console auth, Stripe billing integration, and the REST resource surface that later evolved into [docs/api-reference.md](../api-reference.md).
 >
 > **This document still contains target-state design for features not yet shipped**, notably: WebSocket real-time event delivery, OpenSearch Serverless vector search, Step Functions pipelines, IMAP/SMTP bridges, dedicated IPs, AWS Marketplace metering integration, and the 4-tier enterprise sales motion. Those sections describe where we're going, not where we are. Sections that only describe aspirational state are marked `> **Target state**` at the top.
 >
-> For the current **customer-facing tier structure** (Free / Starter $5 / Pro $25 / Enterprise / BYOC), see `docs/billing.md`. This document's "Pricing Tiers" table is older and out of sync — treat `docs/billing.md` as authoritative.
+> For the current **customer-facing tier structure** (Free / Starter $5 / Pro $25 / Enterprise / BYOC), see [docs/billing.md](../billing.md). This document's "Pricing Tiers" table is older and out of sync; treat [docs/billing.md](../billing.md) as authoritative.
 >
-> The **BYOC (Bring Your Own Cloud) Marketplace offering** is designed but not yet implemented. See `docs/byoc.md` for the design, and `/tmp/freemail-byoc.md` for the full detailed design doc.
+> The **BYOC (Bring Your Own Cloud) Marketplace offering** is designed but not yet implemented. See [docs/byoc.md](../byoc.md) for the current design.
 
 ## Executive Summary
 

@@ -1,6 +1,6 @@
 # AgentComms Documentation
 
-AgentComms is an open-source communications hub for AI agents. It gives agents durable identities across email, SMS, Slack, Telegram, push, and future adapter channels, then normalizes direct messages and explicit mentions into one agent-scoped inbox.
+AgentComms is an Apache-2.0 communications hub for AI agents. It gives agents durable identities across email, SMS, Slack, Telegram, push, and external adapter channels, then normalizes direct messages and explicit mentions into one agent-scoped inbox.
 
 ## Start Here
 
@@ -62,4 +62,8 @@ curl https://api.agentcomms.dev/v1/agents \
 | Discord | Scaffolded for contribution |
 | External adapters | Supported through `agentcomms.adapters` Python entry points |
 
-Historical FreeMail/VictoryMail docs and migration notes remain in the repository where they are useful for cutover context, but new integrations should use the AgentComms agent-centric API.
+Historical FreeMail/VictoryMail docs and migration notes remain in [`legacy/`](./legacy/) and `superpowers/` where they are useful for cutover context, but new integrations should use the AgentComms agent-centric API.
+
+## Public Website
+
+The static landing site lives in [`landing/`](../landing/) and is deployed by the `AgentCommsLanding` CDK stack. The stack emits a CloudFront URL. Point `agentcomms.dev` at that distribution after the Route 53 hosted zone and ACM certificate are configured.

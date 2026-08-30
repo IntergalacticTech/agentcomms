@@ -5,8 +5,8 @@ Thanks for your interest in contributing. AgentComms is open source under Apache
 ## Quick start
 
 ```bash
-git clone https://github.com/IntergalacticTech/FreeMail.ai
-cd FreeMail.ai
+git clone https://github.com/IntergalacticTech/agentcomms
+cd agentcomms
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 python -m pytest tests/core tests/api tests/e2e adapters examples/invoicing-agent examples/slack-standup-bot examples/adapter-template
@@ -17,7 +17,7 @@ For CDK/infrastructure work you also need Node 20+, AWS CDK v2, and Docker.
 ## What to work on
 
 The best place to look for work:
-- [GitHub Issues](https://github.com/IntergalacticTech/FreeMail.ai/issues) tagged `good first issue` or `help wanted`
+- [GitHub Issues](https://github.com/IntergalacticTech/agentcomms/issues) tagged `good first issue` or `help wanted`
 - New channel adapters (see "Adding a channel adapter" below)
 - Bug fixes in API handlers under `core/api/` or adapter code under `adapters/`
 - SDK improvements under `sdks/`
@@ -75,4 +75,4 @@ The `tools/add_spdx_headers.py` script can add headers in bulk if you forget.
 
 ## Questions
 
-Open a [GitHub Discussion](https://github.com/IntergalacticTech/FreeMail.ai/discussions) or email `hello@agentcomms.dev`.
+Open a [GitHub Discussion](https://github.com/IntergalacticTech/agentcomms/discussions) or email `hello@agentcomms.dev`.

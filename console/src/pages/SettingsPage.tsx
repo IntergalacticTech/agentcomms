@@ -5,10 +5,11 @@ import Header from "../components/Header";
 type Tier = "free" | "starter" | "pro" | "enterprise";
 
 interface Quotas {
+  max_agents?: number;
   max_inboxes?: number;
+  max_channels?: number;
   max_messages_per_day?: number;
   max_api_keys?: number;
-  max_pods?: number;
   max_domains?: number;
   max_webhooks?: number;
   max_storage_mb?: number;
@@ -17,8 +18,10 @@ interface Quotas {
 }
 
 interface Usage {
+  agents?: number;
   inboxes?: number;
-  pods?: number;
+  channels?: number;
+  messages_today?: number;
   api_keys?: number;
   domains?: number;
   webhooks?: number;
@@ -171,14 +174,14 @@ export default function SettingsPage() {
                 </h2>
                 <div className="space-y-4">
                   <QuotaBar
-                    label="Inboxes"
-                    used={org.usage.inboxes ?? 0}
-                    total={org.quotas.max_inboxes ?? 0}
+                    label="Agents"
+                    used={org.usage.agents ?? org.usage.inboxes ?? 0}
+                    total={org.quotas.max_agents ?? org.quotas.max_inboxes ?? 0}
                   />
                   <QuotaBar
-                    label="Pods"
-                    used={org.usage.pods ?? 0}
-                    total={org.quotas.max_pods ?? 0}
+                    label="Channels"
+                    used={org.usage.channels ?? 0}
+                    total={org.quotas.max_channels ?? -1}
                   />
                   <QuotaBar
                     label="API Keys"

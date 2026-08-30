@@ -132,6 +132,12 @@ if (deployAgentComms) {
     enableSlack: isChannelEnabled("slack"),
     enableTelegram: isChannelEnabled("telegram"),
   });
+
+  new LandingStack(app, "AgentCommsLanding", {
+    env,
+    stage: agentCommsEnvName,
+    siteId: "agentcomms",
+  });
 }
 
 app.synth();

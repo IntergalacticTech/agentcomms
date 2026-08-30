@@ -64,6 +64,23 @@ curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../channels" \
 
 Slack is bridge-style: create a Slack app, put its credentials in the documented SSM paths, then create a channel with `mode: "bridge"`.
 
+External adapters use the same shape. Install the adapter package into the runtime, then use its stable channel slug:
+
+```bash
+curl -sS -X POST "$AGENTCOMMS_BASE_URL/agents/agt_.../channels" \
+  -H "Authorization: Bearer $AGENTCOMMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "matrix",
+    "mode": "bridge",
+    "config": {
+      "homeserver": "https://matrix.example"
+    }
+  }'
+```
+
+Slugs must match `[a-z][a-z0-9_-]{0,62}`. See [adapter-authoring.md](./adapter-authoring.md).
+
 ## 3. Send a message
 
 The API infers the channel from the recipient when it can:
@@ -156,6 +173,6 @@ await agent.messages.reply(messages[0].message_id, { body: "Received." });
 
 ## 8. Use MCP
 
-Install `@agentcomms/mcp`, configure `AGENTCOMMS_API_KEY`, and expose tools such as `agent_create`, `messages_list`, `message_send`, `message_reply`, `wait_for_message`, and `extract_otp` to your coding agent.
+Install `@agentcomms/mcp`, configure `AGENTCOMMS_API_KEY`, and expose tools such as `agent_create`, `channel_create`, `messages_list`, `message_send`, `message_reply`, `wait_for_message`, and `extract_otp` to your coding agent.
 
 See [mcp-server.md](./mcp-server.md).

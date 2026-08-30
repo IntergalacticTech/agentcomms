@@ -89,10 +89,10 @@ The default deployment target is AWS:
 | SMS | AWS End User Messaging |
 | Secrets | SSM Parameter Store and KMS |
 | AI helpers | Bedrock |
-| Static console/landing | CloudFront and S3 |
+| Static landing site | CloudFront and S3 via `AgentCommsLanding` |
 | Infrastructure | AWS CDK v2 |
 
-The CDK app defaults to the caller's account/region via CDK context or `CDK_DEFAULT_ACCOUNT`/`CDK_DEFAULT_REGION`. Legacy VictoryMail stacks are opt-in and are not part of normal AgentComms bootstrap.
+The CDK app defaults to the caller's account/region via CDK context or `CDK_DEFAULT_ACCOUNT`/`CDK_DEFAULT_REGION`. Legacy VictoryMail stacks are opt-in and are not part of normal AgentComms bootstrap. The current production workflow deploys the AgentComms API, adapters, and public landing stack; the browser console should only be wired into the AgentComms deploy group after its auth routes move off the legacy stack.
 
 ## API Surface
 

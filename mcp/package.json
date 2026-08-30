@@ -16,7 +16,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/IntergalacticTech/FreeMail.ai.git",
+    "url": "https://github.com/IntergalacticTech/agentcomms.git",
     "directory": "mcp"
   },
   "files": ["dist", "README.md", "LICENSE"],

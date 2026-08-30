@@ -38,7 +38,7 @@ All steps must be completed before the cutover maintenance window opens.
     --source-table victorymail \
     --dest-table agentcomms-staging
   ```
-- [ ] **Customer announcement sent**: `docs/customer-emails/pivot-announcement.md` sent to
+- [ ] **Customer announcement sent**: `docs/legacy/customer-emails/pivot-announcement.md` sent to
   every paying customer (email list from CRM, not just active API keys)
 - [ ] **DNS pre-staging** (do NOT make live yet):
   - Route 53 record for `api.agentcomms.dev` created and pointing at AgentComms API GW

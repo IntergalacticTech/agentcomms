@@ -28,7 +28,7 @@ export class CicdStack extends cdk.Stack {
         provider.openIdConnectProviderArn,
         {
           StringLike: {
-            'token.actions.githubusercontent.com:sub': 'repo:IntergalacticTech/FreeMail.ai:*',
+            'token.actions.githubusercontent.com:sub': 'repo:IntergalacticTech/agentcomms:*',
           },
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',

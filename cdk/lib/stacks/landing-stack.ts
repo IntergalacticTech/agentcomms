@@ -12,14 +12,17 @@ import * as path from "path";
 
 export interface LandingStackProps extends cdk.StackProps {
   stage: string;
+  siteId?: string;
 }
 
 export class LandingStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: LandingStackProps) {
     super(scope, id, props);
 
+    const siteId = props.siteId ?? "victorymail";
+
     const siteBucket = new s3.Bucket(this, "LandingBucket", {
-      bucketName: `victorymail-landing-${this.account}-${props.stage}`,
+      bucketName: `${siteId}-landing-${this.account}-${props.stage}`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.DESTROY,

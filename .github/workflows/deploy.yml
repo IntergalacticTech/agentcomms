@@ -65,10 +65,9 @@ jobs:
           fi
 
       - name: CDK Deploy
-        # Deploy only the AgentComms stacks (AgentCommsData, AgentCommsEvents,
-        # AgentCommsApi, AgentCommsAdapters, and its AgentCommsAdapters-* adapter
-        # sub-stacks). The retired victorymail/legacy stacks are intentionally
-        # excluded so they are not re-synthed or re-deployed.
+        # Deploy only the AgentComms stacks: data, events, API, adapters, and
+        # public landing site. Retired legacy stacks are excluded
+        # so they are not re-synthed or re-deployed.
         run: |
           cd cdk
           npx cdk deploy 'AgentComms*' \
