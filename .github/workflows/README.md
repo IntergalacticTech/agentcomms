@@ -154,7 +154,14 @@ cd cdk
 npx cdk bootstrap "aws://${ACCOUNT_ID}/us-east-1"
 ```
 
-Create a deploy role with a trust policy scoped to the renamed repository's production environment and `main` ref subjects:
+Create a deploy role with a trust policy scoped to the renamed repository. This
+repository uses GitHub's ID-qualified OIDC subject prefix; confirm it with:
+
+```bash
+gh api repos/IntergalacticTech/agentcomms/actions/oidc/customization/sub --jq .sub_claim_prefix
+```
+
+Then allow that prefix plus owner/name fallbacks:
 
 ```json
 {
@@ -171,14 +178,19 @@ Create a deploy role with a trust policy scoped to the renamed repository's prod
       },
       "StringLike": {
         "token.actions.githubusercontent.com:sub": [
-          "repo:IntergalacticTech/agentcomms:environment:production",
-          "repo:IntergalacticTech/agentcomms:ref:refs/heads/main"
+          "repo:IntergalacticTech@ORG_ID/agentcomms@REPO_ID:*",
+          "repo:IntergalacticTech/agentcomms:*",
+          "repo:intergalactictech/agentcomms:*"
         ]
       }
     }
   }]
 }
 ```
+
+The wildcard is intentionally limited to the renamed AgentComms repository. It
+accepts both environment-scoped and ref-scoped GitHub OIDC subjects emitted by
+that repository after the public rename.
 
 Attach the permissions needed for CDK deployment. The current internal
 prototype uses `AdministratorAccess`; before treating the hosted service as

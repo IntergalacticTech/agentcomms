@@ -41,7 +41,13 @@ git remote set-url origin git@github.com:IntergalacticTech/agentcomms.git
 gh repo edit IntergalacticTech/agentcomms --visibility public --accept-visibility-change-consequences
 ```
 
-After rename, update AWS OIDC trust policies that scope to `github.repository`. The production deploy role currently allows the renamed repo's production environment subject and the `main` ref subject:
+After rename, update AWS OIDC trust policies that scope to `github.repository`. This repository uses GitHub's ID-qualified OIDC subject prefix. Confirm the live prefix with:
+
+```bash
+gh api repos/IntergalacticTech/agentcomms/actions/oidc/customization/sub --jq .sub_claim_prefix
+```
+
+The production deploy role currently allows that ID-qualified repo prefix plus owner/name fallbacks, keeping trust repo-scoped while tolerating GitHub's environment/ref subject forms:
 
 ```json
 {
@@ -50,8 +56,9 @@ After rename, update AWS OIDC trust policies that scope to `github.repository`. 
   },
   "StringLike": {
     "token.actions.githubusercontent.com:sub": [
-      "repo:IntergalacticTech/agentcomms:environment:production",
-      "repo:IntergalacticTech/agentcomms:ref:refs/heads/main"
+      "repo:IntergalacticTech@ORG_ID/agentcomms@REPO_ID:*",
+      "repo:IntergalacticTech/agentcomms:*",
+      "repo:intergalactictech/agentcomms:*"
     ]
   }
 }
