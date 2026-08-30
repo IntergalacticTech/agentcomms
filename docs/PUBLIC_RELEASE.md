@@ -14,6 +14,8 @@ AgentComms is licensed under Apache-2.0 and is intended to be public OSS. This r
 
 The landing stack deploys the checked-in static site to S3 + CloudFront and emits a CloudFront URL. The `agentcomms.dev` vanity domain still needs Route 53 hosted-zone and ACM certificate setup before it can point at that distribution.
 
+Cutover status as of 2026-08-30: the GitHub repository is public at `IntergalacticTech/agentcomms`, the production OIDC trust policy is scoped to the renamed repo, `main` CI/deploy is green, and the landing site is live on the CloudFront distribution emitted by `AgentCommsLanding`. Vanity DNS and package-registry publishing remain open.
+
 ## 1. Final Repository Safety Check
 
 Before flipping GitHub visibility, run:
@@ -140,11 +142,11 @@ The internal prototype production deploy role currently uses broad CDK deploymen
 
 ## 9. Public Launch Checklist
 
-- [ ] GitHub repo renamed to `IntergalacticTech/agentcomms`
-- [ ] GitHub repo visibility set to public
-- [ ] Production GitHub OIDC trust updated to the renamed repo
-- [ ] `main` CI and deploy workflows green
-- [ ] Landing CloudFront URL verified
+- [x] GitHub repo renamed to `IntergalacticTech/agentcomms`
+- [x] GitHub repo visibility set to public
+- [x] Production GitHub OIDC trust updated to the renamed repo
+- [x] `main` CI and deploy workflows green
+- [x] Landing CloudFront URL verified
 - [ ] `agentcomms.dev` hosted zone and aliases configured
 - [ ] CLI published to npm
 - [ ] Python SDK published to PyPI
